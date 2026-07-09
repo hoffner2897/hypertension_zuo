@@ -1,56 +1,97 @@
 # Product Scope
 
 ## Product Summary
-BPHealth is an iOS-first SwiftUI blood pressure companion app. The MVP helps a user connect a mocked Apple Health flow, review mocked synced context, capture or confirm a blood pressure reading, wait through a local analysis state, and see a result screen with normal and abnormal variants.
+BPHealth is an iOS-first SwiftUI blood pressure companion app. It supports account-based use, lightweight profile setup, offline blood pressure reading capture, local review, sync, and non-diagnostic result guidance.
 
-The MVP is local-only. It must not include backend services, networking, HealthKit integration, camera capture, or OCR implementation.
+The product is now planned as a full-stack app, not a local-only MVP.
 
-## MVP Goals
-- Establish the core screen flow for a blood pressure companion app.
-- Use mock data to validate the product experience before platform integrations.
-- Keep the code structure ready for MVVM, reusable UI, and future SwiftData.
-- Use careful health wording that supports user understanding without diagnosis claims.
+## Core User Flow
+1. User opens the app.
+2. App checks local session.
+3. If no session exists, user logs in or registers.
+4. Registered users can log in before email verification, but are routed to a verify email screen until verified.
+5. Verified users must complete a lightweight profile before entering the main app.
+6. Main app supports blood pressure reading review, adding readings, confirmation, analysis, history, and sync.
 
-## MVP Screens
-1. Health connection screen
-2. Synced health data screen
-3. Blood pressure reading card screen
-4. Camera upload mock screen
-5. Confirm reading screen
-6. Analysis loading screen
-7. Result screen with normal and abnormal variants
+## First Version Goals
+- Email/password registration and login.
+- Email verification with console-only delivery during development.
+- Access token plus refresh token auth.
+- Required lightweight profile setup.
+- Apple Health read authorization and health context summary.
+- Offline reading creation on iOS.
+- Sync of local readings to the backend.
+- Account deletion.
+- Chinese and English localization.
+- Blood pressure values in mmHg only.
 
-## Explicitly Out Of Scope
-- Lifestyle Step 03
-- Real HealthKit authorization
-- Real Apple Health reads or writes
-- Camera access
-- OCR or image recognition
-- Networking
-- Authentication
-- Backend sync
-- Push notifications
-- Medication tracking
-- Clinician sharing
-- PDF export
-- Apple Watch support
-- Charts beyond static/mock summary content
+## First Version Screens
+- Login
+- Register
+- Verify email
+- Profile setup
+- Main blood pressure home
+- Add reading / camera placeholder
+- Confirm reading
+- Analysis loading
+- Result
+- Reading history
+- Settings / account
+- Delete account
 
-## Local-Only Assumptions
-- All data is mock data or in-memory state for now.
-- Any persistence should be deferred unless a task explicitly introduces SwiftData.
-- The app should remain usable offline.
-- Mock flows should be clearly structured so real integrations can replace them later.
+## Explicitly Out Of Scope For First Version
+- Lifestyle Step 03.
+- Apple Health writes.
+- Real camera permissions and capture.
+- Real OCR in the iOS app.
+- Apple Sign In.
+- Push notifications.
+- Medication tracking.
+- Clinician sharing.
+- PDF export.
+- Apple Watch support.
+
+## Architecture
+```text
+iOS SwiftUI App
+  Auth flow
+  Profile setup
+  Blood pressure flow
+  GRDB local cache and sync queue
+  Keychain refresh token storage
+
+Node Express API
+  Auth
+  Email verification
+  Refresh token lifecycle
+  Profile
+  Blood pressure readings
+  Sync
+  Account deletion
+
+PostgreSQL
+  users
+  user_profiles
+  refresh_tokens
+  email_verification_tokens
+  blood_pressure_readings
+```
+
+## Localization
+The iOS app supports Chinese and English in the first version.
+
+Backend responses should use stable machine-readable error codes rather than user-facing prose. The iOS app owns localized display text.
 
 ## Health Communication Principles
 - Use "reading", "trend", "suggestion", and "may indicate".
 - Avoid "diagnosis", "disease", "hypertension confirmed", or "you are healthy".
-- For abnormal readings, recommend repeat measurement and professional guidance when appropriate.
+- For unusual readings, recommend repeat measurement and professional guidance when appropriate.
 - Present results as supportive context, not medical certainty.
 
-## MVP Success Criteria
-- A user can move through the complete mocked flow.
-- The normal and abnormal result variants are visually and textually distinct.
-- No screen requires network, HealthKit, camera, OCR, or real permissions.
-- The app builds after every implementation task.
-- The code organization makes future HealthKit, camera, OCR, and SwiftData work straightforward.
+## Success Criteria
+- A user can register, verify email, complete profile, add a reading offline, and sync it later.
+- Account data is user-scoped.
+- Account deletion clears server-owned user data and local session/cache.
+- Readings use mmHg.
+- Chinese and English UI text are supported.
+- The iOS app and Node server build after every implementation task.

@@ -1,0 +1,13 @@
+.DS_Store
+
+# Node backend
+server/node_modules/
+server/dist/
+server/.env
+server/*.log
+server/venv/
+server/.idea/
+server/bp_image_test/
+
+# External reference repos
+external/

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bphealth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bphealth_dev
+      POSTGRES_USER: bphealth
+      POSTGRES_PASSWORD: bphealth_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - bphealth-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bphealth -d bphealth_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  bphealth-postgres-data:

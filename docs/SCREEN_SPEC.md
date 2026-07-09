@@ -1,153 +1,179 @@
 # Screen Specification
 
 ## Navigation Shape
-The MVP should be an iOS-first SwiftUI flow. Prefer `NavigationStack` for the main flow unless a later design requires tabs.
+BPHealth is an iOS-first SwiftUI app. Use a root session state to choose the launch destination, then use `NavigationStack` inside each major flow.
 
-Proposed flow:
-1. Health connection
-2. Synced health data
-3. Blood pressure reading card
-4. Camera upload mock
-5. Confirm reading
-6. Analysis loading
-7. Result
+Launch flow:
+1. Checking session
+2. Login / register
+3. Verify email
+4. Profile setup
+5. Main app
 
-The flow should be fully mock-driven and local-only.
+Main app flow:
+1. Blood pressure home
+2. Add reading / camera placeholder
+3. Confirm reading
+4. Analysis loading
+5. Result
+6. History
+7. Settings / account
 
-## 1. Health Connection Screen
-
-### Purpose
-Introduce the mocked Apple Health connection step and let the user continue without real HealthKit authorization.
-
-### Content
-- App or feature title focused on blood pressure context.
-- Short explanation that Apple Health connection will help summarize health context later.
-- Mock connection status.
-- Primary action: continue/connect mock.
-
-### States
-- Not connected mock state.
-- Connected mock state after tapping the action.
-
-### Rules
-- Do not request real HealthKit permissions.
-- Do not import HealthKit.
-- Do not imply actual Apple Health data has been accessed.
-
-## 2. Synced Health Data Screen
+## 1. Login Screen
 
 ### Purpose
-Show a mocked summary of synced health context before the user reviews a blood pressure card.
+Let an existing user sign in with email and password.
 
 ### Content
-- Mock sync status.
-- Summary rows/cards for basic context, such as latest blood pressure reading, heart rate, and last updated time.
-- Primary action to continue.
-
-### States
-- Mock synced data available.
-- Optional empty mock state if needed for testing.
+- Email field.
+- Password field.
+- Primary action: log in.
+- Secondary action: create account.
+- Error state from localized backend error codes.
 
 ### Rules
-- Use static mock data.
-- Do not call Apple Health APIs.
-- Do not present mock values as real device data.
+- Do not put auth validation directly in the view.
+- Do not display raw backend errors.
+- Store refresh token in Keychain after successful login.
 
-## 3. Blood Pressure Reading Card Screen
+## 2. Register Screen
 
 ### Purpose
-Provide the home-style blood pressure reading card and entry point into upload/confirmation.
+Let a new user create an account.
 
 ### Content
-- Current or latest mock blood pressure reading card.
-- Systolic and diastolic values.
-- Optional pulse value.
-- Reading timestamp.
-- Gentle status label such as "Within usual range" or "Needs attention" depending on mock variant.
-- Primary action to add or review a reading.
-
-### States
-- Normal mock reading.
-- Abnormal mock reading.
-- No reading mock state, if useful.
+- Email field.
+- Password field.
+- Confirm password field.
+- Primary action: create account.
+- Link back to login.
 
 ### Rules
-- Keep business logic out of the view.
-- Use a ViewModel to provide display values and variant state.
+- Backend creates the user and prints a verification link/token in development.
+- User may log in before verification, but cannot enter the main app until verified.
 
-## 4. Camera Upload Mock Screen
+## 3. Verify Email Screen
 
 ### Purpose
-Represent the future camera/OCR step without using camera APIs.
+Block main app access until email verification is complete.
 
 ### Content
-- Mock upload area or preview placeholder.
-- Copy that indicates this is a local mock flow.
-- Primary action to use sample image or continue.
-- Secondary action to enter manually, if included in the flow.
-
-### States
-- No image selected.
-- Sample image selected mock state.
+- Email verification status.
+- Primary action: check verification status.
+- Secondary action: resend verification.
+- Development-friendly text can mention checking the server console when running locally.
 
 ### Rules
-- Do not request camera permissions.
+- Keep messaging neutral and localized.
+- Do not expose raw tokens in production UI.
+
+## 4. Profile Setup Screen
+
+### Purpose
+Collect the required lightweight profile before main app entry.
+
+### Content
+- Display name.
+- Birth year.
+- Sex picker:
+  - female
+  - male
+  - other
+  - prefer not to say
+- Primary action: continue.
+
+### Rules
+- Profile is required.
+- Do not ask for diagnosis, disease history, or medication details in the first version.
+- Field labels and validation messages must be localized.
+
+## 5. Blood Pressure Home Screen
+
+### Purpose
+Provide the main blood pressure overview and entry points.
+
+### Content
+- Latest reading card.
+- Sync state if there are pending or failed offline readings.
+- Entry action to add a reading.
+- Entry action to view history.
+- Settings/account access.
+
+### States
+- No readings.
+- Latest synced reading.
+- Pending offline reading.
+- Sync failed.
+
+### Rules
+- Keep display logic in a ViewModel.
+- Use mmHg only.
+- Use non-diagnostic labels such as "within selected range" or "may need attention".
+
+## 6. Add Reading / Camera Placeholder Screen
+
+### Purpose
+Allow manual reading entry and reserve a path for future camera/OCR.
+
+### Content
+- Manual entry action.
+- Camera placeholder or mock upload action.
+- Clear text that real camera/OCR is not active yet, if this placeholder is visible.
+
+### Rules
+- Do not request camera permissions yet.
 - Do not use `PhotosUI`, `AVFoundation`, or OCR frameworks yet.
-- Do not store image files.
 
-## 5. Confirm Reading Screen
+## 7. Confirm Reading Screen
 
 ### Purpose
-Let the user confirm or adjust a mocked blood pressure reading before analysis.
+Let the user confirm or adjust a blood pressure reading before saving/analyzing.
 
 ### Content
 - Systolic value.
 - Diastolic value.
 - Optional pulse value.
-- Reading date/time.
-- Source label such as "Sample reading" or "Manual confirmation".
-- Primary action to analyze.
+- Measured date/time.
+- Source label.
+- Note field, optional.
+- Primary action to save/analyze.
 
 ### States
 - Valid reading.
-- Invalid input state, if manual editing is implemented.
+- Invalid input.
+- Offline save.
+- Sync pending.
 
 ### Rules
-- Validation should live in a ViewModel or model helper.
-- Avoid diagnosis wording.
-- Keep values local and mock-driven.
+- Validation lives in a ViewModel or model helper.
+- Values are saved locally first so offline entry works.
 
-## 6. Analysis Loading Screen
+## 8. Analysis Loading Screen
 
 ### Purpose
-Show a brief local-only analysis state before routing to a result variant.
+Show a brief local analysis state before routing to a result variant.
 
 ### Content
 - Loading indicator.
 - Short reassuring copy such as "Reviewing this reading".
-- Optional checklist of local mock checks.
-
-### States
-- Loading.
-- Completed, then navigate to result.
+- Optional checklist of local checks.
 
 ### Rules
-- Do not call a server.
-- Do not use networking.
-- Use a local timer or immediate transition when implemented.
+- Do not present analysis as diagnosis.
+- First version can use local rule-based analysis.
 
-## 7. Result Screen
+## 9. Result Screen
 
 ### Purpose
-Present a clear result summary for normal and abnormal reading variants.
+Present a clear result summary for the reading.
 
-### Normal Variant
+### Within Selected Range Variant
 - Status: "This reading appears within the selected reference range" or similar.
 - Show systolic/diastolic/pulse values.
 - Suggest tracking trends over time.
-- Primary action to return home or save mock reading.
+- Primary action to return home.
 
-### Abnormal Variant
+### May Need Attention Variant
 - Status: "This reading may need attention" or similar.
 - Show systolic/diastolic/pulse values.
 - Suggest rechecking after a short rest.
@@ -157,16 +183,66 @@ Present a clear result summary for normal and abnormal reading variants.
 ### Rules
 - Do not say the user has hypertension.
 - Do not say the user does not have a disease.
-- Do not provide emergency triage unless a future requirement explicitly adds it.
-- Keep result classification logic outside the view.
+- Keep classification logic outside the view.
+
+## 10. History Screen
+
+### Purpose
+Let users review saved and pending readings.
+
+### Content
+- Reading list.
+- Date/time.
+- Systolic/diastolic/pulse.
+- Sync state for offline entries.
+- Empty state.
+
+### Rules
+- Readings are user-scoped.
+- Pending sync and failed sync states should be visible.
+
+## 11. Settings / Account Screen
+
+### Purpose
+Give access to profile, session, language, and account actions.
+
+### Content
+- Profile summary.
+- Language setting, if not fully driven by system locale.
+- Log out.
+- Delete account.
+
+### Rules
+- Logout clears local session and sensitive cache.
+- Delete account requires deliberate confirmation.
+
+## 12. Delete Account Screen
+
+### Purpose
+Let the user permanently delete their account and data.
+
+### Content
+- Clear explanation that account-owned server data and local cache will be removed.
+- Password confirmation.
+- Destructive delete action.
+- Cancel action.
+
+### Rules
+- Backend verifies password before deletion.
+- Delete account revokes sessions.
+- iOS clears Keychain and GRDB local cache after success.
+- The same email may be used again after deletion.
 
 ## Reusable UI Candidates
-- Primary button
-- Secondary button
-- Reading value display
-- Status badge
-- Summary row
-- Screen header
-- Loading panel
+- Primary button.
+- Secondary button.
+- Destructive button.
+- Reading value display.
+- Status badge.
+- Summary row.
+- Screen header.
+- Loading panel.
+- Form field.
+- Error banner.
 
-Place reusable components under `Core/DesignSystem` when implementation begins.
+Place reusable components under `Core/DesignSystem`.

@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A1B2C3D42FEF000000000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D62FEF000000000001 /* GRDB */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		35C227BD2FEF9D810032291F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D42FEF000000000001 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = hypertension;
 			packageProductDependencies = (
+				A1B2C3D62FEF000000000001 /* GRDB */,
 			);
 			productName = hypertension;
 			productReference = 35C227AD2FEF9D800032291F /* hypertension.app */;
@@ -175,6 +181,11 @@
 				TargetAttributes = {
 					35C227AC2FEF9D800032291F = {
 						CreatedOnToolsVersion = 26.6;
+						SystemCapabilities = {
+							com.apple.HealthKit = {
+								enabled = 1;
+							};
+						};
 					};
 					35C227BB2FEF9D810032291F = {
 						CreatedOnToolsVersion = 26.6;
@@ -191,10 +202,14 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = 35C227A42FEF9D800032291F;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1B2C3D52FEF000000000001 /* XCLocalSwiftPackageReference "external/GRDB.swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 35C227AE2FEF9D800032291F /* Products */;
 			projectDirPath = "";
@@ -393,10 +408,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = hypertension/hypertension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7N8M2D2U62;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/BPHealthInfo.plist;
+				INFOPLIST_KEY_NSAppTransportSecurity = "{ NSAllowsArbitraryLoads = YES; NSAllowsLocalNetworking = YES; }";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "BPHealth reads blood pressure and related health context to show your readings and trends.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -424,10 +446,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = hypertension/hypertension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7N8M2D2U62;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/BPHealthInfo.plist;
+				INFOPLIST_KEY_NSAppTransportSecurity = "{ NSAllowsArbitraryLoads = YES; NSAllowsLocalNetworking = YES; }";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "BPHealth reads blood pressure and related health context to show your readings and trends.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -570,6 +599,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A1B2C3D52FEF000000000001 /* XCLocalSwiftPackageReference "external/GRDB.swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = external/GRDB.swift;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1B2C3D62FEF000000000001 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D52FEF000000000001 /* XCLocalSwiftPackageReference "external/GRDB.swift" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 35C227A52FEF9D800032291F /* Project object */;
 }

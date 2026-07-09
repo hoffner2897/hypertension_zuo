@@ -1,0 +1,165 @@
+import { fetch, ProxyAgent } from "undici";
+import type { BPRecognitionResult } from "../domain/bloodPressureRecognition.js";
+import { normalizeRecognitionResult } from "../domain/bloodPressureRecognition.js";
+import type { BPRecognitionService } from "./bpRecognitionService.js";
+
+interface OpenAIRecognitionServiceOptions {
+  apiKey: string;
+  model: string;
+  proxyURL?: string;
+}
+
+interface ResponsesAPIResponse {
+  output_text?: string;
+  output?: Array<{
+    type?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }>;
+  }>;
+}
+
+const recognitionSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    systolic: {
+      anyOf: [{ type: "integer" }, { type: "null" }]
+    },
+    diastolic: {
+      anyOf: [{ type: "integer" }, { type: "null" }]
+    },
+    pulse: {
+      anyOf: [{ type: "integer" }, { type: "null" }]
+    },
+    confidence: {
+      type: "number",
+      minimum: 0,
+      maximum: 1
+    },
+    needsManualReview: {
+      type: "boolean"
+    },
+    notes: {
+      type: "string"
+    }
+  },
+  required: ["systolic", "diastolic", "pulse", "confidence", "needsManualReview", "notes"]
+};
+
+export class OpenAIBPRecognitionService implements BPRecognitionService {
+  private readonly apiKey: string;
+  private readonly model: string;
+  private readonly proxyURL?: string;
+
+  constructor(options: OpenAIRecognitionServiceOptions) {
+    this.apiKey = options.apiKey;
+    this.model = options.model;
+    this.proxyURL = options.proxyURL;
+  }
+
+  async recognize(imageBase64: string): Promise<BPRecognitionResult> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    let response: Awaited<ReturnType<typeof fetch>>;
+    try {
+      response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        signal: controller.signal,
+        dispatcher: this.proxyURL ? new ProxyAgent(this.proxyURL) : undefined,
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.model,
+          input: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: recognitionPrompt
+                },
+                {
+                  type: "input_image",
+                  image_url: `data:image/png;base64,${imageBase64}`
+                }
+              ]
+            }
+          ],
+          text: {
+            format: {
+              type: "json_schema",
+              name: "blood_pressure_recognition",
+              strict: true,
+              schema: recognitionSchema
+            }
+          }
+        })
+      });
+    } catch (error) {
+      throw new Error(`OpenAI request failed before receiving a response: ${describeFetchError(error)}`);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      const details = await response.text();
+      throw new Error(`OpenAI recognition failed: ${response.status} ${details}`);
+    }
+
+    const data = (await response.json()) as ResponsesAPIResponse;
+    const text = extractOutputText(data);
+    const parsed = JSON.parse(text) as unknown;
+    return normalizeRecognitionResult(parsed);
+  }
+}
+
+function describeFetchError(error: unknown): string {
+  if (error instanceof Error) {
+    const cause = error.cause instanceof Error ? ` Cause: ${error.cause.message}` : "";
+    return `${error.name}: ${error.message}.${cause}`;
+  }
+
+  return String(error);
+}
+
+function extractOutputText(data: ResponsesAPIResponse): string {
+  if (typeof data.output_text === "string" && data.output_text.trim()) {
+    return data.output_text;
+  }
+
+  for (const item of data.output ?? []) {
+    for (const content of item.content ?? []) {
+      if (content.type === "output_text" && typeof content.text === "string") {
+        return content.text;
+      }
+    }
+  }
+
+  throw new Error("OpenAI response did not include output text.");
+}
+
+const recognitionPrompt = `
+You are reading a photo of a blood pressure monitor.
+
+Extract only numbers that are clearly visible on the monitor.
+
+Return:
+- systolic: the systolic blood pressure number, or null if unclear
+- diastolic: the diastolic blood pressure number, or null if unclear
+- pulse: pulse or heart rate, or null if unclear
+- confidence: a number from 0 to 1
+- needsManualReview: true when any value is unclear or inferred
+- notes: a short note for the app
+
+Rules:
+- Do not infer missing values.
+- Do not provide diagnosis.
+- Do not mention medication.
+- Do not give medical advice.
+- If the photo is blurry, cropped, reflective, or ambiguous, return nulls for uncertain values and set needsManualReview to true.
+`.trim();

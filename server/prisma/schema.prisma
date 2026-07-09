@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserSex {
+  female
+  male
+  other
+  prefer_not_to_say
+}
+
+enum BloodPressureReadingSource {
+  manual
+  camera_mock
+  camera_ocr
+  health_import
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  profile                 UserProfile?
+  refreshTokens           RefreshToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  bloodPressureReadings   BloodPressureReading[]
+
+  @@map("users")
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  deviceId  String    @map("device_id")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model UserProfile {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @unique @map("user_id") @db.Uuid
+  displayName        String    @map("display_name")
+  birthYear          Int       @map("birth_year")
+  sex                UserSex
+  heightCm           Decimal?  @map("height_cm") @db.Decimal(5, 2)
+  weightKg           Decimal?  @map("weight_kg") @db.Decimal(5, 2)
+  dailySteps         Int?      @map("daily_steps")
+  exerciseMinutes    Int?      @map("exercise_minutes")
+  restingHeartRate   Int?      @map("resting_heart_rate")
+  sleepHours         Decimal?  @map("sleep_hours") @db.Decimal(4, 2)
+  healthDataSource   String?   @map("health_data_source")
+  healthDataSyncedAt DateTime? @map("health_data_synced_at") @db.Timestamptz(3)
+  completedAt        DateTime  @map("completed_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model BloodPressureReading {
+  id         String                     @id @default(uuid()) @db.Uuid
+  userId     String                     @map("user_id") @db.Uuid
+  clientId   String                     @map("client_id") @db.Uuid
+  systolic   Int
+  diastolic  Int
+  pulse      Int?
+  measuredAt DateTime                   @map("measured_at") @db.Timestamptz(3)
+  source     BloodPressureReadingSource
+  note       String?
+  createdAt  DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt  DateTime?                  @map("deleted_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId])
+  @@index([userId, measuredAt])
+  @@index([userId, deletedAt])
+  @@map("blood_pressure_readings")
+}

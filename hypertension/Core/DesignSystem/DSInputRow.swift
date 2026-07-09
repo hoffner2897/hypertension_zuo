@@ -12,6 +12,7 @@ struct DSInputRow: View {
     let unit: String?
     let systemImage: String?
     let placeholder: String
+    let keyboardType: UIKeyboardType
     @Binding var text: String
 
     init(
@@ -19,13 +20,15 @@ struct DSInputRow: View {
         text: Binding<String>,
         unit: String? = nil,
         systemImage: String? = nil,
-        placeholder: String = ""
+        placeholder: String = "",
+        keyboardType: UIKeyboardType = .numberPad
     ) {
         self.title = title
         self._text = text
         self.unit = unit
         self.systemImage = systemImage
         self.placeholder = placeholder
+        self.keyboardType = keyboardType
     }
 
     var body: some View {
@@ -49,7 +52,7 @@ struct DSInputRow: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textPrimary)
                 .multilineTextAlignment(.trailing)
-                .keyboardType(.numberPad)
+                .keyboardType(keyboardType)
                 .frame(minWidth: 56, maxWidth: 90)
 
             if let unit {
