@@ -1,8 +1,8 @@
 # BPHealth Server
 
-Small local backend for the iOS blood pressure companion app.
+Node.js + Express + TypeScript backend for BPHealth.
 
-The iOS app should never store the OpenAI API key. It sends photo data to this backend, and this backend calls OpenAI.
+The iOS app should never store the OpenAI API key. Photo recognition and AI-assisted interpretation run through this backend.
 
 ## Setup
 
@@ -10,9 +10,13 @@ The iOS app should never store the OpenAI API key. It sends photo data to this b
 cd server
 npm install
 cp .env.example .env
+docker compose up -d
 npm run db:generate
+npm run db:migrate
 npm run dev
 ```
+
+The local development API normally uses port `3100` from `.env.example`, because Docker Desktop may occupy port `3000` on macOS. If no env file is present, the code fallback is `3000`.
 
 ## Database
 
@@ -21,12 +25,14 @@ Start local PostgreSQL with Docker:
 ```bash
 cd server
 docker compose up -d
-npm run db:migrate -- --name init
+npm run db:migrate
 ```
 
 The development database URL is defined in `.env.example` and should match `docker-compose.yml`.
 
-Use mock mode first:
+## Recognition And Interpretation Modes
+
+Use mock recognition first:
 
 ```env
 BP_RECOGNITION_MODE=mock
@@ -40,7 +46,7 @@ OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-5.5
 ```
 
-The iOS app never receives the API key. It calls the BPHealth backend, and this backend calls OpenAI.
+`OPENAI_API_KEY` is required when `BP_RECOGNITION_MODE=openai`. If `OPENAI_API_KEY` is present, `/readings/interpretation` also tries OpenAI interpretation after building a local rule-based baseline; if the OpenAI call fails, it falls back to the rule-based result.
 
 If your VPN is in smart mode and Terminal cannot reach OpenAI directly, start the server with a temporary proxy:
 
@@ -50,19 +56,31 @@ OPENAI_PROXY_URL=http://127.0.0.1:8118 npm run dev
 
 This only affects that terminal process.
 
+## Current Implementation Notes
+
+- Auth responses use a short-lived `accessToken` and a long-lived opaque `refreshToken`.
+- Refresh and verification tokens are stored hashed.
+- Registration currently sets `emailVerifiedAt` immediately, so the verification endpoints exist but are not yet part of the enforced happy path.
+- Profile and reading routes require auth. Profile routes are not currently blocked by email verification.
+- Readings are user-scoped and use `clientId` for idempotent offline sync.
+- Blood pressure values are stored in mmHg only.
+- Account deletion hard-deletes the user row; related profile, tokens, verification tokens, and readings cascade.
+
 ## Endpoints
 
 ### GET /health
 
 Returns server status.
 
+```json
+{
+  "ok": true,
+  "service": "bphealth-server",
+  "recognitionMode": "mock"
+}
+```
+
 ## Auth Endpoints
-
-Auth responses use a short-lived `accessToken` and a long-lived opaque `refreshToken`.
-
-Development email verification is console-only. When registration or resend verification creates a token, the server logs a `[dev-email]` verification URL.
-
-The local development API uses port `3100` because Docker Desktop may occupy port `3000` on macOS.
 
 ### POST /auth/register
 
@@ -94,7 +112,8 @@ Request:
 
 ```json
 {
-  "refreshToken": "rfr_..."
+  "refreshToken": "rfr_...",
+  "deviceId": "optional-stable-device-id"
 }
 ```
 
@@ -136,6 +155,8 @@ Request:
 }
 ```
 
+If the user exists and is unverified, the server logs a `[dev-email]` verification URL.
+
 ### DELETE /auth/account
 
 Requires:
@@ -154,7 +175,7 @@ Request:
 
 ## Profile Endpoints
 
-Profile routes require an access token and verified email.
+Profile routes require an access token.
 
 ### GET /profile
 
@@ -168,7 +189,15 @@ Request:
 {
   "displayName": "Haoyu",
   "birthYear": 1995,
-  "sex": "prefer_not_to_say"
+  "sex": "prefer_not_to_say",
+  "heightCm": 175.5,
+  "weightKg": 70.2,
+  "todaySteps": 8200,
+  "exerciseMinutes": 35,
+  "restingHeartRate": 62,
+  "sleepHours": 7.4,
+  "healthDataSource": "healthkit",
+  "healthDataSyncedAt": "2026-07-15T08:00:00.000Z"
 }
 ```
 
@@ -204,6 +233,8 @@ Request:
 }
 ```
 
+Allowed `source` values are `manual`, `camera_mock`, `camera_ocr`, and `health_import`.
+
 ### PUT /readings/:id
 
 Updates a user-owned reading.
@@ -212,9 +243,13 @@ Updates a user-owned reading.
 
 Soft-deletes a user-owned reading.
 
-### POST /sync/readings
+### POST /readings/sync
 
 Idempotently syncs offline-created readings by `clientId`.
+
+### POST /sync/readings
+
+Same sync handler as `/readings/sync`; this is the path currently used by the iOS app.
 
 ```json
 {
@@ -227,6 +262,28 @@ Idempotently syncs offline-created readings by `clientId`.
       "measuredAt": "2026-07-07T12:00:00.000Z",
       "source": "manual",
       "note": null
+    }
+  ]
+}
+```
+
+### POST /readings/interpretation
+
+Returns non-diagnostic reading guidance. The service builds a rule-based interpretation first and optionally asks OpenAI to refine it when `OPENAI_API_KEY` is configured.
+
+Request:
+
+```json
+{
+  "systolicBp": 128,
+  "diastolicBp": 82,
+  "bpMonitorPulse": 72,
+  "measurementTime": "2026-07-07T12:00:00.000Z",
+  "recentBpReadings": [
+    {
+      "systolicBp": 124,
+      "diastolicBp": 80,
+      "measurementTime": "2026-07-06T12:00:00.000Z"
     }
   ]
 }
