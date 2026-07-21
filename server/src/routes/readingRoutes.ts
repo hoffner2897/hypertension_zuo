@@ -2,8 +2,9 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import { z } from "zod";
 import type { ServerConfig } from "../config.js";
 import { isAuthenticatedRequest, requireAuth } from "../auth/authMiddleware.js";
+import type { AuthUserLookup } from "../auth/authMiddleware.js";
 import { prisma } from "../db/prisma.js";
-import { unauthorized } from "../errors.js";
+import { badRequest, unauthorized } from "../errors.js";
 import { parseBody, parseQuery } from "./validation.js";
 import { makeRuleBasedInterpretation, stripInternalFields } from "../domain/bloodPressureInterpretation.js";
 import { OpenAIBPInterpretationService } from "../services/openAIBPInterpretationService.js";
@@ -96,9 +97,9 @@ const interpretationRequestSchema = z.object({
   path: ["systolicBp"]
 });
 
-export function createReadingRouter(config: ServerConfig): Router {
+export function createReadingRouter(config: ServerConfig, authUserLookup?: AuthUserLookup): Router {
   const router = Router();
-  router.use(requireAuth(config));
+  router.use(requireAuth(config, authUserLookup));
 
   router.get("/", async (request, response, next) => {
     try {
@@ -189,11 +190,27 @@ export function createReadingRouter(config: ServerConfig): Router {
     try {
       const auth = authFromRequest(request);
       const input = parseBody(updateReadingSchema, request.body);
-      const reading = await prisma.bloodPressureReading.updateManyAndReturn({
+      const existingReading = await prisma.bloodPressureReading.findFirst({
         where: {
           id: request.params.id,
-          userId: auth.userId
-        },
+          userId: auth.userId,
+          deletedAt: null
+        }
+      });
+
+      if (!existingReading) {
+        response.status(404).json({ code: "READING_NOT_FOUND" });
+        return;
+      }
+
+      const systolic = input.systolic ?? existingReading.systolic;
+      const diastolic = input.diastolic ?? existingReading.diastolic;
+      if (systolic <= diastolic) {
+        throw badRequest("INVALID_READING_VALUES", "Systolic must be greater than diastolic.");
+      }
+
+      const reading = await prisma.bloodPressureReading.update({
+        where: { id: existingReading.id },
         data: {
           systolic: input.systolic,
           diastolic: input.diastolic,
@@ -204,13 +221,8 @@ export function createReadingRouter(config: ServerConfig): Router {
         }
       });
 
-      if (reading.length === 0) {
-        response.status(404).json({ code: "READING_NOT_FOUND" });
-        return;
-      }
-
       response.json({
-        reading: serializeReading(reading[0])
+        reading: serializeReading(reading)
       });
     } catch (error) {
       next(error);
@@ -240,9 +252,9 @@ export function createReadingRouter(config: ServerConfig): Router {
   return router;
 }
 
-export function createReadingSyncRouter(config: ServerConfig): Router {
+export function createReadingSyncRouter(config: ServerConfig, authUserLookup?: AuthUserLookup): Router {
   const router = Router();
-  router.use(requireAuth(config));
+  router.use(requireAuth(config, authUserLookup));
   router.post("/", makeSyncHandler());
 
   return router;

@@ -30,6 +30,31 @@ npm run db:migrate
 
 The development database URL is defined in `.env.example` and should match `docker-compose.yml`.
 
+## Verification
+
+Run the deterministic unit and route tests:
+
+```bash
+npm run check
+npm run build
+npm test
+```
+
+The full local E2E test requires a migrated PostgreSQL database whose database name contains `e2e`. It uses the public registration/login endpoints with a unique email and password, then cleans up the created accounts:
+
+```bash
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/bphealth_e2e npm run db:deploy
+RUN_BPHEALTH_E2E=1 DATABASE_URL=postgresql://user:password@127.0.0.1:5432/bphealth_e2e npm run test:e2e
+```
+
+The staging smoke test is intentionally gated because it creates one unique test account and deletes it through `DELETE /auth/account` in a `finally` block:
+
+```bash
+RUN_BPHEALTH_STAGING_E2E=1 \
+BPHEALTH_STAGING_URL=https://bphealth-api-staging.onrender.com \
+npm run test:staging
+```
+
 ## Recognition And Interpretation Modes
 
 Use mock recognition first:
@@ -45,11 +70,18 @@ BP_RECOGNITION_MODE=openai
 OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-5.5
 OPENAI_ACTION_SUGGESTION_MODEL=gpt-5.6-sol
+OPENAI_MEAL_ANALYSIS_MODEL=gpt-5.5
 ```
 
 `OPENAI_API_KEY` is required when `BP_RECOGNITION_MODE=openai`. If `OPENAI_API_KEY` is present, `/readings/interpretation` also tries OpenAI interpretation after building a local rule-based baseline; if the OpenAI call fails, it falls back to the rule-based result.
 
+`/recognize-bp` requires an access token and accepts only valid JPEG, PNG, or WebP base64 whose file signature matches its declared MIME type. In `openai` mode, successful quota reservations are limited by `BP_RECOGNITION_DAILY_LIMIT` (default `30`) per user per UTC day.
+
 `/action-adjustments/trend-suggestions` uses `OPENAI_ACTION_SUGGESTION_MODEL`. The server always creates evidence-backed candidates first; OpenAI may only select and polish those candidates. When no key is configured or the OpenAI request fails, the endpoint returns the rule-based candidate wording.
+
+`/meal-records/analyze` uses `OPENAI_MEAL_ANALYSIS_MODEL` and requires authentication. The uploaded meal image is sent to OpenAI with `store: false`, is never written to PostgreSQL, and is discarded after the request. PostgreSQL stores only the generated analysis text, similar-meal suggestion, card summary, meal type, date, and timestamps.
+
+Meal analysis is limited by `MEAL_ANALYSIS_DAILY_LIMIT` (default `20`) per user per UTC day. Both OpenAI-backed quotas are persisted in PostgreSQL and use an atomic increment, so limits remain consistent across restarts and multiple server instances. An exhausted quota returns HTTP `429` with code `AI_DAILY_QUOTA_EXCEEDED`.
 
 If your VPN is in smart mode and Terminal cannot reach OpenAI directly, start the server with a temporary proxy:
 
@@ -67,9 +99,33 @@ This only affects that terminal process.
 - Profile and reading routes require auth. Profile routes are not currently blocked by email verification.
 - Readings are user-scoped and use `clientId` for idempotent offline sync.
 - Blood pressure values are stored in mmHg only.
-- Account deletion hard-deletes the user row; related profile, tokens, verification tokens, and readings cascade.
+- Account deletion hard-deletes the user row; related profile, tokens, verification tokens, readings, meal records, and AI quota counters cascade.
 
 ## Endpoints
+
+### GET /meal-records?date=YYYY-MM-DD
+
+Requires an access token. Returns the current user's saved breakfast, lunch, and dinner text analyses for that local calendar date.
+
+### POST /meal-records/analyze
+
+Requires an access token. Analyzes and upserts one meal record for the user, date, and meal type.
+
+```json
+{
+  "mealType": "lunch",
+  "mealDate": "2026-07-21",
+  "recordedAt": "2026-07-21T12:30:00.000Z",
+  "timeZone": "Europe/London",
+  "imageBase64": "data:image/jpeg;base64,..."
+}
+```
+
+The image is transient. The response and database record contain text only.
+
+### POST /recognize-bp
+
+Requires an access token. Accepts one `imageBase64` field containing JPEG, PNG, or WebP data and returns extracted systolic, diastolic, and pulse candidates for user confirmation. The image is not persisted.
 
 ### GET /health
 

@@ -84,7 +84,7 @@ struct ActionAdjustDemoView: View {
                 await refreshRemoteReadings()
             }
             .task(id: suggestionRefreshKey) {
-                await viewModel.refresh(items: items)
+                await viewModel.refresh(items: items, userId: userId)
             }
         }
     }
@@ -177,7 +177,7 @@ struct ActionAdjustDemoView: View {
 
                     Spacer(minLength: 8)
 
-                    Text("基于今日进度生成建议")
+                    Text(viewModel.evidenceDays > 1 ? "基于近\(viewModel.evidenceDays)天记录" : "基于今日进度生成建议")
                         .font(.caption2)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                 }
@@ -513,21 +513,24 @@ private final class ActionAdjustmentViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var suggestions: [ActionTrendSuggestion] = []
     @Published private(set) var dataNote: String?
+    @Published private(set) var evidenceDays = 0
 
     private let service = ActionAdjustmentAPIService()
 
-    func refresh(items: [TodayActionItem]) async {
+    func refresh(items: [TodayActionItem], userId: String) async {
         isLoading = true
         defer { isLoading = false }
 
         do {
-            let response = try await service.fetchTrendSuggestions(items: items)
+            let response = try await service.fetchTrendSuggestions(items: items, userId: userId)
             suggestions = response.suggestions
             dataNote = response.dataNote
+            evidenceDays = response.evidenceDays
         } catch {
             let fallback = ActionTrendSuggestion.localFallback(for: items, now: Date())
             suggestions = fallback.suggestions
             dataNote = fallback.dataNote
+            evidenceDays = items.isEmpty ? 0 : 1
         }
     }
 }
@@ -539,11 +542,11 @@ private struct ActionAdjustmentAPIService {
         self.apiClient = apiClient
     }
 
-    func fetchTrendSuggestions(items: [TodayActionItem]) async throws -> ActionTrendSuggestionResponse {
+    func fetchTrendSuggestions(items: [TodayActionItem], userId: String) async throws -> ActionTrendSuggestionResponse {
         let now = Date()
         return try await apiClient.post(
             "/action-adjustments/trend-suggestions",
-            body: ActionTrendSuggestionRequest(items: items, now: now),
+            body: ActionTrendSuggestionRequest(items: items, recent: ActionHistoryStore.recent(userId: userId), now: now),
             requiresAuth: true
         )
     }
@@ -555,11 +558,11 @@ private struct ActionTrendSuggestionRequest: Encodable {
     let todayActions: [ActionTrendActionSnapshot]
     let recentActions: [ActionTrendActionSnapshot]
 
-    init(items: [TodayActionItem], now: Date) {
+    init(items: [TodayActionItem], recent: [StoredActionObservation], now: Date) {
         self.now = Self.formatter.string(from: now)
         self.timeZone = TimeZone.current.identifier
         self.todayActions = items.map { ActionTrendActionSnapshot(item: $0, now: now) }
-        self.recentActions = []
+        self.recentActions = recent.prefix(100).map(ActionTrendActionSnapshot.init)
     }
 
     private static let formatter: ISO8601DateFormatter = {
@@ -586,6 +589,16 @@ private struct ActionTrendActionSnapshot: Encodable {
         durationMinutes = item.durationMinutes
         status = item.effectiveStatus(now: now).apiValue
         completedAt = item.completedAt.map { Self.formatter.string(from: $0) }
+    }
+
+    init(_ observation: StoredActionObservation) {
+        id = observation.id
+        type = observation.type
+        title = observation.title
+        scheduledStartAt = Self.formatter.string(from: observation.scheduledStartAt)
+        durationMinutes = observation.durationMinutes
+        status = observation.normalizedStatus
+        completedAt = observation.completedAt.map { Self.formatter.string(from: $0) }
     }
 
     private static let formatter: ISO8601DateFormatter = {

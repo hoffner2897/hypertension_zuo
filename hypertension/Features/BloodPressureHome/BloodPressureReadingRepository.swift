@@ -11,6 +11,9 @@ import SwiftData
 @MainActor
 protocol BloodPressureReadingRepository {
     func save(_ reading: BloodPressureReading) throws
+    func update(_ reading: BloodPressureReading, with draft: BPReadingDraft) throws
+    func delete(_ reading: BloodPressureReading) throws
+    func deleteAll(userId: String) throws
     func fetchLatest(userId: String) throws -> BloodPressureReading?
     func upsertRemote(_ reading: RemoteBloodPressureReading, userId: String) throws
 }
@@ -25,6 +28,40 @@ final class SwiftDataBloodPressureReadingRepository: BloodPressureReadingReposit
 
     func save(_ reading: BloodPressureReading) throws {
         modelContext.insert(reading)
+        try modelContext.save()
+    }
+
+    func update(_ reading: BloodPressureReading, with draft: BPReadingDraft) throws {
+        guard
+            let systolic = Int(draft.systolic.trimmingCharacters(in: .whitespacesAndNewlines)),
+            let diastolic = Int(draft.diastolic.trimmingCharacters(in: .whitespacesAndNewlines))
+        else {
+            return
+        }
+
+        let pulseText = draft.pulse.trimmingCharacters(in: .whitespacesAndNewlines)
+        reading.systolic = systolic
+        reading.diastolic = diastolic
+        reading.pulse = pulseText.isEmpty ? nil : Int(pulseText)
+        reading.measuredAt = draft.measuredAt
+        reading.source = draft.source.rawValue
+        try modelContext.save()
+    }
+
+    func delete(_ reading: BloodPressureReading) throws {
+        modelContext.delete(reading)
+        try modelContext.save()
+    }
+
+    func deleteAll(userId: String) throws {
+        let descriptor = FetchDescriptor<BloodPressureReading>(
+            predicate: #Predicate<BloodPressureReading> { reading in
+                reading.userId == userId
+            }
+        )
+        for reading in try modelContext.fetch(descriptor) {
+            modelContext.delete(reading)
+        }
         try modelContext.save()
     }
 
@@ -60,6 +97,7 @@ final class SwiftDataBloodPressureReadingRepository: BloodPressureReadingReposit
         }
 
         if let existing = try fetchByClientId(reading.clientId, userId: userId) {
+            existing.serverId = reading.id
             existing.systolic = systolic
             existing.diastolic = diastolic
             existing.pulse = reading.pulse
@@ -68,6 +106,7 @@ final class SwiftDataBloodPressureReadingRepository: BloodPressureReadingReposit
         } else {
             let localReading = BloodPressureReading(
                 id: reading.clientId,
+                serverId: reading.id,
                 userId: userId,
                 systolic: systolic,
                 diastolic: diastolic,
@@ -128,6 +167,30 @@ final class MockBloodPressureReadingRepository: BloodPressureReadingRepository {
         readings.append(reading)
     }
 
+    func update(_ reading: BloodPressureReading, with draft: BPReadingDraft) throws {
+        guard
+            let systolic = Int(draft.systolic.trimmingCharacters(in: .whitespacesAndNewlines)),
+            let diastolic = Int(draft.diastolic.trimmingCharacters(in: .whitespacesAndNewlines))
+        else {
+            return
+        }
+
+        let pulseText = draft.pulse.trimmingCharacters(in: .whitespacesAndNewlines)
+        reading.systolic = systolic
+        reading.diastolic = diastolic
+        reading.pulse = pulseText.isEmpty ? nil : Int(pulseText)
+        reading.measuredAt = draft.measuredAt
+        reading.source = draft.source.rawValue
+    }
+
+    func delete(_ reading: BloodPressureReading) throws {
+        readings.removeAll { $0 === reading }
+    }
+
+    func deleteAll(userId: String) throws {
+        readings.removeAll { $0.userId == userId }
+    }
+
     func fetchLatest(userId: String) throws -> BloodPressureReading? {
         readings
             .filter { $0.userId == userId }
@@ -136,18 +199,22 @@ final class MockBloodPressureReadingRepository: BloodPressureReadingRepository {
     }
 
     func upsertRemote(_ reading: RemoteBloodPressureReading, userId: String) throws {
+        guard reading.deletedAt == nil else {
+            readings.removeAll { $0.userId == userId && $0.id == reading.clientId }
+            return
+        }
+
         guard
-            reading.deletedAt == nil,
             let systolic = reading.systolic,
             let diastolic = reading.diastolic,
             let measuredAtString = reading.measuredAt,
             let measuredAt = MockBloodPressureReadingRepository.parseRemoteDate(measuredAtString)
         else {
-            readings.removeAll { $0.userId == userId && $0.id == reading.clientId }
             return
         }
 
         if let index = readings.firstIndex(where: { $0.userId == userId && $0.id == reading.clientId }) {
+            readings[index].serverId = reading.id
             readings[index].systolic = systolic
             readings[index].diastolic = diastolic
             readings[index].pulse = reading.pulse
@@ -156,6 +223,7 @@ final class MockBloodPressureReadingRepository: BloodPressureReadingRepository {
         } else {
             let localReading = BloodPressureReading(
                 id: reading.clientId,
+                serverId: reading.id,
                 userId: userId,
                 systolic: systolic,
                 diastolic: diastolic,

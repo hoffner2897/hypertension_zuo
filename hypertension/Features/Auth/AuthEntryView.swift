@@ -49,25 +49,6 @@ struct AuthEntryView: View {
                                 await submit()
                             }
                         }
-
-                        #if DEBUG
-                        Button {
-                            appState.enterUITestMode()
-                        } label: {
-                            Label("界面测试入口", systemImage: "sparkles.rectangle.stack")
-                                .font(.headline.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
-                        .tint(DSTheme.Color.primary)
-
-                        Text("仅 Debug 构建显示，用于绕过登录并直接观察主界面。")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(DSTheme.Color.textSecondary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        #endif
                     }
                     .padding(DSTheme.Spacing.large)
                 }

@@ -1,10 +1,37 @@
 import SwiftUI
+import SwiftData
 
 struct TodayActionView: View {
     @Binding var items: [TodayActionItem]
+    let userId: String
+    let onOpenBloodPressure: () -> Void
 
     @State private var path: [TodayActionRoute] = []
+    @State private var activeMealItem: TodayActionItem?
+    @State private var isShowingAccountSettings = false
+    @State private var mealRecords: [MealKind: MealRecord] = [:]
+    @State private var headerDisplayName = "我的"
+    @Query private var savedReadings: [BloodPressureReading]
+    private let mealRecordService = MealRecordService()
+    private let profileService = ProfileService()
     private let statusBarClearance: CGFloat = 54
+
+    init(
+        items: Binding<[TodayActionItem]>,
+        userId: String,
+        onOpenBloodPressure: @escaping () -> Void = {}
+    ) {
+        self._items = items
+        self.userId = userId
+        self.onOpenBloodPressure = onOpenBloodPressure
+        self._savedReadings = Query(
+            filter: #Predicate<BloodPressureReading> { reading in
+                reading.userId == userId
+            },
+            sort: \BloodPressureReading.measuredAt,
+            order: .reverse
+        )
+    }
 
     private var completedCount: Int {
         items.filter { $0.status == .completed }.count
@@ -24,6 +51,13 @@ struct TodayActionView: View {
 
     private var hasMissedItems: Bool {
         items.contains { $0.effectiveStatus(now: Date()) == .missed }
+    }
+
+    private var readingRefreshKey: String {
+        savedReadings
+            .filter { Calendar.current.isDateInToday($0.measuredAt) }
+            .map { "\($0.id.uuidString)-\($0.systolic)-\($0.diastolic)-\($0.measuredAt.timeIntervalSince1970)" }
+            .joined(separator: "|")
     }
 
     var body: some View {
@@ -65,6 +99,37 @@ struct TodayActionView: View {
                     }
                 }
             }
+            .sheet(item: $activeMealItem) { item in
+                MealRecordSheet(
+                    item: item,
+                    existingRecord: mealRecord(for: item),
+                    onSaved: { record in
+                        mealRecords[record.mealType] = record
+                        applyMealRecord(record)
+                    }
+                )
+            }
+            .sheet(isPresented: $isShowingAccountSettings) {
+                AccountSettingsView()
+            }
+            .task(id: userId) {
+                items = ActionHistoryStore.restoreToday(items, userId: userId)
+                applyTodayBloodPressureReadings()
+                ActionHistoryStore.saveToday(items, userId: userId)
+                await loadMealRecords()
+                await loadHeaderProfile()
+            }
+            .onChange(of: isShowingAccountSettings) { wasShowing, isShowing in
+                if wasShowing && !isShowing {
+                    Task { await loadHeaderProfile() }
+                }
+            }
+            .onChange(of: readingRefreshKey) { _, _ in
+                applyTodayBloodPressureReadings()
+            }
+            .onChange(of: items) { _, updatedItems in
+                ActionHistoryStore.saveToday(updatedItems, userId: userId)
+            }
         }
     }
 
@@ -74,16 +139,22 @@ struct TodayActionView: View {
 
             Spacer()
 
-            VStack(spacing: 4) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 42))
-                    .foregroundStyle(Color(red: 0.18, green: 0.41, blue: 0.92))
-                    .background(Circle().fill(.white))
+            Button {
+                isShowingAccountSettings = true
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 42))
+                        .foregroundStyle(Color(red: 0.18, green: 0.41, blue: 0.92))
+                        .background(Circle().fill(.white))
 
-                Text("小宁")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(DSTheme.Color.textPrimary)
+                    Text(headerDisplayName)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.textPrimary)
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("打开账号与健康数据")
         }
     }
 
@@ -120,7 +191,14 @@ struct TodayActionView: View {
                 items: displayItems,
                 now: now,
                 onSelect: { id in
-                    path.append(.detail(id))
+                    guard let item = item(with: id) else { return }
+                    if item.type == .diet {
+                        activeMealItem = item
+                    } else if item.type == .bpRecheck {
+                        onOpenBloodPressure()
+                    } else {
+                        path.append(.detail(id))
+                    }
                 }
             )
             .frame(height: timelineHeight(for: displayItems.count))
@@ -154,10 +232,81 @@ struct TodayActionView: View {
 
         items[index] = item
     }
+
+    private func mealRecord(for item: TodayActionItem) -> MealRecord? {
+        guard let mealKind = MealKind(actionTitle: item.title) else { return nil }
+        return mealRecords[mealKind]
+    }
+
+    private func loadMealRecords() async {
+        guard !userId.isEmpty else { return }
+        do {
+            let records = try await mealRecordService.records()
+            mealRecords = Dictionary(uniqueKeysWithValues: records.map { ($0.mealType, $0) })
+            for record in records {
+                applyMealRecord(record)
+            }
+        } catch {
+            // Keep today's actions usable offline; records will load on the next refresh.
+        }
+    }
+
+    private func loadHeaderProfile() async {
+        guard !userId.isEmpty else { return }
+        guard let response = try? await profileService.fetchProfile(),
+              let profile = response.profile else { return }
+        let trimmedName = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedName.isEmpty {
+            headerDisplayName = trimmedName
+        }
+    }
+
+    private func applyMealRecord(_ record: MealRecord) {
+        guard let index = items.firstIndex(where: {
+            $0.type == .diet && MealKind(actionTitle: $0.title) == record.mealType
+        }) else { return }
+
+        items[index].status = .completed
+        items[index].displayStatus = .completed
+        items[index].completedAt = ISO8601DateFormatter().date(from: record.recordedAt) ?? Date()
+        items[index].adviceText = record.cardSummary
+    }
+
+    private func applyTodayBloodPressureReadings() {
+        let todayReadings = savedReadings
+            .filter { Calendar.current.isDateInToday($0.measuredAt) }
+            .sorted { $0.measuredAt < $1.measuredAt }
+
+        let morningReading = todayReadings.first {
+            Calendar.current.component(.hour, from: $0.measuredAt) < 12
+        }
+        let eveningReading = todayReadings.last {
+            Calendar.current.component(.hour, from: $0.measuredAt) >= 12
+        }
+
+        for index in items.indices where items[index].type == .bpRecheck {
+            let reading = items[index].title.contains("早晨") ? morningReading : eveningReading
+            if let reading {
+                items[index].status = .completed
+                items[index].displayStatus = .completed
+                items[index].completedAt = reading.measuredAt
+                items[index].bloodPressureText = "\(reading.systolic)/\(reading.diastolic)"
+            } else {
+                if items[index].status == .completed {
+                    items[index].status = .pending
+                    items[index].displayStatus = .pending
+                    items[index].completedAt = nil
+                }
+                items[index].bloodPressureText = nil
+            }
+        }
+    }
 }
 
 struct ActionGenerateDemoView: View {
+    let userId: String
     let onGenerateAction: (TodayActionItem) -> Void
+    @Query private var savedReadings: [BloodPressureReading]
     @State private var activeSheet: ActionGenerationSheet?
     @State private var scene = "公共室内"
     @State private var energy = "精力一般"
@@ -169,6 +318,30 @@ struct ActionGenerateDemoView: View {
     @State private var customMovementName = ""
     @State private var preferenceStartTime = "18:30"
     @State private var preferenceEndTime = "19:30"
+
+    init(userId: String, onGenerateAction: @escaping (TodayActionItem) -> Void) {
+        self.userId = userId
+        self.onGenerateAction = onGenerateAction
+        self._savedReadings = Query(
+            filter: #Predicate<BloodPressureReading> { reading in
+                reading.userId == userId
+            },
+            sort: \BloodPressureReading.measuredAt,
+            order: .reverse
+        )
+    }
+
+    private var latestTodayReading: BloodPressureReading? {
+        savedReadings.first { Calendar.current.isDateInToday($0.measuredAt) }
+    }
+
+    private var bloodPressureState: ActionGenerationBloodPressureState {
+        ActionGenerationBloodPressureState(reading: latestTodayReading)
+    }
+
+    private var isExerciseSafetyBlocked: Bool {
+        hasDiscomfort || bloodPressureState == .needsAttention
+    }
 
     var body: some View {
         NavigationStack {
@@ -193,17 +366,17 @@ struct ActionGenerateDemoView: View {
 
                                     Spacer()
 
-                                    Label("状态正常", systemImage: "checkmark.circle.fill")
+                                    Label(bloodPressureState.title, systemImage: bloodPressureState.systemImage)
                                         .font(.caption2.weight(.bold))
-                                        .foregroundStyle(DSTheme.Color.success)
+                                        .foregroundStyle(bloodPressureState.tint)
                                         .padding(.horizontal, 9)
                                         .padding(.vertical, 5)
-                                        .background(DSTheme.Color.success.opacity(0.12))
+                                        .background(bloodPressureState.tint.opacity(0.12))
                                         .clipShape(Capsule())
                                 }
 
                                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                                    Text("128 / 82")
+                                    Text(latestTodayReading.map { "\($0.systolic) / \($0.diastolic)" } ?? "-- / --")
                                         .font(.system(size: 30, weight: .bold, design: .rounded))
                                         .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
 
@@ -212,7 +385,7 @@ struct ActionGenerateDemoView: View {
                                         .foregroundStyle(DSTheme.Color.textSecondary)
                                 }
 
-                                Label("如有头晕、胸闷、心慌或明显不适，请先休息并复测。", systemImage: "shield.checkered")
+                                Label(bloodPressureState.guidance, systemImage: "shield.checkered")
                                     .font(.caption2.weight(.medium))
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                                     .lineLimit(2)
@@ -248,7 +421,7 @@ struct ActionGenerateDemoView: View {
 
                             ActionSetupCard(
                                 title: "当前运动选择",
-                                value: currentMovement.isEmpty ? "先选择再开始" : currentMovement,
+                                value: isExerciseSafetyBlocked ? "请先休息并复测" : (currentMovement.isEmpty ? "先选择再开始" : currentMovement),
                                 systemImage: "figure.walk.circle.fill",
                                 illustration: "figure.walk",
                                 tint: DSTheme.Color.primary
@@ -331,6 +504,7 @@ struct ActionGenerateDemoView: View {
                     CurrentMovementSheet(
                         scene: scene,
                         stateSummary: stateSummary,
+                        isSafetyBlocked: isExerciseSafetyBlocked,
                         movement: $currentMovement,
                         duration: $movementDuration,
                         time: $currentTime
@@ -343,6 +517,7 @@ struct ActionGenerateDemoView: View {
                         customMovementName: $customMovementName,
                         startTime: $preferenceStartTime,
                         endTime: $preferenceEndTime,
+                        isSafetyBlocked: isExerciseSafetyBlocked,
                         onClose: {
                             activeSheet = nil
                         }
@@ -369,6 +544,7 @@ struct ActionGenerateDemoView: View {
     }
 
     private func generateCurrentMovement() {
+        guard !isExerciseSafetyBlocked else { return }
         let item = TodayActionItem.generatedMovement(
             title: generatedActionTitle,
             timeText: currentTime,
@@ -379,6 +555,7 @@ struct ActionGenerateDemoView: View {
     }
 
     private func generatePreferenceMovement() {
+        guard !isExerciseSafetyBlocked else { return }
         let item = TodayActionItem.generatedMovement(
             title: customMovementName.trimmingCharacters(in: .whitespacesAndNewlines),
             timeText: preferenceStartTime,
@@ -401,6 +578,70 @@ private enum ActionGenerationSheet: String, Identifiable {
 
     var id: String {
         rawValue
+    }
+}
+
+private enum ActionGenerationBloodPressureState: Equatable {
+    case noReading
+    case reassuring
+    case watch
+    case repeatReading
+    case needsAttention
+
+    init(reading: BloodPressureReading?) {
+        guard let reading else {
+            self = .noReading
+            return
+        }
+
+        if reading.systolic >= 180 || reading.diastolic >= 120 {
+            self = .needsAttention
+        } else if reading.systolic >= 135 || reading.diastolic >= 85 {
+            self = .repeatReading
+        } else if reading.systolic >= 120 || reading.diastolic >= 80 || reading.systolic < 90 || reading.diastolic < 60 {
+            self = .watch
+        } else {
+            self = .reassuring
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .noReading: "今日暂无读数"
+        case .reassuring: "读数较稳定"
+        case .watch: "建议观察"
+        case .repeatReading: "建议复测"
+        case .needsAttention: "需要重视"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .noReading: "minus.circle.fill"
+        case .reassuring: "checkmark.circle.fill"
+        case .watch: "eye.circle.fill"
+        case .repeatReading: "arrow.clockwise.circle.fill"
+        case .needsAttention: "exclamationmark.triangle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .reassuring: DSTheme.Color.success
+        case .noReading, .watch: DSTheme.Color.primary
+        case .repeatReading, .needsAttention: DSTheme.Color.warning
+        }
+    }
+
+    var guidance: String {
+        switch self {
+        case .noReading:
+            "尚无今日读数；运动建议仅依据你填写的当前状态。"
+        case .needsAttention:
+            "请先安静休息并复测；如伴明显不适，请及时寻求医疗帮助。"
+        case .reassuring, .watch, .repeatReading:
+            "如有头晕、胸闷、心慌或明显不适，请先休息并复测。"
+        }
     }
 }
 
@@ -657,6 +898,7 @@ private struct StatusSelectionSheet: View {
 private struct CurrentMovementSheet: View {
     let scene: String
     let stateSummary: String
+    let isSafetyBlocked: Bool
     @Binding var movement: String
     @Binding var duration: Int
     @Binding var time: String
@@ -676,6 +918,10 @@ private struct CurrentMovementSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("当前位置：\(scene)", systemImage: "mappin.circle.fill")
                 Label("当前状态：\(stateSummary)", systemImage: "heart.circle.fill")
+                if isSafetyBlocked {
+                    Label("当前不生成运动：请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DSTheme.Color.warning)
+                }
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(DSTheme.Color.primary)
@@ -737,7 +983,11 @@ private struct CurrentMovementSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
-            DSPrimaryButton("确认当前运动", action: onConfirm)
+            DSPrimaryButton(
+                isSafetyBlocked ? "请先休息并复测" : "确认当前运动",
+                isDisabled: isSafetyBlocked,
+                action: onConfirm
+            )
         }
         .presentationDetents([.large])
     }
@@ -753,6 +1003,7 @@ private struct PreferenceMovementSheet: View {
     @Binding var customMovementName: String
     @Binding var startTime: String
     @Binding var endTime: String
+    let isSafetyBlocked: Bool
     let onClose: () -> Void
     let onConfirm: () -> Void
 
@@ -812,9 +1063,17 @@ private struct PreferenceMovementSheet: View {
                 .background(DSTheme.Color.primarySoft.opacity(0.75))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            DSPrimaryButton("保存偏好运动", action: onConfirm)
-                .disabled(customMovementName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .opacity(customMovementName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.55 : 1)
+            if isSafetyBlocked {
+                Label("当前状态不适合直接生成今日运动，请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSTheme.Color.warning)
+            }
+
+            DSPrimaryButton(
+                "保存偏好运动",
+                isDisabled: customMovementName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSafetyBlocked,
+                action: onConfirm
+            )
         }
         .presentationDetents([.large])
     }
@@ -1304,9 +1563,17 @@ private struct DesignActionCard: View {
 
             switch item.type {
             case .bpRecheck:
-                metricPill(item.bloodPressureText ?? "128/82", suffix: "mmHg")
+                if let bloodPressureText = item.bloodPressureText {
+                    metricPill(bloodPressureText, suffix: "mmHg")
+                } else {
+                    Text("点击前往记录")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                }
             case .diet:
-                adviceBox
+                if item.displayStatus == .completed, item.adviceText != nil {
+                    adviceBox
+                }
             case .walk:
                 EmptyView()
             case .rest, .hydration, .sleep, .custom:
@@ -1317,14 +1584,18 @@ private struct DesignActionCard: View {
             }
         }
         .padding(10)
-        .frame(maxWidth: .infinity, minHeight: item.type == .diet ? 158 : 116, alignment: .topLeading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: item.type == .diet && item.displayStatus == .completed ? 158 : 116,
+            alignment: .topLeading
+        )
         .background(.white.opacity(0.93))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
     }
 
     private var statusPill: some View {
-        Text(item.displayStatus.title)
+        Text(item.type == .diet && item.displayStatus != .completed ? "开始" : item.displayStatus.title)
             .font(.caption2.weight(.bold))
             .foregroundStyle(statusTextColor)
             .padding(.horizontal, 10)
@@ -1823,20 +2094,20 @@ struct TodayActionItem: Identifiable, Hashable {
 
     static func demoItems() -> [TodayActionItem] {
         [
-            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0, bloodPressureText: "128/82"),
-            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1, adviceText: "白米饭和鸡蛋较清淡，建议后续搭配蔬菜或水果，更利于控压。"),
-            make(.diet, title: "午餐建议", hour: 12, minute: 0, duration: 25, order: 2, adviceText: "咖喱鸡米饭较均衡，建议少盐少油，并搭配更多蔬菜或杂粮饭。"),
-            make(.diet, title: "晚餐建议", hour: 18, minute: 30, duration: 25, order: 3, adviceText: "猪肉末彩椒碗有蛋白质和蔬菜，建议少盐少油；下次类似食材可搭配瘦肉、彩椒和杂粮饭。"),
-            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 4, bloodPressureText: "128/82")
+            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0),
+            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1),
+            make(.diet, title: "午餐建议", hour: 12, minute: 0, duration: 25, order: 2),
+            make(.diet, title: "晚餐建议", hour: 18, minute: 30, duration: 25, order: 3),
+            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 4)
         ]
     }
 
     static func generatedDemoItems() -> [TodayActionItem] {
         [
-            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0, bloodPressureText: "128/82"),
-            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1, adviceText: "白米饭和鸡蛋较清淡，建议后续搭配蔬菜或水果，更利于控压。"),
+            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0),
+            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1),
             make(.walk, title: "饭后散步", hour: 19, minute: 30, duration: 15, order: 2),
-            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 3, bloodPressureText: "128/82")
+            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 3)
         ]
     }
 
@@ -2058,5 +2329,5 @@ enum TodayActionStatus: String, Hashable {
 
 #Preview {
     @Previewable @State var items = TodayActionItem.demoItems()
-    TodayActionView(items: $items)
+    TodayActionView(items: $items, userId: "preview-user")
 }

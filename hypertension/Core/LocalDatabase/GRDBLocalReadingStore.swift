@@ -39,6 +39,10 @@ final class GRDBLocalReadingStore {
     }
 
     func enqueue(_ draft: BPReadingDraft, userId: String, clientId: UUID = UUID()) throws {
+        try upsertPending(draft, userId: userId, clientId: clientId)
+    }
+
+    func upsertPending(_ draft: BPReadingDraft, userId: String, clientId: UUID) throws {
         guard !userId.isEmpty else {
             return
         }
@@ -58,6 +62,16 @@ final class GRDBLocalReadingStore {
                 INSERT INTO local_blood_pressure_readings
                 (user_id, client_id, systolic, diastolic, pulse, measured_at, source, note, sync_status, created_at, updated_at)
                 VALUES (:userId, :clientId, :systolic, :diastolic, :pulse, :measuredAt, :source, :note, :syncStatus, :createdAt, :updatedAt)
+                ON CONFLICT(client_id) DO UPDATE SET
+                    user_id = excluded.user_id,
+                    systolic = excluded.systolic,
+                    diastolic = excluded.diastolic,
+                    pulse = excluded.pulse,
+                    measured_at = excluded.measured_at,
+                    source = excluded.source,
+                    note = excluded.note,
+                    sync_status = excluded.sync_status,
+                    updated_at = excluded.updated_at
                 """,
                 arguments: [
                     "userId": userId,
@@ -71,6 +85,57 @@ final class GRDBLocalReadingStore {
                     "syncStatus": "localOnly",
                     "createdAt": isoFormatter.string(from: Date()),
                     "updatedAt": isoFormatter.string(from: Date())
+                ]
+            )
+        }
+    }
+
+    func isPending(clientId: UUID, userId: String) throws -> Bool {
+        try dbQueue.read { db in
+            try Bool.fetchOne(
+                db,
+                sql: """
+                SELECT EXISTS(
+                    SELECT 1 FROM local_blood_pressure_readings
+                    WHERE client_id = :clientId
+                      AND user_id = :userId
+                      AND sync_status IN ('localOnly', 'syncFailed')
+                )
+                """,
+                arguments: [
+                    "clientId": clientId.uuidString,
+                    "userId": userId
+                ]
+            ) ?? false
+        }
+    }
+
+    func serverId(clientId: UUID, userId: String) throws -> String? {
+        try dbQueue.read { db in
+            try String.fetchOne(
+                db,
+                sql: """
+                SELECT server_id FROM local_blood_pressure_readings
+                WHERE client_id = :clientId AND user_id = :userId
+                """,
+                arguments: [
+                    "clientId": clientId.uuidString,
+                    "userId": userId
+                ]
+            )
+        }
+    }
+
+    func remove(clientId: UUID, userId: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                DELETE FROM local_blood_pressure_readings
+                WHERE client_id = :clientId AND user_id = :userId
+                """,
+                arguments: [
+                    "clientId": clientId.uuidString,
+                    "userId": userId
                 ]
             )
         }
@@ -122,6 +187,15 @@ final class GRDBLocalReadingStore {
     func clearAll() throws {
         try dbQueue.write { db in
             try db.execute(sql: "DELETE FROM local_blood_pressure_readings")
+        }
+    }
+
+    func clear(userId: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM local_blood_pressure_readings WHERE user_id = :userId",
+                arguments: ["userId": userId]
+            )
         }
     }
 

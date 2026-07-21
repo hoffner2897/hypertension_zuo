@@ -22,9 +22,8 @@ struct BPCameraUploadMockView: View {
         onRecognized: @escaping (BPReadingDraft) -> Void,
         onManualInput: @escaping (BPReadingDraft) -> Void
     ) {
-        let endpointURL = URL(string: "/recognize-bp", relativeTo: APIClient.shared.baseURL)!
         self.init(
-            recognitionService: RemoteBloodPressureRecognitionService(endpointURL: endpointURL),
+            recognitionService: RemoteBloodPressureRecognitionService(),
             onRecognized: onRecognized,
             onManualInput: onManualInput
         )
@@ -274,7 +273,7 @@ final class BPCameraUploadViewModel: ObservableObject {
             return result.draft
         } catch {
             recognitionResult = nil
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? "识别失败，请手动输入读数。"
+            errorMessage = recognitionErrorMessage(error)
             isRecognizing = false
             return nil
         }
@@ -307,6 +306,24 @@ final class BPCameraUploadViewModel: ObservableObject {
         selectedImageData = data
         recognitionResult = nil
         errorMessage = nil
+    }
+
+    private func recognitionErrorMessage(_ error: Error) -> String {
+        if case APIClientError.server(let code, _) = error {
+            switch code {
+            case "AI_DAILY_QUOTA_EXCEEDED":
+                return "今天的 AI 图片识别次数已用完，请手动输入读数或明天再试。"
+            case "BAD_REQUEST", "VALIDATION_FAILED":
+                return "这张图片无法用于识别，请重新拍摄或手动输入。"
+            case "UNAUTHORIZED":
+                return "登录状态已失效，请重新登录后再试。"
+            default:
+                return "暂时无法识别照片，请稍后重试或手动输入。"
+            }
+        }
+
+        return (error as? BPRecognitionError)?.errorDescription
+            ?? "暂时无法识别照片，请稍后重试或手动输入。"
     }
 
     private static func uploadData(for image: UIImage) -> Data? {

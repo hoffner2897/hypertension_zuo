@@ -1,9 +1,10 @@
 import Combine
 import Foundation
 
-enum AppRouteState {
+enum AppRouteState: Equatable {
     case checkingSession
     case signedOut
+    case verifyEmail
     case profileSetup
     case mainApp
 }
@@ -20,6 +21,16 @@ final class AppState: ObservableObject {
 
     var currentEmail: String {
         currentUser?.email ?? ""
+    }
+
+    init() {
+        APIClient.shared.setAuthorizationRefreshHandler { [weak self] in
+            guard let self else {
+                throw APIClientError.sessionExpired
+            }
+
+            return try await self.refreshAuthorization()
+        }
     }
 
     func bootstrap() async {
@@ -98,29 +109,23 @@ final class AppState: ObservableObject {
         routeState = .signedOut
     }
 
-    func deleteAccount(password: String) async {
+    @discardableResult
+    func deleteAccount(password: String) async -> String? {
+        let deletedUserId = currentUser?.id
         do {
             try await authService.deleteAccount(password: password)
+            if let deletedUserId {
+                ActionHistoryStore.removeAll(userId: deletedUserId)
+                try? GRDBLocalReadingStore.shared.clear(userId: deletedUserId)
+            }
             clearLocalSession()
             routeState = .signedOut
+            return deletedUserId
         } catch {
             errorMessage = localizedMessage(for: error)
+            return nil
         }
     }
-
-    #if DEBUG
-    func enterUITestMode() {
-        APIClient.shared.accessToken = nil
-        currentUser = AuthUser(
-            id: "debug-ui-user",
-            email: "ui-preview@bphealth.test",
-            emailVerified: true,
-            profileCompleted: true
-        )
-        errorMessage = nil
-        routeState = .mainApp
-    }
-    #endif
 
     private func authenticate(_ action: () async throws -> AuthResponse) async {
         do {
@@ -130,6 +135,27 @@ final class AppState: ObservableObject {
             errorMessage = nil
         } catch {
             errorMessage = localizedMessage(for: error)
+        }
+    }
+
+    private func refreshAuthorization() async throws -> String {
+        guard let refreshToken = KeychainStore.read(refreshTokenKey) else {
+            clearLocalSession()
+            routeState = .signedOut
+            throw APIClientError.sessionExpired
+        }
+
+        do {
+            let response = try await authService.refresh(refreshToken: refreshToken, deviceId: deviceId)
+            try persistSession(response)
+            routeByUser(response.user)
+            return response.accessToken
+        } catch {
+            if shouldEndSession(afterRefreshError: error) {
+                clearLocalSession()
+                routeState = .signedOut
+            }
+            throw error
         }
     }
 
@@ -143,19 +169,34 @@ final class AppState: ObservableObject {
     private func routeByUser(_ user: AuthUser) {
         currentUser = user
 
-        if !user.profileCompleted {
-            routeState = .profileSetup
-        } else {
-            routeState = .mainApp
+        routeState = Self.route(for: user)
+    }
+
+    static func route(for user: AuthUser) -> AppRouteState {
+        if !user.emailVerified {
+            return .verifyEmail
         }
+
+        if !user.profileCompleted {
+            return .profileSetup
+        }
+
+        return .mainApp
     }
 
     private func clearLocalSession() {
         APIClient.shared.accessToken = nil
         KeychainStore.delete(refreshTokenKey)
-        try? GRDBLocalReadingStore.shared.clearAll()
         currentUser = nil
         errorMessage = nil
+    }
+
+    private func shouldEndSession(afterRefreshError error: Error) -> Bool {
+        guard case APIClientError.server(let code, _) = error else {
+            return error is KeychainStoreError
+        }
+
+        return code == "INVALID_REFRESH_TOKEN" || code == "UNAUTHORIZED"
     }
 
     private var deviceId: String {

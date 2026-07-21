@@ -3,7 +3,6 @@ import HealthKit
 
 struct HealthKitSummary: Hashable {
     var authorizationStatus: HealthKitAuthorizationState = .notDetermined
-    var latestHeartRate: Double? = nil
     var latestRestingHeartRate: Double? = nil
     var todaySteps: Double? = nil
     var todayExerciseMinutes: Double? = nil
@@ -13,6 +12,7 @@ struct HealthKitSummary: Hashable {
     var birthYear: Int? = nil
     var biologicalSex: String? = nil
     var lastUpdatedAt: Date? = nil
+    var readableDataKinds: Set<HealthKitDataKind> = []
 }
 
 struct HealthKitSleepSummary: Identifiable, Hashable {
@@ -24,8 +24,47 @@ struct HealthKitSleepSummary: Identifiable, Hashable {
 enum HealthKitAuthorizationState: Hashable {
     case unavailable
     case notDetermined
-    case sharingDenied
+    case accessRequested
+    case partiallyAuthorized
     case sharingAuthorized
+}
+
+enum HealthKitDataKind: String, CaseIterable, Hashable {
+    case birthYear
+    case biologicalSex
+    case height
+    case bodyMass
+    case steps
+    case exerciseMinutes
+    case restingHeartRate
+    case sleep
+}
+
+enum HealthKitAuthorizationResolver {
+    static func resolve(
+        isAvailable: Bool,
+        hasRequestedAuthorization: Bool,
+        readableDataKindCount: Int,
+        requestedDataKindCount: Int = HealthKitDataKind.allCases.count
+    ) -> HealthKitAuthorizationState {
+        guard isAvailable else {
+            return .unavailable
+        }
+
+        guard hasRequestedAuthorization else {
+            return .notDetermined
+        }
+
+        guard readableDataKindCount > 0 else {
+            return .accessRequested
+        }
+
+        if readableDataKindCount < requestedDataKindCount {
+            return .partiallyAuthorized
+        }
+
+        return .sharingAuthorized
+    }
 }
 
 enum HealthKitServiceError: LocalizedError {
@@ -51,11 +90,11 @@ final class HealthKitService {
     }
 
     func authorizationState() -> HealthKitAuthorizationState {
-        guard isHealthDataAvailable else {
-            return .unavailable
-        }
-
-        return UserDefaults.standard.bool(forKey: authorizationRequestedKey) ? .sharingAuthorized : .notDetermined
+        HealthKitAuthorizationResolver.resolve(
+            isAvailable: isHealthDataAvailable,
+            hasRequestedAuthorization: hasRequestedAuthorization,
+            readableDataKindCount: 0
+        )
     }
 
     func requestAuthorization() async throws -> HealthKitAuthorizationState {
@@ -65,7 +104,7 @@ final class HealthKitService {
 
         try await healthStore.requestAuthorization(toShare: [], read: readTypes())
         UserDefaults.standard.set(true, forKey: authorizationRequestedKey)
-        return .sharingAuthorized
+        return .accessRequested
     }
 
     func fetchSummary() async throws -> HealthKitSummary {
@@ -74,11 +113,10 @@ final class HealthKitService {
         }
 
         let authorizationStatus = authorizationState()
-        guard authorizationStatus == .sharingAuthorized else {
+        guard authorizationStatus != .notDetermined else {
             return HealthKitSummary(authorizationStatus: authorizationStatus)
         }
 
-        async let heartRate = try? latestQuantity(.heartRate, unit: HKUnit.count().unitDivided(by: .minute()))
         async let restingHeartRate = try? latestQuantity(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()))
         async let steps = try? todayCumulativeQuantity(.stepCount, unit: .count())
         async let exerciseMinutes = try? todayCumulativeQuantity(.appleExerciseTime, unit: .minute())
@@ -86,24 +124,50 @@ final class HealthKitService {
         async let bodyMass = try? latestQuantity(.bodyMass, unit: .gramUnit(with: .kilo))
         async let height = try? latestQuantity(.height, unit: .meterUnit(with: .centi))
 
-        return await HealthKitSummary(
-            authorizationStatus: authorizationStatus,
-            latestHeartRate: heartRate,
-            latestRestingHeartRate: restingHeartRate,
-            todaySteps: steps,
-            todayExerciseMinutes: exerciseMinutes,
-            recentSleep: sleep ?? [],
-            latestBodyMassKg: bodyMass,
-            latestHeightCm: height,
-            birthYear: try? dateOfBirthYear(),
-            biologicalSex: try? biologicalSex(),
-            lastUpdatedAt: Date()
+        let resolvedRestingHeartRate = await restingHeartRate
+        let resolvedSteps = await steps
+        let resolvedExerciseMinutes = await exerciseMinutes
+        let resolvedSleep = await sleep ?? []
+        let resolvedBodyMass = await bodyMass
+        let resolvedHeight = await height
+        let resolvedBirthYear = try? dateOfBirthYear()
+        let resolvedBiologicalSex = try? biologicalSex()
+
+        var readableDataKinds: Set<HealthKitDataKind> = []
+        if resolvedBirthYear != nil { readableDataKinds.insert(.birthYear) }
+        if resolvedBiologicalSex != nil { readableDataKinds.insert(.biologicalSex) }
+        if resolvedHeight != nil { readableDataKinds.insert(.height) }
+        if resolvedBodyMass != nil { readableDataKinds.insert(.bodyMass) }
+        if resolvedSteps != nil { readableDataKinds.insert(.steps) }
+        if resolvedExerciseMinutes != nil { readableDataKinds.insert(.exerciseMinutes) }
+        if resolvedRestingHeartRate != nil { readableDataKinds.insert(.restingHeartRate) }
+        if !resolvedSleep.isEmpty { readableDataKinds.insert(.sleep) }
+
+        return HealthKitSummary(
+            authorizationStatus: HealthKitAuthorizationResolver.resolve(
+                isAvailable: true,
+                hasRequestedAuthorization: hasRequestedAuthorization,
+                readableDataKindCount: readableDataKinds.count
+            ),
+            latestRestingHeartRate: resolvedRestingHeartRate,
+            todaySteps: resolvedSteps,
+            todayExerciseMinutes: resolvedExerciseMinutes,
+            recentSleep: resolvedSleep,
+            latestBodyMassKg: resolvedBodyMass,
+            latestHeightCm: resolvedHeight,
+            birthYear: resolvedBirthYear,
+            biologicalSex: resolvedBiologicalSex,
+            lastUpdatedAt: Date(),
+            readableDataKinds: readableDataKinds
         )
+    }
+
+    private var hasRequestedAuthorization: Bool {
+        UserDefaults.standard.bool(forKey: authorizationRequestedKey)
     }
 
     private func readTypes() throws -> Set<HKObjectType> {
         guard
-            let heartRate = HKObjectType.quantityType(forIdentifier: .heartRate),
             let restingHeartRate = HKObjectType.quantityType(forIdentifier: .restingHeartRate),
             let steps = HKObjectType.quantityType(forIdentifier: .stepCount),
             let exerciseTime = HKObjectType.quantityType(forIdentifier: .appleExerciseTime),
@@ -116,7 +180,7 @@ final class HealthKitService {
             throw HealthKitServiceError.missingTypes
         }
 
-        return [heartRate, restingHeartRate, steps, exerciseTime, sleep, bodyMass, height, biologicalSex, dateOfBirth]
+        return [restingHeartRate, steps, exerciseTime, sleep, bodyMass, height, biologicalSex, dateOfBirth]
     }
 
     private func dateOfBirthYear() throws -> Int? {

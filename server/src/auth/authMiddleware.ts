@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import type { ServerConfig } from "../config.js";
+import { prisma } from "../db/prisma.js";
 import { unauthorized } from "../errors.js";
 import { verifyAccessToken } from "./tokenUtils.js";
 
@@ -10,22 +11,39 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-export function requireAuth(config: ServerConfig) {
-  return (request: Request, _response: Response, next: NextFunction): void => {
+export type AuthUserLookup = (userId: string) => Promise<{ id: string; email: string } | null>;
+
+export function requireAuth(config: ServerConfig, userLookup: AuthUserLookup = findAuthUser) {
+  return async (request: Request, _response: Response, next: NextFunction): Promise<void> => {
+    let payload;
     try {
       const header = request.header("authorization");
       const token = parseBearerToken(header);
-      const payload = verifyAccessToken(config, token);
-
-      (request as AuthenticatedRequest).auth = {
-        userId: payload.sub,
-        email: payload.email
-      };
-
-      next();
+      payload = verifyAccessToken(config, token);
     } catch {
       next(unauthorized());
+      return;
     }
+
+    let user;
+    try {
+      user = await userLookup(payload.sub);
+    } catch (error) {
+      next(error);
+      return;
+    }
+
+    if (!user) {
+      next(unauthorized());
+      return;
+    }
+
+    (request as AuthenticatedRequest).auth = {
+      userId: user.id,
+      email: user.email
+    };
+
+    next();
   };
 }
 
@@ -44,4 +62,11 @@ function parseBearerToken(header: string | undefined): string {
   }
 
   return token;
+}
+
+async function findAuthUser(userId: string): Promise<{ id: string; email: string } | null> {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true }
+  });
 }

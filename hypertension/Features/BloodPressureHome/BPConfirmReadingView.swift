@@ -14,17 +14,20 @@ struct BPConfirmReadingView: View {
     @StateObject private var viewModel: BPConfirmReadingViewModel
     private let userId: String
     private let repository: (any BloodPressureReadingRepository)?
+    private let existingReading: BloodPressureReading?
     let onSaveSuccess: (BPReadingDraft) -> Void
 
     init(
         draft: BPReadingDraft,
         userId: String = "",
         repository: (any BloodPressureReadingRepository)? = nil,
+        existingReading: BloodPressureReading? = nil,
         onSaveSuccess: @escaping (BPReadingDraft) -> Void = { _ in }
     ) {
         self._viewModel = StateObject(wrappedValue: BPConfirmReadingViewModel(draft: draft))
         self.userId = userId
         self.repository = repository
+        self.existingReading = existingReading
         self.onSaveSuccess = onSaveSuccess
     }
 
@@ -36,8 +39,10 @@ struct BPConfirmReadingView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
                     DSSectionHeader(
-                        "确认读数",
-                        subtitle: "检查并调整本次血压读数，保存后回到最近测量。",
+                        existingReading == nil ? "确认读数" : "编辑读数",
+                        subtitle: existingReading == nil
+                            ? "检查并调整本次血压读数，保存后回到最近测量。"
+                            : "修改后会更新历史记录，并在联网时同步。",
                         systemImage: "square.and.pencil"
                     )
 
@@ -101,25 +106,40 @@ struct BPConfirmReadingView: View {
                         .padding(.horizontal, DSTheme.Spacing.small)
                     }
 
-                    DSPrimaryButton("保存读数", systemImage: "checkmark.circle.fill") {
+                    DSPrimaryButton(existingReading == nil ? "保存读数" : "更新读数", systemImage: "checkmark.circle.fill") {
                         guard viewModel.validate() else {
                             return
                         }
 
-                        do {
-                            let clientId = UUID()
-                            try activeRepository.save(viewModel.makeReading(userId: userId, clientId: clientId))
-                            try GRDBLocalReadingStore.shared.enqueue(viewModel.draft, userId: userId, clientId: clientId)
-                            onSaveSuccess(viewModel.draft)
-                        } catch {
-                            viewModel.setSaveError(error)
+                        if let existingReading {
+                            Task {
+                                guard await viewModel.update(
+                                    existingReading,
+                                    userId: userId,
+                                    repository: activeRepository
+                                ) else {
+                                    return
+                                }
+
+                                onSaveSuccess(viewModel.draft)
+                            }
+                        } else {
+                            do {
+                                let clientId = UUID()
+                                try activeRepository.save(viewModel.makeReading(userId: userId, clientId: clientId))
+                                try GRDBLocalReadingStore.shared.enqueue(viewModel.draft, userId: userId, clientId: clientId)
+                                onSaveSuccess(viewModel.draft)
+                            } catch {
+                                viewModel.setSaveError(error)
+                            }
                         }
                     }
+                    .disabled(viewModel.isSaving)
                 }
                 .padding(DSTheme.Spacing.large)
             }
         }
-        .navigationTitle("确认读数")
+        .navigationTitle(existingReading == nil ? "确认读数" : "编辑读数")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -150,9 +170,19 @@ struct BPConfirmReadingView: View {
 final class BPConfirmReadingViewModel: ObservableObject {
     @Published var draft: BPReadingDraft
     @Published private(set) var errorMessage: String?
+    @Published private(set) var isSaving = false
 
-    init(draft: BPReadingDraft) {
+    private let apiService: BloodPressureReadingAPIService
+    private let localReadingStore: GRDBLocalReadingStore
+
+    init(
+        draft: BPReadingDraft,
+        apiService: BloodPressureReadingAPIService? = nil,
+        localReadingStore: GRDBLocalReadingStore? = nil
+    ) {
         self.draft = draft
+        self.apiService = apiService ?? BloodPressureReadingAPIService()
+        self.localReadingStore = localReadingStore ?? .shared
     }
 
     func validate() -> Bool {
@@ -175,19 +205,73 @@ final class BPConfirmReadingViewModel: ObservableObject {
             return false
         }
 
+        guard (40...260).contains(systolic) else {
+            errorMessage = "收缩压应在 40–260 mmHg 之间。"
+            return false
+        }
+
+        guard (30...180).contains(diastolic) else {
+            errorMessage = "舒张压应在 30–180 mmHg 之间。"
+            return false
+        }
+
         guard systolic > diastolic else {
             errorMessage = "收缩压需要大于舒张压。"
             return false
         }
 
-        if !pulseText.isEmpty, Int(pulseText) == nil {
-            errorMessage = "心率需要是数字，或留空。"
-            return false
+        if !pulseText.isEmpty {
+            guard let pulse = Int(pulseText) else {
+                errorMessage = "心率需要是数字，或留空。"
+                return false
+            }
+
+            guard (30...240).contains(pulse) else {
+                errorMessage = "心率应在 30–240 bpm 之间，或留空。"
+                return false
+            }
         }
 
         guard draft.measuredAt <= Date() else {
             errorMessage = "测量时间不能晚于当前时间。"
             return false
+        }
+
+        errorMessage = nil
+        return true
+    }
+
+    func update(
+        _ reading: BloodPressureReading,
+        userId: String,
+        repository: any BloodPressureReadingRepository
+    ) async -> Bool {
+        guard validate(), !isSaving else {
+            return false
+        }
+
+        isSaving = true
+        defer { isSaving = false }
+
+        do {
+            try repository.update(reading, with: draft)
+            try localReadingStore.upsertPending(draft, userId: userId, clientId: reading.id)
+        } catch {
+            setSaveError(error)
+            return false
+        }
+
+        guard let serverId = reading.serverId else {
+            errorMessage = nil
+            return true
+        }
+
+        do {
+            let response = try await apiService.update(id: serverId, draft: draft)
+            try repository.upsertRemote(response.reading, userId: userId)
+            try localReadingStore.markSynced(clientId: reading.id, serverId: response.reading.id)
+        } catch {
+            // The local edit remains queued and will be retried by the normal sync flow.
         }
 
         errorMessage = nil

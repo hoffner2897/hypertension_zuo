@@ -10,6 +10,8 @@ struct AppRootView: View {
                 AppStatusView(title: "正在检查登录状态", systemImage: "lock.rotation")
             case .signedOut:
                 AuthEntryView()
+            case .verifyEmail:
+                VerifyEmailView(email: appState.currentEmail)
             case .profileSetup:
                 ProfileSetupView()
             case .mainApp:

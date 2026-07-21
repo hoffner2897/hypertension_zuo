@@ -91,40 +91,7 @@ export class OpenAIBPInterpretationService {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          model: this.model,
-          input: [
-            {
-              role: "system",
-              content: [
-                {
-                  type: "input_text",
-                  text: systemPrompt
-                }
-              ]
-            },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "input_text",
-                  text: JSON.stringify({
-                    input,
-                    fixedRuleResult: base
-                  })
-                }
-              ]
-            }
-          ],
-          text: {
-            format: {
-              type: "json_schema",
-              name: "blood_pressure_interpretation",
-              strict: true,
-              schema: interpretationSchema
-            }
-          }
-        })
+        body: JSON.stringify(makeOpenAIBPInterpretationRequestBody(this.model, input, base))
       });
     } catch (error) {
       throw new Error(`OpenAI interpretation request failed before receiving a response: ${describeFetchError(error)}`);
@@ -142,6 +109,48 @@ export class OpenAIBPInterpretationService {
     const parsed = JSON.parse(text) as unknown;
     return normalizeInterpretationResult(parsed, base);
   }
+}
+
+export function makeOpenAIBPInterpretationRequestBody(
+  model: string,
+  input: BPInterpretationInput,
+  base: BPBaseInterpretation
+) {
+  return {
+    model,
+    store: false,
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: systemPrompt
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: JSON.stringify({
+              input,
+              fixedRuleResult: base
+            })
+          }
+        ]
+      }
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "blood_pressure_interpretation",
+        strict: true,
+        schema: interpretationSchema
+      }
+    }
+  };
 }
 
 function describeFetchError(error: unknown): string {

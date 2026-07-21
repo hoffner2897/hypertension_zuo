@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { ServerConfig } from "../config.js";
 import { isAuthenticatedRequest, requireAuth } from "../auth/authMiddleware.js";
+import type { AuthUserLookup } from "../auth/authMiddleware.js";
 import { prisma } from "../db/prisma.js";
 import { unauthorized } from "../errors.js";
 import { parseBody } from "./validation.js";
@@ -23,9 +24,9 @@ const profileSchema = z.object({
   healthDataSyncedAt: z.string().datetime().nullable().optional()
 });
 
-export function createProfileRouter(config: ServerConfig): Router {
+export function createProfileRouter(config: ServerConfig, authUserLookup?: AuthUserLookup): Router {
   const router = Router();
-  router.use(requireAuth(config));
+  router.use(requireAuth(config, authUserLookup));
 
   router.get("/", async (request, response, next) => {
     try {

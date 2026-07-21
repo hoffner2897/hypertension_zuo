@@ -1,11 +1,12 @@
 import type { BPRecognitionResult } from "../domain/bloodPressureRecognition.js";
+import type { NormalizedImageBase64 } from "../domain/imageBase64.js";
 
 export interface BPRecognitionService {
-  recognize(imageBase64: string): Promise<BPRecognitionResult>;
+  recognize(image: NormalizedImageBase64): Promise<BPRecognitionResult>;
 }
 
 export class MockBPRecognitionService implements BPRecognitionService {
-  async recognize(_imageBase64: string): Promise<BPRecognitionResult> {
+  async recognize(_image: NormalizedImageBase64): Promise<BPRecognitionResult> {
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     return {

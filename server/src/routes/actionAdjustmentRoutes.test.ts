@@ -10,6 +10,9 @@ const config: ServerConfig = {
   recognitionMode: "mock",
   openAIModel: "test-recognition-model",
   openAIActionSuggestionModel: "test-action-model",
+  openAIMealAnalysisModel: "test-meal-model",
+  bpRecognitionDailyLimit: 30,
+  mealAnalysisDailyLimit: 20,
   accessTokenSecret: "test-only-access-token-secret-with-enough-entropy",
   accessTokenTTLSeconds: 900,
   refreshTokenTTLDays: 30,
@@ -18,7 +21,9 @@ const config: ServerConfig = {
 };
 
 test("trend suggestion endpoint requires auth and returns the public fallback contract", async () => {
-  const app = createApp(config);
+  const app = createApp(config, {
+    authUserLookup: async (userId) => ({ id: userId, email: "test@example.com" })
+  });
   const server = app.listen(0, "127.0.0.1");
 
   try {

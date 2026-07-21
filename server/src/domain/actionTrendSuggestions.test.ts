@@ -103,6 +103,67 @@ test("multi-day wording is generated only from at least three matching evidence 
   assert.match(trendCandidate?.fallbackMessage ?? "", /^近4天/);
 });
 
+test("two recorded days never claim a multi-day trend", () => {
+  const today = makeAction(todayActionId, "pending", "原地踏步", "2026-07-21T15:00:00.000Z", 20);
+  const input = actionTrendSuggestionRequestSchema.parse({
+    now: "2026-07-21T12:00:00.000Z",
+    timeZone: "Europe/London",
+    todayActions: [today],
+    recentActions: [
+      makeAction(secondActionId, "missed", "原地踏步", "2026-07-20T15:00:00.000Z", 20)
+    ]
+  });
+
+  const plan = buildTrustedActionSuggestionPlan(input);
+  assert.equal(plan.evidenceDays, 2);
+  assert.equal(plan.candidates.some((candidate) => candidate.id.startsWith("trend-")), false);
+  assert.equal(makeActionSuggestionDataNote(plan.evidenceDays), "建议基于已提供的近2天行动记录生成。");
+});
+
+test("a seven-day period with only three recorded days says three days, not seven", () => {
+  const input = actionTrendSuggestionRequestSchema.parse({
+    now: "2026-07-21T12:00:00.000Z",
+    timeZone: "Europe/London",
+    todayActions: [
+      makeAction(todayActionId, "pending", "慢走", "2026-07-21T15:00:00.000Z", 20)
+    ],
+    recentActions: [
+      makeAction("33333333-3333-4333-8333-333333333333", "missed", "慢走", "2026-07-15T15:00:00.000Z", 20),
+      makeAction("44444444-4444-4444-8444-444444444444", "skipped", "慢走", "2026-07-18T15:00:00.000Z", 20)
+    ]
+  });
+
+  const plan = buildTrustedActionSuggestionPlan(input);
+  const trend = plan.candidates.find((candidate) => candidate.id.startsWith("trend-reschedule:"));
+  assert.equal(plan.evidenceDays, 3);
+  assert.equal(trend?.evidenceDays, 3);
+  assert.match(trend?.fallbackMessage ?? "", /^近3天/);
+  assert.doesNotMatch(trend?.fallbackMessage ?? "", /7天/);
+  assert.equal(makeActionSuggestionDataNote(plan.evidenceDays), "建议基于已提供的近3天行动记录生成。");
+});
+
+test("seven distinct recorded days may accurately say seven days", () => {
+  const recentActions = Array.from({ length: 6 }, (_, index) => makeAction(
+    `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    index < 4 ? "missed" : "completed",
+    "慢走",
+    `2026-07-${String(15 + index).padStart(2, "0")}T15:00:00.000Z`,
+    20
+  ));
+  const input = actionTrendSuggestionRequestSchema.parse({
+    now: "2026-07-21T12:00:00.000Z",
+    timeZone: "Europe/London",
+    todayActions: [makeAction(todayActionId, "pending", "慢走", "2026-07-21T15:00:00.000Z", 20)],
+    recentActions
+  });
+
+  const plan = buildTrustedActionSuggestionPlan(input);
+  const trend = plan.candidates.find((candidate) => candidate.id.startsWith("trend-reschedule:"));
+  assert.equal(plan.evidenceDays, 7);
+  assert.match(trend?.fallbackMessage ?? "", /^近7天/);
+  assert.equal(makeActionSuggestionDataNote(plan.evidenceDays), "建议基于已提供的近7天行动记录生成。");
+});
+
 test("OpenAI may only select trusted candidate ids and unsafe one-day polish falls back", () => {
   const input = parseRequest([
     makeAction(todayActionId, "missed", "原地踏步", "2026-07-21T15:00:00.000Z", 20)

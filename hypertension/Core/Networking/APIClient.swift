@@ -8,6 +8,7 @@ struct APIErrorResponse: Decodable {
 enum APIClientError: LocalizedError {
     case invalidURL
     case missingAccessToken
+    case sessionExpired
     case server(code: String, message: String?)
     case unexpectedResponse
 
@@ -17,6 +18,8 @@ enum APIClientError: LocalizedError {
             "Invalid server URL."
         case .missingAccessToken:
             "Missing access token."
+        case .sessionExpired:
+            "Your session has expired. Please sign in again."
         case .server(let code, let message):
             message ?? code
         case .unexpectedResponse:
@@ -26,17 +29,36 @@ enum APIClientError: LocalizedError {
 }
 
 final class APIClient {
+    typealias DataLoader = (URLRequest) async throws -> (Data, URLResponse)
+    typealias AuthorizationRefreshHandler = () async throws -> String
+
     static let shared = APIClient()
 
     var baseURL = URL(string: "https://bphealth-api-staging.onrender.com")!
     var accessToken: String?
 
-    private let session: URLSession
+    private let dataLoader: DataLoader
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private var authorizationRefreshHandler: AuthorizationRefreshHandler?
+    private var authorizationRefreshTask: Task<String, Error>?
 
     init(session: URLSession = .shared) {
-        self.session = session
+        dataLoader = { request in
+            try await session.data(for: request)
+        }
+    }
+
+    init(dataLoader: @escaping DataLoader) {
+        self.dataLoader = dataLoader
+    }
+
+    func setAuthorizationRefreshHandler(_ handler: AuthorizationRefreshHandler?) {
+        authorizationRefreshHandler = handler
+        if handler == nil {
+            authorizationRefreshTask?.cancel()
+            authorizationRefreshTask = nil
+        }
     }
 
     func get<Response: Decodable>(_ path: String, requiresAuth: Bool = false) async throws -> Response {
@@ -63,7 +85,8 @@ final class APIClient {
         _ path: String,
         method: String,
         body: Body?,
-        requiresAuth: Bool
+        requiresAuth: Bool,
+        allowsAuthorizationRecovery: Bool = true
     ) async throws -> Response {
         guard let url = URL(string: path, relativeTo: baseURL) else {
             throw APIClientError.invalidURL
@@ -73,21 +96,47 @@ final class APIClient {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let requestAccessToken: String?
         if requiresAuth {
             guard let accessToken else {
                 throw APIClientError.missingAccessToken
             }
 
+            requestAccessToken = accessToken
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        } else {
+            requestAccessToken = nil
         }
 
         if let body {
             request.httpBody = try encoder.encode(body)
         }
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await dataLoader(request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIClientError.unexpectedResponse
+        }
+
+        if httpResponse.statusCode == 401, requiresAuth, allowsAuthorizationRecovery {
+            let recoveredAccessToken: String
+            if let requestAccessToken,
+               let accessToken,
+               accessToken != requestAccessToken {
+                // Another in-flight request already refreshed the token while this
+                // request was waiting for its response.
+                recoveredAccessToken = accessToken
+            } else {
+                recoveredAccessToken = try await refreshAuthorization()
+            }
+
+            accessToken = recoveredAccessToken
+            return try await self.request(
+                path,
+                method: method,
+                body: body,
+                requiresAuth: requiresAuth,
+                allowsAuthorizationRecovery: false
+            )
         }
 
         if httpResponse.statusCode == 204, Response.self == EmptyResponse.self {
@@ -103,6 +152,30 @@ final class APIClient {
         }
 
         return try decoder.decode(Response.self, from: data)
+    }
+
+    private func refreshAuthorization() async throws -> String {
+        if let authorizationRefreshTask {
+            return try await authorizationRefreshTask.value
+        }
+
+        guard let authorizationRefreshHandler else {
+            throw APIClientError.sessionExpired
+        }
+
+        let task = Task {
+            try await authorizationRefreshHandler()
+        }
+        authorizationRefreshTask = task
+
+        do {
+            let accessToken = try await task.value
+            authorizationRefreshTask = nil
+            return accessToken
+        } catch {
+            authorizationRefreshTask = nil
+            throw error
+        }
     }
 }
 

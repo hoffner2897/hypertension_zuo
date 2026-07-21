@@ -15,9 +15,57 @@ struct BloodPressureReadingAPIService {
         )
     }
 
-    func list(limit: Int = 100) async throws -> ListReadingsResponse {
-        try await apiClient.get(
-            "/readings?limit=\(limit)",
+    func list(
+        limit: Int = 100,
+        cursor: String? = nil,
+        includeDeleted: Bool = false
+    ) async throws -> ListReadingsResponse {
+        var path = "/readings?limit=\(limit)"
+        if includeDeleted {
+            path += "&includeDeleted=true"
+        }
+        if let cursor,
+           let encodedCursor = cursor.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            path += "&cursor=\(encodedCursor)"
+        }
+
+        return try await apiClient.get(
+            path,
+            requiresAuth: true
+        )
+    }
+
+    func find(clientId: UUID) async throws -> RemoteBloodPressureReading? {
+        var cursor: String?
+        var visitedCursors = Set<String>()
+
+        repeat {
+            let response = try await list(limit: 100, cursor: cursor)
+            if let match = response.readings.first(where: { $0.clientId == clientId }) {
+                return match
+            }
+
+            cursor = response.nextCursor
+            if let cursor, !visitedCursors.insert(cursor).inserted {
+                break
+            }
+        } while cursor != nil
+
+        return nil
+    }
+
+    func update(id: String, draft: BPReadingDraft) async throws -> UpdateReadingResponse {
+        try await apiClient.put(
+            "/readings/\(id)",
+            body: UpdateReadingRequest(draft: draft),
+            requiresAuth: true
+        )
+    }
+
+    func delete(id: String) async throws {
+        try await apiClient.delete(
+            "/readings/\(id)",
+            body: DeleteReadingRequest(),
             requiresAuth: true
         )
     }
@@ -49,6 +97,10 @@ struct RemoteBloodPressureReading: Decodable {
 struct ListReadingsResponse: Decodable {
     let readings: [RemoteBloodPressureReading]
     let nextCursor: String?
+}
+
+struct UpdateReadingResponse: Decodable {
+    let reading: RemoteBloodPressureReading
 }
 
 struct BPInterpretationResponse: Decodable {
@@ -142,6 +194,23 @@ private struct BPRecentInterpretationReading: Encodable {
 private struct SyncReadingsRequest: Encodable {
     let readings: [SyncReadingInput]
 }
+
+private struct UpdateReadingRequest: Encodable {
+    let systolic: Int
+    let diastolic: Int
+    let pulse: Int?
+    let measuredAt: String
+
+    init(draft: BPReadingDraft) {
+        systolic = Int(draft.systolic.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        diastolic = Int(draft.diastolic.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        let pulseText = draft.pulse.trimmingCharacters(in: .whitespacesAndNewlines)
+        pulse = pulseText.isEmpty ? nil : Int(pulseText)
+        measuredAt = BPInterpretationRequest.formatDate(draft.measuredAt)
+    }
+}
+
+private struct DeleteReadingRequest: Encodable {}
 
 private struct SyncReadingInput: Encodable {
     let clientId: UUID

@@ -15,6 +15,8 @@ final class BloodPressureHomeViewModel: ObservableObject {
     @Published private(set) var interpretation: BPInterpretation?
     @Published private(set) var isLoadingInterpretation = false
     @Published private(set) var interpretationErrorMessage: String?
+    @Published private(set) var historyActionErrorMessage: String?
+    @Published private(set) var isUpdatingHistory = false
 
     private let localReadingStore = GRDBLocalReadingStore.shared
     private let apiService = BloodPressureReadingAPIService()
@@ -53,6 +55,7 @@ final class BloodPressureHomeViewModel: ObservableObject {
             return
         }
 
+        var attemptedClientIds: [UUID] = []
         do {
             let pending = try localReadingStore.pendingReadings(userId: userId)
             guard !pending.isEmpty else {
@@ -60,7 +63,8 @@ final class BloodPressureHomeViewModel: ObservableObject {
                 return
             }
 
-            try localReadingStore.markSyncing(clientIds: pending.map(\.clientId))
+            attemptedClientIds = pending.map(\.clientId)
+            try localReadingStore.markSyncing(clientIds: attemptedClientIds)
             let response = try await apiService.sync(readings: pending)
 
             for reading in response.readings {
@@ -69,9 +73,7 @@ final class BloodPressureHomeViewModel: ObservableObject {
 
             syncStatusMessage = "已同步 \(response.readings.count) 条本地读数。"
         } catch {
-            if let pending = try? localReadingStore.pendingReadings(userId: userId) {
-                try? localReadingStore.markSyncFailed(clientIds: pending.map(\.clientId))
-            }
+            try? localReadingStore.markSyncFailed(clientIds: attemptedClientIds)
             syncStatusMessage = "有读数等待联网后同步。"
         }
     }
@@ -82,7 +84,7 @@ final class BloodPressureHomeViewModel: ObservableObject {
         }
 
         do {
-            let response = try await apiService.list(limit: 100)
+            let response = try await apiService.list(limit: 100, includeDeleted: true)
             for reading in response.readings {
                 try repository.upsertRemote(reading, userId: userId)
             }
@@ -119,6 +121,50 @@ final class BloodPressureHomeViewModel: ObservableObject {
             interpretation = BPInterpretationRuleFallback.makeInterpretation(from: reading)
             interpretationErrorMessage = "暂时无法获取 AI 解释，已显示本地规则说明。"
         }
+    }
+
+    func deleteReading(
+        _ reading: BloodPressureReading,
+        userId: String,
+        repository: any BloodPressureReadingRepository
+    ) async -> Bool {
+        guard !isUpdatingHistory else {
+            return false
+        }
+
+        isUpdatingHistory = true
+        defer { isUpdatingHistory = false }
+
+        do {
+            let isPending = try localReadingStore.isPending(clientId: reading.id, userId: userId)
+            let knownServerId = try (
+                reading.serverId ?? localReadingStore.serverId(clientId: reading.id, userId: userId)
+            )
+            if !isPending || knownServerId != nil {
+                let remoteId: String?
+                if let serverId = knownServerId {
+                    remoteId = serverId
+                } else {
+                    remoteId = try await apiService.find(clientId: reading.id)?.id
+                }
+
+                if let remoteId {
+                    try await apiService.delete(id: remoteId)
+                }
+            }
+
+            try repository.delete(reading)
+            try localReadingStore.remove(clientId: reading.id, userId: userId)
+            historyActionErrorMessage = nil
+            return true
+        } catch {
+            historyActionErrorMessage = "暂时无法删除这条读数，请联网后重试。"
+            return false
+        }
+    }
+
+    func clearHistoryActionError() {
+        historyActionErrorMessage = nil
     }
 
     private static func average(_ values: [Int]) -> Int {
@@ -232,6 +278,7 @@ enum BPInterpretationRuleFallback {
 @Model
 final class BloodPressureReading {
     var id: UUID
+    var serverId: String?
     var userId: String = ""
     var systolic: Int
     var diastolic: Int
@@ -242,6 +289,7 @@ final class BloodPressureReading {
 
     init(
         id: UUID = UUID(),
+        serverId: String? = nil,
         userId: String,
         systolic: Int,
         diastolic: Int,
@@ -251,6 +299,7 @@ final class BloodPressureReading {
         createdAt: Date = Date()
     ) {
         self.id = id
+        self.serverId = serverId
         self.userId = userId
         self.systolic = systolic
         self.diastolic = diastolic
@@ -288,5 +337,25 @@ enum BPReadingSource: String, Hashable {
         case .manual:
             "手动输入"
         }
+    }
+
+    static func fromStoredValue(_ value: String) -> BPReadingSource {
+        switch value {
+        case "cameraRecognition", "camera_mock", "camera_ocr":
+            return .cameraRecognition
+        default:
+            return .manual
+        }
+    }
+}
+
+extension BPReadingDraft {
+    @MainActor
+    init(reading: BloodPressureReading) {
+        source = BPReadingSource.fromStoredValue(reading.source)
+        systolic = String(reading.systolic)
+        diastolic = String(reading.diastolic)
+        pulse = reading.pulse.map(String.init) ?? ""
+        measuredAt = reading.measuredAt
     }
 }

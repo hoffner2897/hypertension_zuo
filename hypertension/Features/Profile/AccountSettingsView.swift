@@ -1,13 +1,20 @@
 import SwiftUI
+import SwiftData
 
 struct AccountSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var appState: AppState
+    @StateObject private var healthViewModel = HealthKitSummaryViewModel()
     @State private var profile: UserProfile?
     @State private var showDeleteConfirmation = false
     @State private var showEditProfile = false
     @State private var deletePassword = ""
     @State private var isDeleting = false
     @State private var isLoadingProfile = false
+    @State private var isEditingHealthData = false
+    @State private var selectedHealthField: HealthDataField?
 
     private let profileService = ProfileService()
 
@@ -72,6 +79,8 @@ struct AccountSettingsView: View {
                             }
                         }
 
+                        healthSection
+
                         DSSecondaryButton("退出登录", systemImage: "rectangle.portrait.and.arrow.right") {
                             Task {
                                 await appState.logout()
@@ -97,8 +106,15 @@ struct AccountSettingsView: View {
                     .padding(DSTheme.Spacing.large)
                 }
             }
-            .navigationTitle("Profile")
+            .navigationTitle("账号与健康")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                }
+            }
             .sheet(isPresented: $showDeleteConfirmation) {
                 deleteAccountSheet
             }
@@ -108,10 +124,64 @@ struct AccountSettingsView: View {
                     appState.completeProfile(updatedProfile)
                 }
             }
+            .sheet(isPresented: $isEditingHealthData) {
+                HealthDataEditorView(draft: healthViewModel.makeDraft()) { draft in
+                    Task {
+                        if await healthViewModel.saveManualData(draft) {
+                            isEditingHealthData = false
+                            await loadProfile()
+                        }
+                    }
+                }
+                .presentationDetents([.large])
+            }
+            .sheet(item: $selectedHealthField) { field in
+                HealthDataEditorView(draft: healthViewModel.makeDraft(), highlightedField: field) { draft in
+                    Task {
+                        if await healthViewModel.saveManualData(draft) {
+                            selectedHealthField = nil
+                            await loadProfile()
+                        }
+                    }
+                }
+                .presentationDetents([.large])
+            }
             .task {
                 await loadProfile()
+                await healthViewModel.refresh()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task {
+                    await healthViewModel.refresh()
+                    await loadProfile()
+                }
             }
         }
+    }
+
+    private var healthSection: some View {
+        SyncedHealthDataContent(
+            viewModel: healthViewModel,
+            primaryTitle: healthViewModel.primaryActionTitle,
+            primaryIcon: healthViewModel.primaryActionIcon,
+            isPrimaryDisabled: healthViewModel.isPrimaryActionDisabled,
+            onPrimary: {
+                Task {
+                    await healthViewModel.primaryAction()
+                    await loadProfile()
+                }
+            },
+            secondaryTitle: "手动补充",
+            secondaryIcon: "square.and.pencil",
+            onSecondary: {
+                isEditingHealthData = true
+            },
+            onSelectCard: { field in
+                selectedHealthField = field
+            },
+            isEmbedded: true
+        )
     }
 
     private var deleteAccountSheet: some View {
@@ -184,7 +254,10 @@ struct AccountSettingsView: View {
 
     private func deleteAccount() async {
         isDeleting = true
-        await appState.deleteAccount(password: deletePassword)
+        if let deletedUserId = await appState.deleteAccount(password: deletePassword) {
+            try? SwiftDataBloodPressureReadingRepository(modelContext: modelContext)
+                .deleteAll(userId: deletedUserId)
+        }
         isDeleting = false
     }
 
@@ -315,6 +388,11 @@ struct EditProfileSheet: View {
             return
         }
 
+        guard trimmedName.count <= 80 else {
+            errorMessage = "昵称不能超过 80 个字符。"
+            return
+        }
+
         guard let year = Int(birthYear), year >= 1900, year <= Calendar.current.component(.year, from: Date()) else {
             errorMessage = "请输入有效出生年份。"
             return
@@ -351,8 +429,20 @@ struct EditProfileSheet: View {
             return nil
         }
 
-        return ISO8601DateFormatter().date(from: value)
+        return fractionalISOFormatter.date(from: value) ?? standardISOFormatter.date(from: value)
     }
+
+    private static let fractionalISOFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let standardISOFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
 }
 
 struct ProfileEditField: View {

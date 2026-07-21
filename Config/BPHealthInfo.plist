@@ -28,9 +28,9 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>BPHealth uses the camera to capture blood pressure monitor readings for review.</string>
+	<string>BPHealth uses the camera to capture blood pressure monitor readings and meal photos for analysis.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>BPHealth reads blood pressure and related health context to show your readings and trends.</string>
+	<string>BPHealth reads age, sex, height, weight, steps, exercise, resting heart rate, and sleep from Apple Health to personalize health context and sync it to your BPHealth profile.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>BPHealth connects to your local development server for sign in during testing.</string>
 	<key>UIApplicationSceneManifest</key>

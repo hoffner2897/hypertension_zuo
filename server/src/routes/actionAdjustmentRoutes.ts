@@ -10,10 +10,11 @@ import {
   resolveOpenAISelections
 } from "../domain/actionTrendSuggestions.js";
 import { requireAuth } from "../auth/authMiddleware.js";
+import type { AuthUserLookup } from "../auth/authMiddleware.js";
 import { OpenAIActionTrendSuggestionService } from "../services/openAIActionTrendSuggestionService.js";
 import { parseBody } from "./validation.js";
 
-export function createActionAdjustmentRouter(config: ServerConfig): Router {
+export function createActionAdjustmentRouter(config: ServerConfig, authUserLookup?: AuthUserLookup): Router {
   const router = Router();
   const openAIService = config.openAIAPIKey
     ? new OpenAIActionTrendSuggestionService({
@@ -23,7 +24,7 @@ export function createActionAdjustmentRouter(config: ServerConfig): Router {
     })
     : null;
 
-  router.use(requireAuth(config));
+  router.use(requireAuth(config, authUserLookup));
 
   router.post("/trend-suggestions", async (request, response, next) => {
     try {

@@ -1,5 +1,11 @@
+import {
+  normalizeImageBase64,
+  supportedImageBase64Schema,
+  type NormalizedImageBase64
+} from "./imageBase64.js";
+
 export interface RecognizeBPRequest {
-  imageBase64: string;
+  image: NormalizedImageBase64;
 }
 
 export interface BPRecognitionResult {
@@ -16,12 +22,12 @@ export function parseRecognizeBPRequest(body: unknown): RecognizeBPRequest {
     throw new BadRequestError("imageBase64 is required.");
   }
 
-  const imageBase64 = normalizeBase64Image(body.imageBase64);
-  if (imageBase64.length < 32) {
-    throw new BadRequestError("imageBase64 is too short.");
+  const parsed = supportedImageBase64Schema.safeParse(body.imageBase64);
+  if (!parsed.success) {
+    throw new BadRequestError("imageBase64 must be a valid JPEG, PNG, or WebP image.");
   }
 
-  return { imageBase64 };
+  return { image: normalizeImageBase64(parsed.data) };
 }
 
 export function normalizeRecognitionResult(result: unknown): BPRecognitionResult {
@@ -41,10 +47,6 @@ export function normalizeRecognitionResult(result: unknown): BPRecognitionResult
 
 export class BadRequestError extends Error {
   statusCode = 400;
-}
-
-function normalizeBase64Image(value: string): string {
-  return value.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "").trim();
 }
 
 function nullableInteger(value: unknown): number | null {

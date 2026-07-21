@@ -9,7 +9,10 @@ export interface ServerConfig {
   openAIAPIKey?: string;
   openAIModel: string;
   openAIActionSuggestionModel: string;
+  openAIMealAnalysisModel: string;
   openAIProxyURL?: string;
+  bpRecognitionDailyLimit: number;
+  mealAnalysisDailyLimit: number;
   accessTokenSecret: string;
   accessTokenTTLSeconds: number;
   refreshTokenTTLDays: number;
@@ -58,11 +61,22 @@ export function loadConfig(): ServerConfig {
     openAIAPIKey: process.env.OPENAI_API_KEY,
     openAIModel: process.env.OPENAI_MODEL ?? "gpt-5.5",
     openAIActionSuggestionModel: process.env.OPENAI_ACTION_SUGGESTION_MODEL ?? "gpt-5.6-sol",
+    openAIMealAnalysisModel: process.env.OPENAI_MEAL_ANALYSIS_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5.5",
     openAIProxyURL: process.env.OPENAI_PROXY_URL,
+    bpRecognitionDailyLimit: positiveIntegerEnv("BP_RECOGNITION_DAILY_LIMIT", 30),
+    mealAnalysisDailyLimit: positiveIntegerEnv("MEAL_ANALYSIS_DAILY_LIMIT", 20),
     accessTokenSecret: process.env.ACCESS_TOKEN_SECRET ?? "dev-only-change-me-access-token-secret",
     accessTokenTTLSeconds: Number(process.env.ACCESS_TOKEN_TTL_SECONDS ?? 900),
     refreshTokenTTLDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30),
     emailVerificationTTLHours: Number(process.env.EMAIL_VERIFICATION_TTL_HOURS ?? 24),
     emailVerificationBaseURL: process.env.EMAIL_VERIFICATION_BASE_URL ?? "http://localhost:3000/auth/verify-email"
   };
+}
+
+function positiveIntegerEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return value;
 }
