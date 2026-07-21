@@ -132,8 +132,12 @@ struct TodayActionView: View {
                     path.append(.detail(id))
                 }
             )
-            .frame(height: 540)
+            .frame(height: timelineHeight(for: displayItems.count))
         }
+    }
+
+    private func timelineHeight(for itemCount: Int) -> CGFloat {
+        max(920, CGFloat(itemCount + 1) * 178 + 140)
     }
 
     private func item(with id: UUID) -> TodayActionItem? {
@@ -1185,13 +1189,28 @@ private struct TodayTreeTimelineView: View {
         GeometryReader { proxy in
             let size = proxy.size
             let axisX = size.width * 0.5
-            let topInset = size.height * 0.14
-            let bottomInset = size.height * 0.2
+            let topInset: CGFloat = 78
+            let bottomInset: CGFloat = 84
             let usableHeight = max(size.height - topInset - bottomInset, 1)
             let lanePadding: CGFloat = 14
             let cardWidth = max((size.width - lanePadding * 2 - 28) / 2, 122)
             let leftCardX = lanePadding + cardWidth / 2
             let rightCardX = size.width - lanePadding - cardWidth / 2
+            let sortedItems = items.sorted {
+                if $0.scheduledStartAt == $1.scheduledStartAt {
+                    return $0.sortOrder < $1.sortOrder
+                }
+
+                return $0.scheduledStartAt < $1.scheduledStartAt
+            }
+            let positions = TimelinePositioner.positions(
+                items: sortedItems,
+                now: now,
+                range: range,
+                topInset: topInset,
+                usableHeight: usableHeight,
+                minimumSpacing: 166
+            )
 
             ZStack(alignment: .topLeading) {
                 TimelineLaneHeader(
@@ -1222,17 +1241,23 @@ private struct TodayTreeTimelineView: View {
                 }
                 .position(x: axisX, y: topInset + usableHeight / 2)
 
-                ForEach(items) { item in
-                    let y = topInset + usableHeight * range.progress(for: item.scheduledStartAt)
+                ForEach(sortedItems) { item in
+                    let y = positions.itemY[item.id] ?? topInset + usableHeight * range.progress(for: item.scheduledStartAt)
                     let isMeal = item.type == .diet
                     let cardX = isMeal ? rightCardX : leftCardX
+                    let cardEdgeX = isMeal ? cardX - cardWidth / 2 + 8 : cardX + cardWidth / 2 - 8
+                    let axisEdgeX = isMeal ? axisX + 18 : axisX - 18
 
-                    TimelineBranch(toLeft: !isMeal)
-                        .stroke(Color.white.opacity(0.72), lineWidth: 2)
-                        .frame(width: max(abs(cardX - axisX) - cardWidth * 0.44, 20), height: 16)
-                        .position(x: (axisX + cardX) / 2, y: y)
+                    TimelineConnector(
+                        fromX: axisEdgeX,
+                        toX: cardEdgeX,
+                        y: y,
+                        tint: item.type.accent
+                    )
+                    .frame(width: size.width, height: size.height, alignment: .topLeading)
+                    .allowsHitTesting(false)
 
-                    TimeBubble(text: item.startTimeText, tint: item.displayStatus.tint)
+                    TimeBubble(text: item.startTimeText, tint: item.timelineTimeTint)
                         .position(x: axisX, y: y)
 
                     DesignActionCard(item: item)
@@ -1240,15 +1265,87 @@ private struct TodayTreeTimelineView: View {
                         .position(x: cardX, y: y)
                         .onTapGesture {
                             onSelect(item.id)
-                        }
+                    }
                 }
 
                 CurrentTimeGlow(
                     timeText: TodayActionItem.timeFormatter.string(from: now),
                     tint: Color(red: 1.0, green: 0.55, blue: 0.14)
                 )
-                .position(x: axisX, y: topInset + usableHeight * range.progress(for: now))
+                .position(x: axisX, y: positions.currentY)
             }
+        }
+    }
+}
+
+private struct TimelinePositioner {
+    static func positions(
+        items: [TodayActionItem],
+        now: Date,
+        range: TodayTimelineRange,
+        topInset: CGFloat,
+        usableHeight: CGFloat,
+        minimumSpacing: CGFloat
+    ) -> (itemY: [UUID: CGFloat], currentY: CGFloat) {
+        var events = items.map { TimelinePositionEvent.item($0.id, $0.scheduledStartAt) }
+        events.append(.current(now))
+        events.sort { lhs, rhs in
+            if lhs.date == rhs.date {
+                return lhs.sortRank < rhs.sortRank
+            }
+
+            return lhs.date < rhs.date
+        }
+
+        var resolved: [TimelinePositionEvent: CGFloat] = [:]
+        var previousY: CGFloat?
+
+        for event in events {
+            let naturalY = topInset + usableHeight * range.progress(for: event.date)
+            let y: CGFloat
+            if let previousY {
+                y = max(naturalY, previousY + minimumSpacing)
+            } else {
+                y = naturalY
+            }
+
+            resolved[event] = y
+            previousY = y
+        }
+
+        var itemY: [UUID: CGFloat] = [:]
+        var currentY = topInset + usableHeight * range.progress(for: now)
+
+        for (event, y) in resolved {
+            switch event {
+            case .item(let id, _):
+                itemY[id] = y
+            case .current:
+                currentY = y
+            }
+        }
+
+        return (itemY, currentY)
+    }
+}
+
+private enum TimelinePositionEvent: Hashable {
+    case item(UUID, Date)
+    case current(Date)
+
+    var date: Date {
+        switch self {
+        case .item(_, let date), .current(let date):
+            return date
+        }
+    }
+
+    var sortRank: Int {
+        switch self {
+        case .item:
+            return 0
+        case .current:
+            return 1
         }
     }
 }
@@ -1259,11 +1356,7 @@ private struct TimelineLaneHeader: View {
     let tint: Color
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(tint)
-
+        HStack {
             Text(title)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
@@ -1283,37 +1376,119 @@ private struct DesignActionCard: View {
     let item: TodayActionItem
 
     var body: some View {
-        HStack(spacing: DSTheme.Spacing.small) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(item.title)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(DSTheme.Color.textPrimary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.78)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 6) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(item.title)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.72)
 
-                Text(item.startTimeText)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(DSTheme.Color.textSecondary)
+                    Text(item.timelineSubtitle)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
 
-                Text(item.status == .completed ? "完成" : "开始")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(item.displayStatus == .completed ? DSTheme.Color.success : DSTheme.Color.primary)
-                    .clipShape(Capsule())
+                Spacer(minLength: 0)
+
+                TimelineActionArtwork(item: item)
+                    .frame(width: item.type == .diet ? 58 : 54, height: item.type == .diet ? 54 : 58)
             }
 
-            Spacer(minLength: 0)
+            statusPill
 
-            ActionIllustration(type: item.type)
-                .frame(width: 48, height: 48)
+            switch item.type {
+            case .bpRecheck:
+                metricPill(item.bloodPressureText ?? "128/82", suffix: "mmHg")
+            case .diet:
+                adviceBox
+            case .walk:
+                EmptyView()
+            case .rest, .hydration, .sleep, .custom:
+                Text(item.description)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+                    .lineLimit(2)
+            }
         }
-        .padding(DSTheme.Spacing.small)
-        .frame(minHeight: 86)
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: item.type == .diet ? 158 : 116, alignment: .topLeading)
         .background(.white.opacity(0.93))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+    }
+
+    private var statusPill: some View {
+        Text(item.displayStatus.title)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(statusTextColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(item.displayStatus.tint.opacity(0.18))
+            .clipShape(Capsule())
+    }
+
+    private var statusTextColor: Color {
+        switch item.displayStatus {
+        case .completed:
+            return Color(red: 0.06, green: 0.40, blue: 0.16)
+        case .pending, .inProgress:
+            return DSTheme.Color.primary
+        case .skipped:
+            return DSTheme.Color.textSecondary
+        case .missed:
+            return Color(red: 0.70, green: 0.33, blue: 0.08)
+        }
+    }
+
+    private func metricPill(_ value: String, suffix: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(value)
+                .font(.caption.weight(.bold))
+            Text(suffix)
+                .font(.caption2.weight(.bold))
+        }
+        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color(red: 0.88, green: 0.94, blue: 1.0).opacity(0.9))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var adviceBox: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("AI分析与建议")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+
+            Text(item.adviceText ?? item.description)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(DSTheme.Color.textPrimary)
+                .lineLimit(4)
+                .minimumScaleFactor(0.78)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.88, green: 0.94, blue: 1.0).opacity(0.84))
+        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+}
+
+private struct TimelineActionArtwork: View {
+    let item: TodayActionItem
+
+    var body: some View {
+        if let assetName = item.timelineArtworkAssetName {
+            Image(assetName)
+                .resizable()
+                .scaledToFit()
+                .accessibilityHidden(true)
+        } else {
+            ActionIllustration(type: item.type)
+        }
     }
 }
 
@@ -1345,6 +1520,31 @@ private struct TimeBubble: View {
             .background(.white.opacity(0.95))
             .clipShape(Capsule())
             .shadow(color: tint.opacity(0.12), radius: 8, x: 0, y: 4)
+    }
+}
+
+private struct TimelineConnector: View {
+    let fromX: CGFloat
+    let toX: CGFloat
+    let y: CGFloat
+    let tint: Color
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Path { path in
+                path.move(to: CGPoint(x: fromX, y: y))
+                path.addLine(to: CGPoint(x: toX, y: y))
+            }
+            .stroke(
+                tint.opacity(0.72),
+                style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [5, 4])
+            )
+
+            Circle()
+                .fill(tint.opacity(0.88))
+                .frame(width: 7, height: 7)
+                .position(x: toX, y: y)
+        }
     }
 }
 
@@ -1662,6 +1862,8 @@ struct TodayActionItem: Identifiable, Hashable {
     var displayStatus: TodayActionStatus
     var completedAt: Date?
     var sortOrder: Int
+    var bloodPressureText: String?
+    var adviceText: String?
 
     init(
         id: UUID = UUID(),
@@ -1673,7 +1875,9 @@ struct TodayActionItem: Identifiable, Hashable {
         durationMinutes: Int,
         status: TodayActionStatus = .pending,
         completedAt: Date? = nil,
-        sortOrder: Int
+        sortOrder: Int,
+        bloodPressureText: String? = nil,
+        adviceText: String? = nil
     ) {
         self.id = id
         self.type = type
@@ -1687,6 +1891,8 @@ struct TodayActionItem: Identifiable, Hashable {
         self.displayStatus = status
         self.completedAt = completedAt
         self.sortOrder = sortOrder
+        self.bloodPressureText = bloodPressureText
+        self.adviceText = adviceText
     }
 
     var startTimeText: String {
@@ -1695,6 +1901,62 @@ struct TodayActionItem: Identifiable, Hashable {
 
     var timeRangeText: String {
         "\(Self.timeFormatter.string(from: scheduledStartAt)) - \(Self.timeFormatter.string(from: scheduledEndAt))"
+    }
+
+    var timelineSubtitle: String {
+        switch type {
+        case .walk:
+            return "\(startTimeText) | \(durationMinutes) 分钟"
+        case .diet:
+            return startTimeText
+        case .bpRecheck:
+            return startTimeText
+        case .rest, .hydration, .sleep, .custom:
+            return "\(startTimeText) | \(durationMinutes) 分钟"
+        }
+    }
+
+    var timelineTimeTint: Color {
+        switch displayStatus {
+        case .completed:
+            return DSTheme.Color.success
+        case .skipped:
+            return DSTheme.Color.textSecondary
+        case .pending, .inProgress, .missed:
+            return DSTheme.Color.primary
+        }
+    }
+
+    var timelineArtworkAssetName: String? {
+        if title.contains("早晨血压") {
+            return "TodayCardMorningBloodPressure"
+        }
+
+        if title.contains("晚间血压") {
+            return "TodayCardEveningBloodPressure"
+        }
+
+        if title.contains("早餐") {
+            return "TodayCardBreakfast"
+        }
+
+        if title.contains("午餐") {
+            return "TodayCardLunch"
+        }
+
+        if title.contains("晚餐") {
+            return "TodayCardDinner"
+        }
+
+        if title.contains("原地踏步") {
+            return "TodayCardJogInPlace"
+        }
+
+        if title.contains("慢走") || title.contains("饭后散步") || type == .walk {
+            return "TodayCardWalk"
+        }
+
+        return nil
     }
 
     func effectiveStatus(now: Date) -> TodayActionStatus {
@@ -1715,20 +1977,20 @@ struct TodayActionItem: Identifiable, Hashable {
 
     static func demoItems() -> [TodayActionItem] {
         [
-            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0),
-            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1),
-            make(.diet, title: "午餐建议", hour: 12, minute: 0, duration: 25, order: 2),
-            make(.diet, title: "晚餐建议", hour: 18, minute: 30, duration: 25, order: 3),
-            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 4)
+            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0, bloodPressureText: "128/82"),
+            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1, adviceText: "白米饭和鸡蛋较清淡，建议后续搭配蔬菜或水果，更利于控压。"),
+            make(.diet, title: "午餐建议", hour: 12, minute: 0, duration: 25, order: 2, adviceText: "咖喱鸡米饭较均衡，建议少盐少油，并搭配更多蔬菜或杂粮饭。"),
+            make(.diet, title: "晚餐建议", hour: 18, minute: 30, duration: 25, order: 3, adviceText: "猪肉末彩椒碗有蛋白质和蔬菜，建议少盐少油；下次类似食材可搭配瘦肉、彩椒和杂粮饭。"),
+            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 4, bloodPressureText: "128/82")
         ]
     }
 
     static func generatedDemoItems() -> [TodayActionItem] {
         [
-            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0),
-            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1),
+            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0, bloodPressureText: "128/82"),
+            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1, adviceText: "白米饭和鸡蛋较清淡，建议后续搭配蔬菜或水果，更利于控压。"),
             make(.walk, title: "饭后散步", hour: 19, minute: 30, duration: 15, order: 2),
-            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 3)
+            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 3, bloodPressureText: "128/82")
         ]
     }
 
@@ -1765,7 +2027,9 @@ struct TodayActionItem: Identifiable, Hashable {
         hour: Int,
         minute: Int,
         duration: Int,
-        order: Int
+        order: Int,
+        bloodPressureText: String? = nil,
+        adviceText: String? = nil
     ) -> TodayActionItem {
         let calendar = Calendar.current
         let now = Date()
@@ -1779,7 +2043,9 @@ struct TodayActionItem: Identifiable, Hashable {
             reason: type.reason,
             scheduledStartAt: start,
             durationMinutes: duration,
-            sortOrder: order
+            sortOrder: order,
+            bloodPressureText: bloodPressureText,
+            adviceText: adviceText
         )
     }
 }
