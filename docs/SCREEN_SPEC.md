@@ -3,16 +3,21 @@
 ## Navigation Shape
 BPHealth is an iOS-first SwiftUI app. Use a root session state to choose the launch destination, then use `NavigationStack` inside each major flow.
 
-Launch flow:
+Target launch flow:
 1. Checking session
 2. Login / register
 3. Verify email
 4. Profile setup
 5. Main app
 
+Current implementation:
+- `AppState` checks refresh-token session.
+- It currently routes to signed out, profile setup, or main app.
+- `VerifyEmailView` exists, but the root route state does not yet include a verify-email gate.
+
 Main app flow:
 1. Blood pressure home
-2. Add reading / camera placeholder
+2. Add reading / photo recognition
 3. Confirm reading
 4. Analysis loading
 5. Result
@@ -66,6 +71,7 @@ Block main app access until email verification is complete.
 ### Rules
 - Keep messaging neutral and localized.
 - Do not expose raw tokens in production UI.
+- Current UI accepts a development token manually and can resend verification. This is suitable for console-only development email but should be replaced or hidden for production.
 
 ## 4. Profile Setup Screen
 
@@ -86,6 +92,7 @@ Collect the required lightweight profile before main app entry.
 - Profile is required.
 - Do not ask for diagnosis, disease history, or medication details in the first version.
 - Field labels and validation messages must be localized.
+- Current setup screen collects display name, birth year, and sex. HealthKit context is handled separately and persisted as optional profile fields.
 
 ## 5. Blood Pressure Home Screen
 
@@ -110,19 +117,24 @@ Provide the main blood pressure overview and entry points.
 - Use mmHg only.
 - Use non-diagnostic labels such as "within selected range" or "may need attention".
 
-## 6. Add Reading / Camera Placeholder Screen
+## 6. Add Reading / Photo Recognition Screen
 
 ### Purpose
-Allow manual reading entry and reserve a path for future camera/OCR.
+Allow manual reading entry and support blood pressure monitor photo recognition.
 
 ### Content
 - Manual entry action.
-- Camera placeholder or mock upload action.
-- Clear text that real camera/OCR is not active yet, if this placeholder is visible.
+- Photo selection action.
+- Camera capture action when camera is available.
+- Recognition action that sends compressed JPEG data to the backend.
+- Recognition confidence/notes when a result is returned.
+- Clear path to manual input when recognition fails or the user prefers manual entry.
 
 ### Rules
-- Do not request camera permissions yet.
-- Do not use `PhotosUI`, `AVFoundation`, or OCR frameworks yet.
+- Do not save recognized values directly. Route to confirmation first.
+- Do not put the OpenAI API key in the iOS app.
+- The current implementation uses `PhotosUI` for library selection and `UIImagePickerController` for camera capture.
+- Recognition is server-side through `/recognize-bp`; fully on-device OCR remains deferred.
 
 ## 7. Confirm Reading Screen
 
@@ -160,7 +172,7 @@ Show a brief local analysis state before routing to a result variant.
 
 ### Rules
 - Do not present analysis as diagnosis.
-- First version can use local rule-based analysis.
+- Current app asks `/readings/interpretation` for guidance and falls back to local rule-based analysis if the request fails.
 
 ## 9. Result Screen
 

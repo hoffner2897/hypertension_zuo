@@ -27,12 +27,12 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>BPHealth uses the camera to capture blood pressure monitor readings for review.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>BPHealth reads blood pressure and related health context to show your readings and trends.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>BPHealth connects to your local development server for sign in during testing.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>BPHealth uses the camera to capture blood pressure monitor readings for review.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

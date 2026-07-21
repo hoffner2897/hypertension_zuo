@@ -108,6 +108,20 @@ final class AppState: ObservableObject {
         }
     }
 
+    #if DEBUG
+    func enterUITestMode() {
+        APIClient.shared.accessToken = nil
+        currentUser = AuthUser(
+            id: "debug-ui-user",
+            email: "ui-preview@bphealth.test",
+            emailVerified: true,
+            profileCompleted: true
+        )
+        errorMessage = nil
+        routeState = .mainApp
+    }
+    #endif
+
     private func authenticate(_ action: () async throws -> AuthResponse) async {
         do {
             let response = try await action()
@@ -163,9 +177,23 @@ final class AppState: ObservableObject {
                 return "邮箱或密码不正确。"
             case "PASSWORD_CONFIRMATION_FAILED":
                 return "密码确认失败。"
+            case "VALIDATION_FAILED":
+                return "邮箱或密码格式不符合要求。"
             default:
-                return "操作失败，请稍后重试。"
+                return "服务器返回错误：\(code)。"
             }
+        }
+
+        if error is KeychainStoreError {
+            return "登录信息保存失败，请重试。"
+        }
+
+        if error is DecodingError {
+            return "服务器返回格式与 app 暂时不匹配。"
+        }
+
+        if error is URLError {
+            return "网络连接失败，请检查网络后重试。"
         }
 
         return "网络或服务器暂时不可用。"

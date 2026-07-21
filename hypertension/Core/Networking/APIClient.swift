@@ -28,11 +28,7 @@ enum APIClientError: LocalizedError {
 final class APIClient {
     static let shared = APIClient()
 
-    #if targetEnvironment(simulator)
-    var baseURL = URL(string: "http://localhost:3100")!
-    #else
-    var baseURL = URL(string: "http://192.168.1.55:3100")!
-    #endif
+    var baseURL = URL(string: "https://bphealth-api-staging.onrender.com")!
     var accessToken: String?
 
     private let session: URLSession

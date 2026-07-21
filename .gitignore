@@ -1,5 +1,15 @@
 .DS_Store
 
+# Local IDE / Codex workspace state
+.idea/
+.codex-xcode-home/
+
+# Xcode user state
+*.xcuserstate
+xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
 # Node backend
 server/node_modules/
 server/dist/

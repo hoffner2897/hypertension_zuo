@@ -12,7 +12,7 @@ The iOS app should send the image to our own backend or serverless endpoint. Tha
 
 ## iOS Flow
 
-1. User takes or selects a photo.
+1. User takes a photo or selects one from the photo library.
 2. App compresses the image into JPEG data.
 3. App sends `imageBase64` to the recognition endpoint.
 4. Backend returns structured reading data.
@@ -76,6 +76,19 @@ The app now has:
 - `BloodPressureRecognitionService`
 - `MockBloodPressureRecognitionService`
 - `RemoteBloodPressureRecognitionService`
+- `BPCameraUploadMockView`
 - `BPCameraUploadViewModel`
+- `CameraCaptureView`
 
-The default app path still uses the mock service so the project can build and run without a backend.
+The default app path now builds a `RemoteBloodPressureRecognitionService` pointed at `/recognize-bp` relative to `APIClient.shared.baseURL`. The current API base URL is staging: `https://bphealth-api-staging.onrender.com`.
+
+The mock recognition service still exists for previews/tests or local substitution, but the normal UI path expects a reachable backend.
+
+## Backend State
+
+The backend supports two recognition modes:
+
+- `mock`: returns deterministic sample values.
+- `openai`: calls OpenAI from the server using `OPENAI_API_KEY`.
+
+The backend also exposes `/readings/interpretation`, which builds a local rule-based interpretation and can use OpenAI for refinement when `OPENAI_API_KEY` is configured.

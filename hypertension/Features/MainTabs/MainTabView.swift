@@ -9,21 +9,70 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var selectedTab: MainTab = .today
+    @State private var todayActionItems = TodayActionItem.demoItems()
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
+            TodayActionView(items: $todayActionItems) {
+                selectedTab = .bloodPressure
+            }
+            .tabItem {
+                Label("今日行动", systemImage: "figure.walk.motion")
+            }
+            .tag(MainTab.today)
+
             BloodPressureHomeView(userId: appState.currentUser?.id ?? "")
             .tabItem {
-                Label("Blood Pressure", systemImage: "heart.text.square")
+                Label("血压读数", systemImage: "heart.text.square")
             }
+            .tag(MainTab.bloodPressure)
 
-            HealthProfileTabView()
+            ActionGenerateDemoView(
+                onOpenBloodPressure: {
+                    selectedTab = .bloodPressure
+                },
+                onGenerateAction: { item in
+                    upsertTodayAction(item)
+                    selectedTab = .today
+                }
+            )
             .tabItem {
-                Label("Health Profile", systemImage: "person.crop.circle.badge.checkmark")
+                Label("行动生成", systemImage: "figure.walk.motion")
             }
+            .tag(MainTab.actionGenerate)
+
+            ActionAdjustDemoView(items: $todayActionItems)
+            .tabItem {
+                Label("行动调整", systemImage: "slider.horizontal.3")
+            }
+            .tag(MainTab.actionAdjust)
         }
         .tint(DSTheme.Color.primary)
     }
+
+    private func upsertTodayAction(_ item: TodayActionItem) {
+        if let index = todayActionItems.firstIndex(where: {
+            $0.title == item.title &&
+            Calendar.current.isDate($0.scheduledStartAt, equalTo: item.scheduledStartAt, toGranularity: .minute)
+        }) {
+            todayActionItems[index] = item
+        } else {
+            todayActionItems.append(item)
+        }
+
+        todayActionItems.sort { $0.scheduledStartAt < $1.scheduledStartAt }
+        for index in todayActionItems.indices {
+            todayActionItems[index].sortOrder = index
+        }
+    }
+}
+
+private enum MainTab: Hashable {
+    case today
+    case bloodPressure
+    case actionGenerate
+    case actionAdjust
 }
 
 private struct HealthProfileTabView: View {

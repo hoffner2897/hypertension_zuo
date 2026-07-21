@@ -45,13 +45,21 @@ Stores long-lived refresh token records.
 Access tokens are short-lived JWTs. Refresh tokens are long-lived opaque values and should be stored hashed in PostgreSQL.
 
 ### user_profiles
-Stores required lightweight profile data.
+Stores required lightweight profile data plus optional read-only health context imported from Apple Health.
 
 - `id`: uuid primary key
 - `user_id`: unique foreign key to users
 - `display_name`: string
 - `birth_year`: integer
 - `sex`: enum
+- `height_cm`: nullable decimal
+- `weight_kg`: nullable decimal
+- `daily_steps`: nullable integer
+- `exercise_minutes`: nullable integer
+- `resting_heart_rate`: nullable integer
+- `sleep_hours`: nullable decimal
+- `health_data_source`: nullable string
+- `health_data_synced_at`: nullable timestamp
 - `completed_at`: timestamp
 - `created_at`: timestamp
 - `updated_at`: timestamp
@@ -62,7 +70,7 @@ Sex values:
 - `other`
 - `prefer_not_to_say`
 
-The field is for lightweight user context, not diagnosis.
+These fields are for lightweight reading context, not diagnosis. The iOS profile setup screen currently collects only display name, birth year, and sex; HealthKit screens can provide the optional context fields.
 
 ### blood_pressure_readings
 Represents one blood pressure reading.
@@ -88,15 +96,32 @@ Source values:
 - `camera_ocr`
 - `health_import`
 
-Use `manual` and `camera_mock` first. Real OCR and HealthKit are deferred.
+The current iOS save path uses `manual` for manual entries and `camera_ocr` for recognized photo/camera readings.
 
 ## iOS Local Database
 
 Use GRDB.swift for SQLite storage.
 
-Suggested tables:
-- `local_profile_cache`
+Current table:
 - `local_blood_pressure_readings`
+
+Current columns:
+- `id`
+- `user_id`
+- `client_id`
+- `systolic`
+- `diastolic`
+- `pulse`
+- `measured_at`
+- `source`
+- `note`
+- `sync_status`
+- `server_id`
+- `created_at`
+- `updated_at`
+
+Future cache tables may include:
+- `local_profile_cache`
 - `sync_queue`
 - `local_app_metadata`
 
@@ -133,7 +158,10 @@ GET  /readings
 POST /readings
 PUT  /readings/:id
 DELETE /readings/:id
+POST /readings/sync
+POST /readings/interpretation
 POST /sync/readings
+POST /recognize-bp
 ```
 
 Backend errors should use stable codes, for example:
@@ -147,7 +175,7 @@ Backend errors should use stable codes, for example:
 The iOS app maps error codes to localized Chinese and English text.
 
 ## Reading Analysis
-Reading classification should stay outside SwiftUI views. The first version can use simple rule-based analysis, but the output must remain non-diagnostic.
+Reading classification and interpretation should stay outside SwiftUI views. The current backend builds a rule-based interpretation first and can optionally ask OpenAI to refine it when `OPENAI_API_KEY` is configured. The iOS app falls back to local rule-based wording if the interpretation request fails.
 
 Suggested result variants:
 - `withinSelectedRange`

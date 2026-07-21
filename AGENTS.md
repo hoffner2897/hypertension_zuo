@@ -6,12 +6,16 @@ BPHealth is an iOS-first SwiftUI app for blood pressure tracking, lightweight he
 The project is no longer MVP-only. Treat it as a full-stack product with an iOS client, a Node API server, and PostgreSQL persistence.
 
 ## Product Flow
-The app launch flow is:
+The intended app launch flow is:
 1. Check local session.
 2. If no session, show login/register.
 3. If logged in but email is not verified, show verify email.
 4. If email is verified but profile is incomplete, show profile setup.
 5. If profile is complete, show the main app.
+
+Current implementation note:
+- Registration currently auto-verifies users on the backend.
+- The iOS root router currently routes by profile completion only; `VerifyEmailView` exists but is not yet part of the enforced launch flow.
 
 ## Current Product Scope
 Implement toward:
@@ -22,6 +26,7 @@ Implement toward:
 - Blood pressure reading capture, confirmation, local analysis, history, and sync.
 - Offline blood pressure reading creation with later sync.
 - Apple Health authorization and read-only health context import.
+- Photo selection/camera capture for blood pressure monitor recognition through the backend, with user confirmation before save.
 - Account deletion in the first version.
 - Chinese and English localization.
 
@@ -38,7 +43,7 @@ Implement toward:
 - Blood pressure unit: mmHg only.
 
 ## Deferred Integrations
-- Real camera capture and OCR.
+- Fully on-device OCR.
 - Apple Sign In.
 - Push notifications.
 - Clinician sharing.

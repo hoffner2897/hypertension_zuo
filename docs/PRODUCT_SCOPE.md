@@ -6,12 +6,21 @@ BPHealth is an iOS-first SwiftUI blood pressure companion app. It supports accou
 The product is now planned as a full-stack app, not a local-only MVP.
 
 ## Core User Flow
+Target flow:
+
 1. User opens the app.
 2. App checks local session.
 3. If no session exists, user logs in or registers.
 4. Registered users can log in before email verification, but are routed to a verify email screen until verified.
 5. Verified users must complete a lightweight profile before entering the main app.
 6. Main app supports blood pressure reading review, adding readings, confirmation, analysis, history, and sync.
+
+Current implementation:
+
+- iOS checks local refresh-token session, then routes to login/register, profile setup, or main app.
+- `VerifyEmailView` and backend verification endpoints exist.
+- New backend registrations are currently marked verified immediately, and iOS routing does not yet block unverified users.
+- The app currently points at the staging API: `https://bphealth-api-staging.onrender.com`.
 
 ## First Version Goals
 - Email/password registration and login.
@@ -21,6 +30,8 @@ The product is now planned as a full-stack app, not a local-only MVP.
 - Apple Health read authorization and health context summary.
 - Offline reading creation on iOS.
 - Sync of local readings to the backend.
+- Blood pressure monitor photo capture/photo selection, backend recognition, and user confirmation before saving.
+- Server-side reading interpretation with rule-based fallback and optional OpenAI refinement.
 - Account deletion.
 - Chinese and English localization.
 - Blood pressure values in mmHg only.
@@ -31,7 +42,7 @@ The product is now planned as a full-stack app, not a local-only MVP.
 - Verify email
 - Profile setup
 - Main blood pressure home
-- Add reading / camera placeholder
+- Add reading / photo recognition
 - Confirm reading
 - Analysis loading
 - Result
@@ -39,11 +50,12 @@ The product is now planned as a full-stack app, not a local-only MVP.
 - Settings / account
 - Delete account
 
+Current screen implementation includes a photo upload/camera screen that sends compressed JPEG data to `/recognize-bp`; this is no longer just a static placeholder.
+
 ## Explicitly Out Of Scope For First Version
 - Lifestyle Step 03.
 - Apple Health writes.
-- Real camera permissions and capture.
-- Real OCR in the iOS app.
+- Fully on-device OCR.
 - Apple Sign In.
 - Push notifications.
 - Medication tracking.
@@ -65,8 +77,11 @@ Node Express API
   Email verification
   Refresh token lifecycle
   Profile
+  Health context fields on profile
   Blood pressure readings
   Sync
+  Photo recognition
+  Reading interpretation
   Account deletion
 
 PostgreSQL

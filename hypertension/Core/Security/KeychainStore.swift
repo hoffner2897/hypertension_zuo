@@ -1,6 +1,17 @@
 import Foundation
 import Security
 
+enum KeychainStoreError: LocalizedError {
+    case saveFailed(OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case .saveFailed(let status):
+            return "Keychain save failed with status \(status)."
+        }
+    }
+}
+
 enum KeychainStore {
     static func save(_ value: String, for key: String) throws {
         let data = Data(value.utf8)
@@ -21,7 +32,7 @@ enum KeychainStore {
         addQuery[kSecValueData as String] = data
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
         if addStatus != errSecSuccess {
-            throw NSError(domain: "KeychainStore", code: Int(addStatus))
+            throw KeychainStoreError.saveFailed(addStatus)
         }
     }
 
