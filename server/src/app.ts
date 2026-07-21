@@ -4,6 +4,7 @@ import type { ServerConfig } from "./config.js";
 import { createAuthRouter } from "./routes/authRoutes.js";
 import { createProfileRouter } from "./routes/profileRoutes.js";
 import { createReadingRouter, createReadingSyncRouter } from "./routes/readingRoutes.js";
+import { createActionAdjustmentRouter } from "./routes/actionAdjustmentRoutes.js";
 import { MockBPRecognitionService, type BPRecognitionService } from "./services/bpRecognitionService.js";
 import { OpenAIBPRecognitionService } from "./services/openAIBPRecognitionService.js";
 
@@ -18,6 +19,7 @@ export function createApp(config: ServerConfig): express.Express {
   app.use("/profile", createProfileRouter(config));
   app.use("/readings", createReadingRouter(config));
   app.use("/sync/readings", createReadingSyncRouter(config));
+  app.use("/action-adjustments", createActionAdjustmentRouter(config));
 
   app.get("/health", (_request, response) => {
     response.json({

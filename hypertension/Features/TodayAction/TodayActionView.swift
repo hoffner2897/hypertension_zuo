@@ -2,7 +2,6 @@ import SwiftUI
 
 struct TodayActionView: View {
     @Binding var items: [TodayActionItem]
-    let onOpenBloodPressure: () -> Void
 
     @State private var path: [TodayActionRoute] = []
     private let statusBarClearance: CGFloat = 54
@@ -71,15 +70,7 @@ struct TodayActionView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("今日行动")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                Text("Today's Action")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(DSTheme.Color.textSecondary)
-            }
+            ActionPageTitle(title: "今日行动", subtitle: "Today's Action")
 
             Spacer()
 
@@ -166,7 +157,6 @@ struct TodayActionView: View {
 }
 
 struct ActionGenerateDemoView: View {
-    let onOpenBloodPressure: () -> Void
     let onGenerateAction: (TodayActionItem) -> Void
     @State private var activeSheet: ActionGenerationSheet?
     @State private var scene = "公共室内"
@@ -176,41 +166,23 @@ struct ActionGenerateDemoView: View {
     @State private var currentMovement = "慢走"
     @State private var movementDuration = 15
     @State private var currentTime = "15:30"
-    @State private var reminderTimes = ["18:30", "20:00"]
-    @State private var usesSystemPreference = true
     @State private var customMovementName = ""
+    @State private var preferenceStartTime = "18:30"
+    @State private var preferenceEndTime = "19:30"
 
     var body: some View {
         NavigationStack {
             ZStack {
-                TreeStageBackground(completionRate: 0.35)
+                DSTheme.Color.appBackground
                     .ignoresSafeArea()
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("行动生成")
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
-
-                                Text("Action Studio")
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(DSTheme.Color.textSecondary)
-                            }
-
-                            Spacer()
-
-                            VStack(spacing: 4) {
-                                Image(systemName: "person.crop.circle.fill")
-                                    .font(.system(size: 38))
-                                    .foregroundStyle(DSTheme.Color.primary)
-
-                                Text("小宁")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(DSTheme.Color.textPrimary)
-                            }
-                        }
+                        ActionPageTitle(
+                            title: "行动生成",
+                            subtitle: "Action Studio",
+                            subtitleFont: .subheadline.weight(.medium)
+                        )
 
                         DSCard(padding: DSTheme.Spacing.small) {
                             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
@@ -284,15 +256,6 @@ struct ActionGenerateDemoView: View {
                                 activeSheet = .currentMovement
                             }
 
-                            ActionSetupCard(
-                                title: "后续运动时间",
-                                value: "\(reminderTimes.count) 个提醒时段",
-                                systemImage: "clock.badge.checkmark.fill",
-                                illustration: "alarm.fill",
-                                tint: Color(red: 0.36, green: 0.49, blue: 0.82)
-                            ) {
-                                activeSheet = .reminders
-                            }
                         }
 
                         Button {
@@ -344,17 +307,12 @@ struct ActionGenerateDemoView: View {
                         DSPrimaryButton("继续设置") {
                             activeSheet = .scene
                         }
-
-                        DSSecondaryButton("先记录血压", systemImage: "heart.text.square") {
-                            onOpenBloodPressure()
-                        }
                     }
                     .padding(DSTheme.Spacing.large)
                     .padding(.bottom, 170)
                 }
             }
-            .navigationTitle("行动生成")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarHidden(true)
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .scene:
@@ -380,16 +338,16 @@ struct ActionGenerateDemoView: View {
                         generateCurrentMovement()
                         activeSheet = nil
                     }
-                case .reminders:
-                    ReminderTimeSheet(reminderTimes: $reminderTimes) {
-                        generateReminderMovements()
-                        activeSheet = nil
-                    }
                 case .preference:
                     PreferenceMovementSheet(
-                        usesSystemPreference: $usesSystemPreference,
-                        customMovementName: $customMovementName
+                        customMovementName: $customMovementName,
+                        startTime: $preferenceStartTime,
+                        endTime: $preferenceEndTime,
+                        onClose: {
+                            activeSheet = nil
+                        }
                     ) {
+                        generatePreferenceMovement()
                         activeSheet = nil
                     }
                 }
@@ -420,86 +378,18 @@ struct ActionGenerateDemoView: View {
         onGenerateAction(item)
     }
 
-    private func generateReminderMovements() {
-        for (index, timeText) in reminderTimes.enumerated() {
-            let item = TodayActionItem.generatedMovement(
-                title: "运动提醒",
-                timeText: timeText,
-                duration: movementDuration,
-                order: 100 + index
-            )
-            onGenerateAction(item)
-        }
+    private func generatePreferenceMovement() {
+        let item = TodayActionItem.generatedMovement(
+            title: customMovementName.trimmingCharacters(in: .whitespacesAndNewlines),
+            timeText: preferenceStartTime,
+            duration: Self.durationInMinutes(from: preferenceStartTime, to: preferenceEndTime),
+            order: 100
+        )
+        onGenerateAction(item)
     }
-}
 
-struct ActionAdjustDemoView: View {
-    @Binding var items: [TodayActionItem]
-    @State private var selectedItem: TodayActionItem?
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                TreeStageBackground(completionRate: 0.65)
-                    .ignoresSafeArea()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
-                        DSSectionHeader(
-                            "行动调整",
-                            subtitle: "替换行动、调整时间或时长，保持今日计划适合当下。",
-                            systemImage: "slider.horizontal.3"
-                        )
-
-                        ForEach(items) { item in
-                            DSCard {
-                                HStack(spacing: DSTheme.Spacing.medium) {
-                                    Image(systemName: item.type.systemImage)
-                                        .font(.title3.weight(.semibold))
-                                        .foregroundStyle(DSTheme.Color.primary)
-                                        .frame(width: 42, height: 42)
-                                        .background(DSTheme.Color.primarySoft)
-                                        .clipShape(Circle())
-
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(item.title)
-                                            .font(.headline)
-                                            .foregroundStyle(DSTheme.Color.textPrimary)
-
-                                        Text(item.timeRangeText)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(DSTheme.Color.textSecondary)
-                                    }
-
-                                    Spacer()
-
-                                    Button {
-                                        selectedItem = item
-                                    } label: {
-                                        Image(systemName: "slider.horizontal.3")
-                                            .font(.headline)
-                                            .foregroundStyle(DSTheme.Color.primary)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                    .padding(DSTheme.Spacing.large)
-                    .padding(.bottom, 170)
-                }
-            }
-            .navigationTitle("行动调整")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(item: $selectedItem) { item in
-                TodayActionAdjustView(item: item) { updatedItem in
-                    if let index = items.firstIndex(where: { $0.id == updatedItem.id }) {
-                        items[index] = updatedItem
-                    }
-                    selectedItem = nil
-                }
-            }
-        }
+    private static func durationInMinutes(from startTime: String, to endTime: String) -> Int {
+        max(TimeSlot.minutes(for: endTime) - TimeSlot.minutes(for: startTime), 30)
     }
 }
 
@@ -507,7 +397,6 @@ private enum ActionGenerationSheet: String, Identifiable {
     case scene
     case status
     case currentMovement
-    case reminders
     case preference
 
     var id: String {
@@ -580,6 +469,34 @@ private struct ActionSetupCard: View {
             .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct ActionPageTitle: View {
+    let title: String
+    let subtitle: String
+    let subtitleFont: Font
+
+    init(
+        title: String,
+        subtitle: String,
+        subtitleFont: Font = .subheadline.weight(.semibold)
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.subtitleFont = subtitleFont
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+
+            Text(subtitle)
+                .font(subtitleFont)
+                .foregroundStyle(DSTheme.Color.textSecondary)
+        }
     }
 }
 
@@ -802,7 +719,7 @@ private struct CurrentMovementSheet: View {
 
             SheetSectionTitle("预约开始时间", systemImage: "clock.fill")
             Menu {
-                ForEach(["15:30", "16:00", "16:30", "17:00"], id: \.self) { value in
+                ForEach(Self.movementStartTimes, id: \.self) { value in
                     Button(value) {
                         time = value
                     }
@@ -820,109 +737,32 @@ private struct CurrentMovementSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
-            Label("后续提醒时段将优先避开用餐、复测后再安排运动补充。", systemImage: "info.circle.fill")
-                .font(.caption)
-                .foregroundStyle(DSTheme.Color.textSecondary)
-                .padding(DSTheme.Spacing.medium)
-                .background(DSTheme.Color.primarySoft.opacity(0.75))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-
             DSPrimaryButton("确认当前运动", action: onConfirm)
         }
         .presentationDetents([.large])
     }
-}
 
-private struct ReminderTimeSheet: View {
-    @Binding var reminderTimes: [String]
-    let onConfirm: () -> Void
-
-    var body: some View {
-        SheetContent {
-            ActionSheetHeader(title: "后续运动时间", subtitle: "先设置今天剩余时段，到点后再选择具体运动", onClose: onConfirm)
-
-            VStack(spacing: DSTheme.Spacing.small) {
-                ForEach(Array(reminderTimes.enumerated()), id: \.offset) { index, time in
-                    HStack(spacing: DSTheme.Spacing.small) {
-                        Image(systemName: "clock.fill")
-                            .foregroundStyle(DSTheme.Color.primary)
-                            .frame(width: 34, height: 34)
-                            .background(DSTheme.Color.primarySoft)
-                            .clipShape(Circle())
-
-                        Text("第 \(index + 1) 个提醒时段")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(DSTheme.Color.textPrimary)
-
-                        Spacer()
-
-                        Text(time)
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(DSTheme.Color.textSecondary)
-                    }
-                    .padding(DSTheme.Spacing.medium)
-                    .background(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-
-                Button {
-                    guard reminderTimes.count < 3 else { return }
-                    reminderTimes.append("21:00")
-                } label: {
-                    Label("添加提醒时段", systemImage: "plus.circle")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(DSTheme.Color.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(DSTheme.Spacing.medium)
-                        .background(.white.opacity(0.68))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(DSTheme.Color.primary.opacity(0.35), style: StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
-                        }
-                }
-                .buttonStyle(.plain)
-                .disabled(reminderTimes.count >= 3)
-            }
-
-            Text("每天最多设置 3 个运动提醒时段。")
-                .font(.caption)
-                .foregroundStyle(DSTheme.Color.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            DSPrimaryButton("确认后续时间", action: onConfirm)
+    private static let movementStartTimes: [String] = {
+        (0..<(24 * 2)).map { slot in
+            String(format: "%02d:%02d", slot / 2, (slot % 2) * 30)
         }
-        .presentationDetents([.medium, .large])
-    }
+    }()
 }
 
 private struct PreferenceMovementSheet: View {
-    @Binding var usesSystemPreference: Bool
     @Binding var customMovementName: String
+    @Binding var startTime: String
+    @Binding var endTime: String
+    let onClose: () -> Void
     let onConfirm: () -> Void
 
     var body: some View {
         SheetContent {
-            ActionSheetHeader(title: "偏好运动设置（可选）", subtitle: "记录你已有的运动计划，我们会提供时长和注意事项提醒", onClose: onConfirm)
-
-            VStack(spacing: DSTheme.Spacing.small) {
-                PreferenceModeRow(
-                    title: "按系统低门槛运动生成",
-                    isSelected: usesSystemPreference
-                ) {
-                    usesSystemPreference = true
-                }
-
-                PreferenceModeRow(
-                    title: "我已有想做的运动",
-                    isSelected: !usesSystemPreference
-                ) {
-                    usesSystemPreference = false
-                }
-            }
+            ActionSheetHeader(
+                title: "偏好运动设置（可选）",
+                subtitle: "填写运动名称和时间，保存后会加入今日行动",
+                onClose: onClose
+            )
 
             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                 Text("运动名称")
@@ -931,17 +771,41 @@ private struct PreferenceMovementSheet: View {
 
                 TextField("例如：骑车", text: $customMovementName)
                     .textInputAutocapitalization(.never)
+                    .foregroundStyle(DSTheme.Color.textPrimary)
+                    .tint(DSTheme.Color.primary)
                     .padding(DSTheme.Spacing.medium)
                     .background(.white)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(DSTheme.Color.border, lineWidth: 1)
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
             HStack(spacing: DSTheme.Spacing.small) {
-                StaticTimeField(title: "开始时间", value: "18:30")
-                StaticTimeField(title: "结束时间", value: "19:30")
+                TimeSelectionField(
+                    title: "开始时间",
+                    value: $startTime,
+                    options: TimeSlot.values.filter { $0 != TimeSlot.values.last }
+                ) { newStartTime in
+                    guard TimeSlot.minutes(for: endTime) <= TimeSlot.minutes(for: newStartTime),
+                          let nextTime = TimeSlot.next(after: newStartTime) else {
+                        return
+                    }
+
+                    endTime = nextTime
+                }
+
+                TimeSelectionField(
+                    title: "结束时间",
+                    value: $endTime,
+                    options: TimeSlot.values.filter {
+                        TimeSlot.minutes(for: $0) > TimeSlot.minutes(for: startTime)
+                    }
+                )
             }
 
-            Label("系统只提供记录、时长和注意事项提醒，不作为主动推荐。", systemImage: "info.circle.fill")
+            Label("保存后会按所选时间生成一张运动卡片，并显示在今日行动的时间轴中。", systemImage: "info.circle.fill")
                 .font(.caption)
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .padding(DSTheme.Spacing.medium)
@@ -949,6 +813,8 @@ private struct PreferenceMovementSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             DSPrimaryButton("保存偏好运动", action: onConfirm)
+                .disabled(customMovementName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .opacity(customMovementName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.55 : 1)
         }
         .presentationDetents([.large])
     }
@@ -1075,38 +941,23 @@ private struct StatusChip: View {
     }
 }
 
-private struct PreferenceModeRow: View {
+private struct TimeSelectionField: View {
     let title: String
-    let isSelected: Bool
-    let action: () -> Void
+    @Binding var value: String
+    let options: [String]
+    let onSelect: (String) -> Void
 
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: DSTheme.Spacing.small) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? DSTheme.Color.primary : DSTheme.Color.textSecondary)
-
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(DSTheme.Color.textPrimary)
-
-                Spacer()
-            }
-            .padding(DSTheme.Spacing.medium)
-            .background(isSelected ? DSTheme.Color.primarySoft.opacity(0.72) : .white)
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isSelected ? DSTheme.Color.primary.opacity(0.55) : DSTheme.Color.border, lineWidth: 1)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .buttonStyle(.plain)
+    init(
+        title: String,
+        value: Binding<String>,
+        options: [String],
+        onSelect: @escaping (String) -> Void = { _ in }
+    ) {
+        self.title = title
+        self._value = value
+        self.options = options
+        self.onSelect = onSelect
     }
-}
-
-private struct StaticTimeField: View {
-    let title: String
-    let value: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
@@ -1114,20 +965,57 @@ private struct StaticTimeField: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
 
-            HStack {
-                Text(value)
-                    .font(.headline)
-                    .foregroundStyle(DSTheme.Color.textPrimary)
+            Menu {
+                ForEach(options, id: \.self) { option in
+                    Button(option) {
+                        value = option
+                        onSelect(option)
+                    }
+                }
+            } label: {
+                HStack {
+                    Text(value)
+                        .font(.headline)
+                        .foregroundStyle(DSTheme.Color.textPrimary)
 
-                Spacer()
+                    Spacer()
 
-                Image(systemName: "clock")
-                    .foregroundStyle(DSTheme.Color.textSecondary)
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                }
+                .padding(DSTheme.Spacing.medium)
+                .background(.white)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(DSTheme.Color.border, lineWidth: 1)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .padding(DSTheme.Spacing.medium)
-            .background(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .buttonStyle(.plain)
         }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private enum TimeSlot {
+    static let values: [String] = {
+        (0..<(24 * 2)).map { slot in
+            String(format: "%02d:%02d", slot / 2, (slot % 2) * 30)
+        }
+    }()
+
+    static func minutes(for value: String) -> Int {
+        let parts = value.split(separator: ":").compactMap { Int($0) }
+        return (parts.first ?? 0) * 60 + (parts.dropFirst().first ?? 0)
+    }
+
+    static func next(after value: String) -> String? {
+        guard let index = values.firstIndex(of: value), values.indices.contains(index + 1) else {
+            return nil
+        }
+
+        return values[index + 1]
     }
 }
 
@@ -1193,7 +1081,8 @@ private struct TodayTreeTimelineView: View {
             let bottomInset: CGFloat = 84
             let usableHeight = max(size.height - topInset - bottomInset, 1)
             let lanePadding: CGFloat = 14
-            let cardWidth = max((size.width - lanePadding * 2 - 28) / 2, 122)
+            let centerGutter = min(78, max(62, size.width * 0.2))
+            let cardWidth = max((size.width - lanePadding * 2 - centerGutter) / 2, 104)
             let leftCardX = lanePadding + cardWidth / 2
             let rightCardX = size.width - lanePadding - cardWidth / 2
             let sortedItems = items.sorted {
@@ -1245,8 +1134,8 @@ private struct TodayTreeTimelineView: View {
                     let y = positions.itemY[item.id] ?? topInset + usableHeight * range.progress(for: item.scheduledStartAt)
                     let isMeal = item.type == .diet
                     let cardX = isMeal ? rightCardX : leftCardX
-                    let cardEdgeX = isMeal ? cardX - cardWidth / 2 + 8 : cardX + cardWidth / 2 - 8
-                    let axisEdgeX = isMeal ? axisX + 18 : axisX - 18
+                    let cardEdgeX = isMeal ? cardX - cardWidth / 2 + 6 : cardX + cardWidth / 2 - 6
+                    let axisEdgeX = isMeal ? axisX + 28 : axisX - 28
 
                     TimelineConnector(
                         fromX: axisEdgeX,
@@ -1297,21 +1186,34 @@ private struct TimelinePositioner {
             return lhs.date < rhs.date
         }
 
-        var resolved: [TimelinePositionEvent: CGFloat] = [:]
-        var previousY: CGFloat?
+        let effectiveSpacing: CGFloat
+        if events.count > 1 {
+            effectiveSpacing = min(minimumSpacing, usableHeight / CGFloat(events.count - 1))
+        } else {
+            effectiveSpacing = 0
+        }
 
-        for event in events {
+        var resolvedY = events.enumerated().map { index, event in
             let naturalY = topInset + usableHeight * range.progress(for: event.date)
-            let y: CGFloat
-            if let previousY {
-                y = max(naturalY, previousY + minimumSpacing)
-            } else {
-                y = naturalY
+            let lowerBound = topInset + CGFloat(index) * effectiveSpacing
+            return max(naturalY, lowerBound)
+        }
+
+        if resolvedY.count > 1 {
+            for index in 1..<resolvedY.count {
+                resolvedY[index] = max(resolvedY[index], resolvedY[index - 1] + effectiveSpacing)
             }
 
-            resolved[event] = y
-            previousY = y
+            let lastIndex = resolvedY.count - 1
+            resolvedY[lastIndex] = min(resolvedY[lastIndex], topInset + usableHeight)
+
+            for index in stride(from: lastIndex - 1, through: 0, by: -1) {
+                let upperBound = topInset + usableHeight - CGFloat(lastIndex - index) * effectiveSpacing
+                resolvedY[index] = min(resolvedY[index], resolvedY[index + 1] - effectiveSpacing, upperBound)
+            }
         }
+
+        let resolved = Dictionary(uniqueKeysWithValues: zip(events, resolvedY))
 
         var itemY: [UUID: CGFloat] = [:]
         var currentY = topInset + usableHeight * range.progress(for: now)
@@ -1577,19 +1479,23 @@ private struct TreeStageBackground: View {
     var hasMissedItems = false
 
     var body: some View {
-        Image(assetName)
-            .resizable()
-            .scaledToFill()
-            .overlay {
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.18),
-                        Color.white.opacity(0.02),
-                        Color.black.opacity(0.04)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+        GeometryReader { proxy in
+            Image(assetName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottom)
+                .clipped()
+                .overlay {
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.18),
+                            Color.white.opacity(0.02),
+                            Color.black.opacity(0.04)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
             }
     }
 
@@ -1694,7 +1600,11 @@ private struct TodayActionDetailView: View {
                             onComplete()
                         }
 
-                        DSSecondaryButton("调整行动", systemImage: "slider.horizontal.3") {
+                        DSSecondaryButton(
+                            "调整行动",
+                            systemImage: "slider.horizontal.3",
+                            isDisabled: item.status == .completed
+                        ) {
                             onAdjust()
                         }
 
@@ -1709,70 +1619,6 @@ private struct TodayActionDetailView: View {
         }
         .navigationTitle("行动详情")
         .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-private struct TodayActionAdjustView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var draft: TodayActionItem
-
-    let onSave: (TodayActionItem) -> Void
-
-    init(item: TodayActionItem, onSave: @escaping (TodayActionItem) -> Void) {
-        _draft = State(initialValue: item)
-        self.onSave = onSave
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                TreeStageBackground(completionRate: 0.55)
-                    .ignoresSafeArea()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
-                        DSSectionHeader("调整行动", subtitle: "修改标题、时间、时长或类型。", systemImage: "slider.horizontal.3")
-
-                        DSCard {
-                            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                                TextField("行动标题", text: $draft.title)
-                                    .font(.body.weight(.semibold))
-                                    .textFieldStyle(.roundedBorder)
-
-                                Stepper(value: $draft.durationMinutes, in: 5...90, step: 5) {
-                                    Text("时长 \(draft.durationMinutes) 分钟")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(DSTheme.Color.textPrimary)
-                                }
-
-                                DatePicker("开始时间", selection: $draft.scheduledStartAt, displayedComponents: [.hourAndMinute])
-                                    .font(.subheadline.weight(.semibold))
-
-                                Picker("行动类型", selection: $draft.type) {
-                                    ForEach(TodayActionType.allCases) { type in
-                                        Label(type.title, systemImage: type.systemImage).tag(type)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                            }
-                        }
-
-                        DSPrimaryButton("保存调整", systemImage: "checkmark.circle.fill") {
-                            draft.scheduledEndAt = Calendar.current.date(byAdding: .minute, value: draft.durationMinutes, to: draft.scheduledStartAt) ?? draft.scheduledStartAt
-                            onSave(draft)
-                        }
-
-                        DSSecondaryButton("取消", systemImage: "xmark.circle") {
-                            dismiss()
-                        }
-                    }
-                    .padding(DSTheme.Spacing.large)
-                    .padding(.bottom, 130)
-                }
-            }
-            .navigationTitle("调整")
-            .navigationBarTitleDisplayMode(.inline)
-        }
     }
 }
 
@@ -2212,5 +2058,5 @@ enum TodayActionStatus: String, Hashable {
 
 #Preview {
     @Previewable @State var items = TodayActionItem.demoItems()
-    TodayActionView(items: $items, onOpenBloodPressure: {})
+    TodayActionView(items: $items)
 }

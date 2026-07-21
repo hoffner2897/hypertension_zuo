@@ -8,6 +8,7 @@ export interface ServerConfig {
   recognitionMode: RecognitionMode;
   openAIAPIKey?: string;
   openAIModel: string;
+  openAIActionSuggestionModel: string;
   openAIProxyURL?: string;
   accessTokenSecret: string;
   accessTokenTTLSeconds: number;
@@ -56,6 +57,7 @@ export function loadConfig(): ServerConfig {
     recognitionMode: mode,
     openAIAPIKey: process.env.OPENAI_API_KEY,
     openAIModel: process.env.OPENAI_MODEL ?? "gpt-5.5",
+    openAIActionSuggestionModel: process.env.OPENAI_ACTION_SUGGESTION_MODEL ?? "gpt-5.6-sol",
     openAIProxyURL: process.env.OPENAI_PROXY_URL,
     accessTokenSecret: process.env.ACCESS_TOKEN_SECRET ?? "dev-only-change-me-access-token-secret",
     accessTokenTTLSeconds: Number(process.env.ACCESS_TOKEN_TTL_SECONDS ?? 900),

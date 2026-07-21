@@ -44,9 +44,12 @@ For real OpenAI recognition:
 BP_RECOGNITION_MODE=openai
 OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-5.5
+OPENAI_ACTION_SUGGESTION_MODEL=gpt-5.6-sol
 ```
 
 `OPENAI_API_KEY` is required when `BP_RECOGNITION_MODE=openai`. If `OPENAI_API_KEY` is present, `/readings/interpretation` also tries OpenAI interpretation after building a local rule-based baseline; if the OpenAI call fails, it falls back to the rule-based result.
+
+`/action-adjustments/trend-suggestions` uses `OPENAI_ACTION_SUGGESTION_MODEL`. The server always creates evidence-backed candidates first; OpenAI may only select and polish those candidates. When no key is configured or the OpenAI request fails, the endpoint returns the rule-based candidate wording.
 
 If your VPN is in smart mode and Terminal cannot reach OpenAI directly, start the server with a temporary proxy:
 
@@ -311,3 +314,56 @@ Response:
   "notes": "Mock recognition result. Confirm before saving."
 }
 ```
+
+## Action Adjustment Endpoints
+
+### POST /action-adjustments/trend-suggestions
+
+Requires an access token. This endpoint does not persist action data. The app sends its in-memory current actions and any optional recent action observations.
+
+Request:
+
+```json
+{
+  "now": "2026-07-21T18:00:00.000Z",
+  "timeZone": "Europe/London",
+  "todayActions": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "type": "exercise",
+      "title": "原地踏步",
+      "scheduledStartAt": "2026-07-21T15:00:00.000Z",
+      "durationMinutes": 20,
+      "status": "missed",
+      "completedAt": null
+    }
+  ],
+  "recentActions": []
+}
+```
+
+Allowed action types are `blood_pressure`, `diet`, `exercise`, and `other`. Allowed statuses are `pending`, `in_progress`, `completed`, `skipped`, and `missed`.
+
+Response:
+
+```json
+{
+  "status": "ready",
+  "source": "rule_based",
+  "evidenceDays": 1,
+  "suggestions": [
+    {
+      "targetActionId": "11111111-1111-4111-8111-111111111111",
+      "kind": "reschedule",
+      "message": "今天16:00的“原地踏步”尚未完成，可调整到更方便的时间。",
+      "proposedStartTime": null,
+      "proposedDurationMinutes": null,
+      "proposedExerciseName": null
+    }
+  ],
+  "dataNote": "建议仅基于今天提供的行动完成情况生成。",
+  "disclaimer": "行动调整建议仅用于帮助安排日常计划，不替代专业医疗建议。"
+}
+```
+
+`status` is `ready` or `no_suggestions`; `source` is `openai` or `rule_based`. Completed and skipped actions may contribute evidence but are never returned as adjustment targets. Multi-day language is only generated when matching observations cover at least three distinct days.
