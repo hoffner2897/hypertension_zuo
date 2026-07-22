@@ -48,6 +48,18 @@ struct hypertensionTests {
         #expect(AppState.route(for: user) == .mainApp)
     }
 
+    #if DEBUG
+    @Test @MainActor func debugTestAccountIsStableAndScopedToTheDevice() {
+        let first = AppState.debugTestEmail(for: "A1B2-C3D4")
+        let second = AppState.debugTestEmail(for: "a1b2c3d4")
+        let anotherDevice = AppState.debugTestEmail(for: "E5F6-G7H8")
+
+        #expect(first == "phone-ai-test-v2-a1b2c3d4@bphealth.local")
+        #expect(second == first)
+        #expect(anotherDevice != first)
+    }
+    #endif
+
     @Test @MainActor func healthAuthorizationResolverDistinguishesRequestedPartialAndCompleteData() {
         #expect(
             HealthKitAuthorizationResolver.resolve(

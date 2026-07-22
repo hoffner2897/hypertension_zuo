@@ -3,6 +3,8 @@
 # Local IDE / Codex workspace state
 .idea/
 .codex-xcode-home/
+.tmp/
+*.inspect.ndjson
 
 # Xcode user state
 *.xcuserstate

@@ -32,6 +32,14 @@ enum AIUsageFeature {
   meal_analysis
 }
 
+enum ExerciseActionStatus {
+  pending
+  in_progress
+  completed
+  skipped
+  missed
+}
+
 model User {
   id              String    @id @default(uuid()) @db.Uuid
   email           String    @unique
@@ -45,6 +53,7 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   bloodPressureReadings   BloodPressureReading[]
   mealRecords             MealRecord[]
+  exerciseActions         ExerciseAction[]
   aiDailyUsage            AIDailyUsage[]
 
   @@map("users")
@@ -144,6 +153,31 @@ model MealRecord {
   @@unique([userId, mealDate, mealType])
   @@index([userId, recordedAt])
   @@map("meal_records")
+}
+
+model ExerciseAction {
+  id               String               @id @db.Uuid
+  userId           String               @map("user_id") @db.Uuid
+  exerciseId       String               @map("exercise_id") @db.VarChar(100)
+  title            String               @db.VarChar(100)
+  scene            String               @db.VarChar(80)
+  energy           String               @db.VarChar(80)
+  contexts         String[]
+  scheduledStartAt DateTime             @map("scheduled_start_at") @db.Timestamptz(3)
+  durationMinutes  Int                  @map("duration_minutes")
+  status           ExerciseActionStatus
+  completedAt      DateTime?            @map("completed_at") @db.Timestamptz(3)
+  movementAdvice   String               @map("movement_advice")
+  intensityAdvice  String               @map("intensity_advice")
+  localDay         String               @map("local_day") @db.VarChar(10)
+  clientUpdatedAt  DateTime             @map("client_updated_at") @db.Timestamptz(3)
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, localDay, scheduledStartAt])
+  @@map("exercise_actions")
 }
 
 model AIDailyUsage {

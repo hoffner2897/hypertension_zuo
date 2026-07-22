@@ -2,17 +2,20 @@ import SwiftUI
 import SwiftData
 
 struct TodayActionView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var items: [TodayActionItem]
     let userId: String
     let onOpenBloodPressure: () -> Void
 
     @State private var path: [TodayActionRoute] = []
     @State private var activeMealItem: TodayActionItem?
+    @State private var activeExerciseItem: TodayActionItem?
     @State private var isShowingAccountSettings = false
     @State private var mealRecords: [MealKind: MealRecord] = [:]
     @State private var headerDisplayName = "我的"
     @Query private var savedReadings: [BloodPressureReading]
     private let mealRecordService = MealRecordService()
+    private let exerciseActionService = ExerciseActionService()
     private let profileService = ProfileService()
     private let statusBarClearance: CGFloat = 54
 
@@ -109,6 +112,18 @@ struct TodayActionView: View {
                     }
                 )
             }
+            .sheet(item: $activeExerciseItem) { item in
+                ExerciseRecordSheet(
+                    item: item,
+                    onComplete: {
+                        updateStatus(.completed, for: item.id)
+                        activeExerciseItem = nil
+                    },
+                    onClose: {
+                        activeExerciseItem = nil
+                    }
+                )
+            }
             .sheet(isPresented: $isShowingAccountSettings) {
                 AccountSettingsView()
             }
@@ -117,6 +132,7 @@ struct TodayActionView: View {
                 applyTodayBloodPressureReadings()
                 ActionHistoryStore.saveToday(items, userId: userId)
                 await loadMealRecords()
+                await reconcileExerciseActions()
                 await loadHeaderProfile()
             }
             .onChange(of: isShowingAccountSettings) { wasShowing, isShowing in
@@ -127,8 +143,15 @@ struct TodayActionView: View {
             .onChange(of: readingRefreshKey) { _, _ in
                 applyTodayBloodPressureReadings()
             }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await reconcileExerciseActions() }
+            }
             .onChange(of: items) { _, updatedItems in
                 ActionHistoryStore.saveToday(updatedItems, userId: userId)
+                Task {
+                    await syncExerciseActions(updatedItems)
+                }
             }
         }
     }
@@ -143,10 +166,16 @@ struct TodayActionView: View {
                 isShowingAccountSettings = true
             } label: {
                 VStack(spacing: 4) {
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.system(size: 42))
-                        .foregroundStyle(Color(red: 0.18, green: 0.41, blue: 0.92))
-                        .background(Circle().fill(.white))
+                    Image("TodayHeaderAvatar")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 42, height: 42)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(.white, lineWidth: 2)
+                        )
+                        .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
 
                     Text(headerDisplayName)
                         .font(.caption.weight(.bold))
@@ -161,16 +190,14 @@ struct TodayActionView: View {
     private var summaryCards: some View {
         HStack(spacing: DSTheme.Spacing.small) {
             TodaySummaryCard(
-                icon: "checkmark",
-                iconColor: Color(red: 0.12, green: 0.38, blue: 0.95),
+                imageName: "TodaySummaryCompleted",
                 title: "已完成",
                 value: "\(completedCount)",
                 suffix: "项"
             )
 
             TodaySummaryCard(
-                icon: "clock.fill",
-                iconColor: Color(red: 1.0, green: 0.56, blue: 0.12),
+                imageName: "TodaySummaryRemaining",
                 title: "还剩",
                 value: "\(remainingCount)",
                 suffix: "项"
@@ -196,6 +223,8 @@ struct TodayActionView: View {
                         activeMealItem = item
                     } else if item.type == .bpRecheck {
                         onOpenBloodPressure()
+                    } else if item.isCatalogExercise {
+                        activeExerciseItem = item
                     } else {
                         path.append(.detail(id))
                     }
@@ -219,6 +248,7 @@ struct TodayActionView: View {
         }
 
         items[index].status = status
+        items[index].clientUpdatedAt = Date()
         if status == .completed {
             items[index].completedAt = Date()
         }
@@ -230,7 +260,9 @@ struct TodayActionView: View {
             return
         }
 
-        items[index] = item
+        var updatedItem = item
+        updatedItem.clientUpdatedAt = Date()
+        items[index] = updatedItem
     }
 
     private func mealRecord(for item: TodayActionItem) -> MealRecord? {
@@ -258,6 +290,64 @@ struct TodayActionView: View {
         let trimmedName = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedName.isEmpty {
             headerDisplayName = trimmedName
+        }
+    }
+
+    private func reconcileExerciseActions() async {
+        guard !userId.isEmpty else { return }
+
+        do {
+            let remoteActions = try await exerciseActionService.actions()
+            var mergedItems = items
+
+            for (remoteIndex, remoteAction) in remoteActions.enumerated() {
+                guard let remoteItem = TodayActionItem(
+                    remoteExerciseAction: remoteAction,
+                    sortOrder: mergedItems.count + remoteIndex
+                ) else { continue }
+
+                if let localIndex = mergedItems.firstIndex(where: { $0.id == remoteItem.id }) {
+                    if remoteItem.clientUpdatedAt >= mergedItems[localIndex].clientUpdatedAt {
+                        mergedItems[localIndex] = remoteItem
+                    }
+                } else {
+                    mergedItems.append(remoteItem)
+                }
+            }
+
+            mergedItems.sort { $0.scheduledStartAt < $1.scheduledStartAt }
+            for index in mergedItems.indices {
+                mergedItems[index].sortOrder = index
+            }
+            items = mergedItems
+            ActionHistoryStore.saveToday(mergedItems, userId: userId)
+            await syncExerciseActions(mergedItems)
+        } catch {
+            // Offline-first: keep the local copy and retry automatically after
+            // the next action change, foreground activation, or app launch.
+            await syncExerciseActions(items)
+        }
+    }
+
+    private func syncExerciseActions(_ actionItems: [TodayActionItem]) async {
+        guard !userId.isEmpty else { return }
+
+        for item in actionItems where item.exerciseId != nil {
+            guard let input = ExerciseActionSyncInput(item: item) else { continue }
+            do {
+                let result = try await exerciseActionService.upsert(id: item.id, input: input)
+                guard !result.applied,
+                      let remoteItem = TodayActionItem(remoteExerciseAction: result.action),
+                      let localIndex = items.firstIndex(where: { $0.id == remoteItem.id }),
+                      remoteItem.clientUpdatedAt > items[localIndex].clientUpdatedAt else {
+                    continue
+                }
+
+                items[localIndex] = remoteItem
+                ActionHistoryStore.saveToday(items, userId: userId)
+            } catch {
+                // The local observation remains the source for the next retry.
+            }
         }
     }
 
@@ -312,7 +402,7 @@ struct ActionGenerateDemoView: View {
     @State private var energy = "精力一般"
     @State private var contexts: Set<String> = ["饭后"]
     @State private var hasDiscomfort = false
-    @State private var currentMovement = "慢走"
+    @State private var currentExerciseId = "public-indoor-slow-walk"
     @State private var movementDuration = 15
     @State private var currentTime = "15:30"
     @State private var customMovementName = ""
@@ -341,6 +431,18 @@ struct ActionGenerateDemoView: View {
 
     private var isExerciseSafetyBlocked: Bool {
         hasDiscomfort || bloodPressureState == .needsAttention
+    }
+
+    private var recommendedExercises: [LowBarrierExercise] {
+        ExerciseRecommendationEngine.recommendations(
+            sceneTitle: scene,
+            energyTitle: energy,
+            contextTitles: contexts
+        )
+    }
+
+    private var selectedCurrentExercise: LowBarrierExercise? {
+        recommendedExercises.first { $0.id == currentExerciseId }
     }
 
     var body: some View {
@@ -421,7 +523,7 @@ struct ActionGenerateDemoView: View {
 
                             ActionSetupCard(
                                 title: "当前运动选择",
-                                value: isExerciseSafetyBlocked ? "请先休息并复测" : (currentMovement.isEmpty ? "先选择再开始" : currentMovement),
+                                value: isExerciseSafetyBlocked ? "请先休息并复测" : (selectedCurrentExercise?.name ?? "先选择再开始"),
                                 systemImage: "figure.walk.circle.fill",
                                 illustration: "figure.walk",
                                 tint: DSTheme.Color.primary
@@ -490,6 +592,7 @@ struct ActionGenerateDemoView: View {
                 switch sheet {
                 case .scene:
                     SceneSelectionSheet(scene: $scene) {
+                        ensureCurrentExerciseSelection()
                         activeSheet = nil
                     }
                 case .status:
@@ -498,6 +601,7 @@ struct ActionGenerateDemoView: View {
                         contexts: $contexts,
                         hasDiscomfort: $hasDiscomfort
                     ) {
+                        ensureCurrentExerciseSelection()
                         activeSheet = nil
                     }
                 case .currentMovement:
@@ -505,13 +609,18 @@ struct ActionGenerateDemoView: View {
                         scene: scene,
                         stateSummary: stateSummary,
                         isSafetyBlocked: isExerciseSafetyBlocked,
-                        movement: $currentMovement,
+                        options: recommendedExercises,
+                        exerciseId: $currentExerciseId,
                         duration: $movementDuration,
-                        time: $currentTime
-                    ) {
-                        generateCurrentMovement()
-                        activeSheet = nil
-                    }
+                        time: $currentTime,
+                        onClose: {
+                            activeSheet = nil
+                        },
+                        onConfirm: {
+                            generateCurrentMovement()
+                            activeSheet = nil
+                        }
+                    )
                 case .preference:
                     PreferenceMovementSheet(
                         customMovementName: $customMovementName,
@@ -536,22 +645,38 @@ struct ActionGenerateDemoView: View {
     }
 
     private var generatedActionTitle: String {
-        if contexts.contains("饭后") && currentMovement == "慢走" {
+        if contexts.contains("饭后") && selectedCurrentExercise?.name == "慢走" {
             return "饭后散步"
         }
 
-        return currentMovement
+        return selectedCurrentExercise?.name ?? "低门槛运动"
     }
 
     private func generateCurrentMovement() {
-        guard !isExerciseSafetyBlocked else { return }
+        guard !isExerciseSafetyBlocked,
+              let selectedCurrentExercise else { return }
         let item = TodayActionItem.generatedMovement(
             title: generatedActionTitle,
             timeText: currentTime,
             duration: movementDuration,
-            order: 99
+            order: 99,
+            exercise: selectedCurrentExercise,
+            scene: scene,
+            energy: energy,
+            contexts: contexts.sorted()
         )
         onGenerateAction(item)
+    }
+
+    private func ensureCurrentExerciseSelection() {
+        let recommendations = ExerciseRecommendationEngine.recommendations(
+            sceneTitle: scene,
+            energyTitle: energy,
+            contextTitles: contexts
+        )
+        if !recommendations.contains(where: { $0.id == currentExerciseId }) {
+            currentExerciseId = recommendations.first?.id ?? ""
+        }
     }
 
     private func generatePreferenceMovement() {
@@ -856,10 +981,19 @@ private struct StatusSelectionSheet: View {
                         tint: option.tint,
                         isSelected: contexts.contains(option.title)
                     ) {
-                        if contexts.contains(option.title) {
-                            contexts.remove(option.title)
+                        if option.title == ExerciseContext.noSpecialCondition.rawValue {
+                            contexts = [ExerciseContext.noSpecialCondition.rawValue]
                         } else {
-                            contexts.insert(option.title)
+                            contexts.remove(ExerciseContext.noSpecialCondition.rawValue)
+                            if contexts.contains(option.title) {
+                                contexts.remove(option.title)
+                            } else {
+                                contexts.insert(option.title)
+                            }
+
+                            if contexts.isEmpty {
+                                contexts = [ExerciseContext.noSpecialCondition.rawValue]
+                            }
                         }
                     }
                 }
@@ -899,21 +1033,16 @@ private struct CurrentMovementSheet: View {
     let scene: String
     let stateSummary: String
     let isSafetyBlocked: Bool
-    @Binding var movement: String
+    let options: [LowBarrierExercise]
+    @Binding var exerciseId: String
     @Binding var duration: Int
     @Binding var time: String
+    let onClose: () -> Void
     let onConfirm: () -> Void
-
-    private let options = [
-        ActionOption(title: "慢走", subtitle: "", systemImage: "figure.walk", tint: DSTheme.Color.primary),
-        ActionOption(title: "原地踏步", subtitle: "", systemImage: "figure.highintensity.intervaltraining", tint: Color(red: 0.58, green: 0.35, blue: 0.78)),
-        ActionOption(title: "坐站练习", subtitle: "", systemImage: "figure.stand", tint: Color(red: 0.55, green: 0.45, blue: 0.33)),
-        ActionOption(title: "靠墙静蹲", subtitle: "", systemImage: "figure.strengthtraining.traditional", tint: Color(red: 0.45, green: 0.54, blue: 0.82))
-    ]
 
     var body: some View {
         SheetContent {
-            ActionSheetHeader(title: "当前运动选择", subtitle: "根据已选择场景为您匹配当前运动", onClose: onConfirm)
+            ActionSheetHeader(title: "当前运动选择", subtitle: "根据已选择场景为您匹配当前运动", onClose: onClose)
 
             VStack(alignment: .leading, spacing: 8) {
                 Label("当前位置：\(scene)", systemImage: "mappin.circle.fill")
@@ -930,17 +1059,17 @@ private struct CurrentMovementSheet: View {
             .background(DSTheme.Color.primarySoft.opacity(0.82))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            SheetSectionTitle("选择运动类型", systemImage: "figure.walk.circle.fill")
+            SheetSectionTitle("为你推荐的 4 项运动", systemImage: "figure.walk.circle.fill")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSTheme.Spacing.small) {
                 ForEach(options) { option in
                     ActionChoiceTile(
-                        title: option.title,
-                        subtitle: "",
-                        systemImage: option.systemImage,
-                        tint: option.tint,
-                        isSelected: movement == option.title
+                        title: option.name,
+                        subtitle: option.type.rawValue,
+                        systemImage: option.systemImageName,
+                        tint: option.type == .aerobic ? DSTheme.Color.primary : Color(red: 0.38, green: 0.52, blue: 0.78),
+                        isSelected: exerciseId == option.id
                     ) {
-                        movement = option.title
+                        exerciseId = option.id
                     }
                 }
             }
@@ -990,6 +1119,11 @@ private struct CurrentMovementSheet: View {
             )
         }
         .presentationDetents([.large])
+        .onAppear {
+            if !options.contains(where: { $0.id == exerciseId }) {
+                exerciseId = options.first?.id ?? ""
+            }
+        }
     }
 
     private static let movementStartTimes: [String] = {
@@ -1284,19 +1418,17 @@ private enum TodayActionRoute: Hashable {
 }
 
 private struct TodaySummaryCard: View {
-    let icon: String
-    let iconColor: Color
+    let imageName: String
     let title: String
     let value: String
     let suffix: String
 
     var body: some View {
         HStack(spacing: DSTheme.Spacing.small) {
-            Image(systemName: icon)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.white)
-                .frame(width: 34, height: 34)
-                .background(iconColor)
+            Image(imageName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 42, height: 42)
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 0) {
@@ -1595,13 +1727,22 @@ private struct DesignActionCard: View {
     }
 
     private var statusPill: some View {
-        Text(item.type == .diet && item.displayStatus != .completed ? "开始" : item.displayStatus.title)
+        Text(actionStatusTitle)
             .font(.caption2.weight(.bold))
             .foregroundStyle(statusTextColor)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(item.displayStatus.tint.opacity(0.18))
             .clipShape(Capsule())
+    }
+
+    private var actionStatusTitle: String {
+        if (item.type == .diet || item.isCatalogExercise),
+           item.displayStatus != .completed,
+           item.displayStatus != .skipped {
+            return "开始"
+        }
+        return item.displayStatus.title
     }
 
     private var statusTextColor: Color {
@@ -1821,6 +1962,161 @@ private struct TimelineBranch: Shape {
     }
 }
 
+private struct ExerciseRecordSheet: View {
+    let item: TodayActionItem
+    let onComplete: () -> Void
+    let onClose: () -> Void
+
+    private var catalogExercise: LowBarrierExercise? {
+        guard let exerciseId = item.exerciseId else { return nil }
+        return LowBarrierExerciseCatalog.exercise(id: exerciseId)
+    }
+
+    private var movementAdvice: String {
+        item.exerciseMovementAdvice ?? catalogExercise?.movementAdvice ?? item.description
+    }
+
+    private var intensityAdvice: String {
+        item.exerciseIntensityAdvice ?? catalogExercise?.intensityAdvice ?? "保持自然呼吸；如有明显不适，请停止并休息。"
+    }
+
+    private var movementSteps: [String] {
+        movementAdvice
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+            .map {
+                $0.replacingOccurrences(
+                    of: #"^[①②③④⑤⑥]\s*"#,
+                    with: "",
+                    options: .regularExpression
+                )
+            }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.title)
+                                .font(.system(size: 30, weight: .bold))
+                                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+
+                            Text("\(item.durationMinutes)分钟")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(DSTheme.Color.textPrimary)
+                        }
+
+                        Spacer()
+
+                        Button(action: onClose) {
+                            Image(systemName: "xmark")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(DSTheme.Color.textPrimary)
+                                .frame(width: 40, height: 40)
+                                .background(DSTheme.Color.primarySoft.opacity(0.7))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("关闭")
+                    }
+
+                    exerciseArtwork
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 230)
+
+                    Label(
+                        item.status == .completed ? "已记录" : "完成后记录本次运动",
+                        systemImage: item.status == .completed ? "checkmark.circle.fill" : "circle"
+                    )
+                    .font(.headline)
+                    .foregroundStyle(item.status == .completed ? DSTheme.Color.success : DSTheme.Color.textSecondary)
+
+                    advicePanel(
+                        title: "AI运动建议",
+                        tint: Color(red: 0.88, green: 0.94, blue: 1.0)
+                    ) {
+                        VStack(alignment: .leading, spacing: 9) {
+                            ForEach(Array(movementSteps.enumerated()), id: \.offset) { _, step in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text("•")
+                                    Text(step)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+
+                    advicePanel(
+                        title: "AI强度建议",
+                        tint: Color(red: 1.0, green: 0.94, blue: 0.78)
+                    ) {
+                        Text(intensityAdvice)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    DSPrimaryButton(item.status == .completed ? "关闭" : "完成") {
+                        if item.status == .completed {
+                            onClose()
+                        } else {
+                            onComplete()
+                        }
+                    }
+                }
+                .padding(DSTheme.Spacing.large)
+                .padding(.bottom, 24)
+            }
+            .background(Color.white)
+            .navigationBarHidden(true)
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .presentationCornerRadius(28)
+    }
+
+    @ViewBuilder
+    private var exerciseArtwork: some View {
+        if let assetName = catalogExercise?.assetImageName {
+            Image(assetName)
+                .resizable()
+                .scaledToFit()
+                .accessibilityHidden(true)
+        } else {
+            ZStack {
+                Circle()
+                    .fill(DSTheme.Color.primarySoft.opacity(0.9))
+                    .frame(width: 210, height: 210)
+
+                Image(systemName: catalogExercise?.systemImageName ?? "figure.walk")
+                    .font(.system(size: 104, weight: .regular))
+                    .foregroundStyle(DSTheme.Color.primary)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func advicePanel<Content: View>(
+        title: String,
+        tint: Color,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+
+            content()
+                .font(.body)
+                .foregroundStyle(DSTheme.Color.textPrimary)
+        }
+        .padding(DSTheme.Spacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
 private struct TodayActionDetailView: View {
     let item: TodayActionItem
     let effectiveStatus: TodayActionStatus
@@ -1981,6 +2277,13 @@ struct TodayActionItem: Identifiable, Hashable {
     var sortOrder: Int
     var bloodPressureText: String?
     var adviceText: String?
+    var exerciseId: String?
+    var exerciseScene: String?
+    var exerciseEnergy: String?
+    var exerciseContexts: [String]
+    var exerciseMovementAdvice: String?
+    var exerciseIntensityAdvice: String?
+    var clientUpdatedAt: Date
 
     init(
         id: UUID = UUID(),
@@ -1994,7 +2297,14 @@ struct TodayActionItem: Identifiable, Hashable {
         completedAt: Date? = nil,
         sortOrder: Int,
         bloodPressureText: String? = nil,
-        adviceText: String? = nil
+        adviceText: String? = nil,
+        exerciseId: String? = nil,
+        exerciseScene: String? = nil,
+        exerciseEnergy: String? = nil,
+        exerciseContexts: [String] = [],
+        exerciseMovementAdvice: String? = nil,
+        exerciseIntensityAdvice: String? = nil,
+        clientUpdatedAt: Date = Date()
     ) {
         self.id = id
         self.type = type
@@ -2010,6 +2320,13 @@ struct TodayActionItem: Identifiable, Hashable {
         self.sortOrder = sortOrder
         self.bloodPressureText = bloodPressureText
         self.adviceText = adviceText
+        self.exerciseId = exerciseId
+        self.exerciseScene = exerciseScene
+        self.exerciseEnergy = exerciseEnergy
+        self.exerciseContexts = exerciseContexts
+        self.exerciseMovementAdvice = exerciseMovementAdvice
+        self.exerciseIntensityAdvice = exerciseIntensityAdvice
+        self.clientUpdatedAt = clientUpdatedAt
     }
 
     var startTimeText: String {
@@ -2045,6 +2362,11 @@ struct TodayActionItem: Identifiable, Hashable {
     }
 
     var timelineArtworkAssetName: String? {
+        if let exerciseId,
+           let assetName = LowBarrierExerciseCatalog.exercise(id: exerciseId)?.assetImageName {
+            return assetName
+        }
+
         if title.contains("早晨血压") {
             return "TodayCardMorningBloodPressure"
         }
@@ -2074,6 +2396,11 @@ struct TodayActionItem: Identifiable, Hashable {
         }
 
         return nil
+    }
+
+    var isCatalogExercise: Bool {
+        guard let exerciseId else { return false }
+        return LowBarrierExerciseCatalog.exercise(id: exerciseId) != nil
     }
 
     func effectiveStatus(now: Date) -> TodayActionStatus {
@@ -2115,13 +2442,17 @@ struct TodayActionItem: Identifiable, Hashable {
         title: String,
         timeText: String,
         duration: Int,
-        order: Int
+        order: Int,
+        exercise: LowBarrierExercise? = nil,
+        scene: String? = nil,
+        energy: String? = nil,
+        contexts: [String] = []
     ) -> TodayActionItem {
         let parts = timeText.split(separator: ":").compactMap { Int($0) }
         let hour = parts.first ?? 15
         let minute = parts.dropFirst().first ?? 30
 
-        return make(
+        var item = make(
             .walk,
             title: title,
             hour: hour,
@@ -2129,6 +2460,20 @@ struct TodayActionItem: Identifiable, Hashable {
             duration: duration,
             order: order
         )
+
+        if let exercise {
+            item.description = exercise.movementAdvice
+            item.reason = "根据当前场景、精力和情景状态推荐的低门槛运动。"
+            item.exerciseId = exercise.id
+            item.exerciseScene = scene ?? exercise.scene.rawValue
+            item.exerciseEnergy = energy
+            item.exerciseContexts = contexts
+            item.exerciseMovementAdvice = exercise.movementAdvice
+            item.exerciseIntensityAdvice = exercise.intensityAdvice
+            item.clientUpdatedAt = Date()
+        }
+
+        return item
     }
 
     static let timeFormatter: DateFormatter = {

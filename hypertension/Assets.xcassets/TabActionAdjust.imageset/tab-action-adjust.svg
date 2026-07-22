@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" color="#8389a7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" shape-rendering="geometricPrecision">
+  <title>Screenshot 2026-07-22 at 08.29.26</title>
+  <!-- Regularized on a 24x24 geometric grid; Lucide Icons, ISC License. -->
+    <circle cx="12" cy="12" r="9.5"/>
+    <g transform="translate(4.2 4.2) scale(.65)" stroke-width="2.7">
+      <path d="M10 5H3"/>
+      <path d="M12 19H3"/>
+      <path d="M14 3v4"/>
+      <path d="M16 17v4"/>
+      <path d="M21 12h-9"/>
+      <path d="M21 19h-5"/>
+      <path d="M21 5h-7"/>
+      <path d="M8 10v4"/>
+      <path d="M8 12H3"/>
+    </g>
+</svg>

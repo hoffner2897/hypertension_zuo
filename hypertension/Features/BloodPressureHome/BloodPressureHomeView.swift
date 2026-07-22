@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 
 struct BloodPressureHomeView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     private let userId: String
     @StateObject private var viewModel = BloodPressureHomeViewModel()
@@ -33,8 +34,27 @@ struct BloodPressureHomeView: View {
         savedReadings.first
     }
 
+    private var todayReading: BloodPressureReading? {
+        savedReadings.first { Calendar.current.isDateInToday($0.measuredAt) }
+    }
+
     private var trendPoints: [BloodPressureTrendPoint] {
         viewModel.trendPoints(from: savedReadings)
+    }
+
+    private var displayedTrendPoints: [BPTrendDisplayPoint] {
+        if trendPoints.isEmpty {
+            return BPTrendDisplayPoint.placeholderWeek
+        }
+
+        return trendPoints.prefix(7).map { point in
+            BPTrendDisplayPoint(
+                dayLabel: Self.trendDayFormatter.string(from: point.measuredAt),
+                weekdayLabel: Self.trendWeekdayFormatter.string(from: point.measuredAt),
+                systolic: point.systolic,
+                diastolic: point.diastolic
+            )
+        }
     }
 
     private var displayedHistoryReadings: [BloodPressureReading] {
@@ -56,15 +76,10 @@ struct BloodPressureHomeView: View {
                     .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
-                        DSSectionHeader(
-                            "读数卡片",
-                            subtitle: "查看最近测量和近期趋势。",
-                            systemImage: "heart.text.square"
-                        )
+                    VStack(alignment: .leading, spacing: 14) {
+                        readingHeader
 
                         recentMeasurementCard
-                        interpretationCard
 
                         if let syncStatusMessage = viewModel.syncStatusMessage {
                             DSCard {
@@ -79,13 +94,69 @@ struct BloodPressureHomeView: View {
                             }
                         }
 
-                        if trendPoints.isEmpty {
-                            emptyTrendCard
-                        } else {
-                            trendCard
-                        }
+                        trendCard
 
-                        if !savedReadings.isEmpty {
+                        Button {
+                            path.append(.cameraUpload)
+                        } label: {
+                            HStack(spacing: DSTheme.Spacing.small) {
+                                Image("BPReadingCameraIcon")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 24, height: 24)
+                                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+
+                                Text("拍照上传读数")
+                                    .font(.headline.weight(.bold))
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(DSTheme.Color.primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showsAllHistory.toggle()
+                            }
+                        } label: {
+                            Text("查看历史读数")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(DSTheme.Color.primary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(.white)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        .stroke(DSTheme.Color.primary, lineWidth: 1.2)
+                                }
+                                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+
+                        #if DEBUG
+                        Button {
+                            path.append(.confirmReading(Self.confirmReadingTestDraft))
+                        } label: {
+                            HStack(spacing: DSTheme.Spacing.small) {
+                                Image(systemName: "testtube.2")
+                                    .font(.headline.weight(.bold))
+
+                                Text("测试确认读数界面")
+                                    .font(.subheadline.weight(.bold))
+                            }
+                            .foregroundStyle(DSTheme.Color.primary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 46)
+                            .background(DSTheme.Color.primarySoft)
+                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        #endif
+
+                        if showsAllHistory, !savedReadings.isEmpty {
                             historyCard
                         }
 
@@ -104,11 +175,12 @@ struct BloodPressureHomeView: View {
                         }
 
                     }
-                    .padding(DSTheme.Spacing.large)
+                    .padding(.horizontal, DSTheme.Spacing.large)
+                    .padding(.top, DSTheme.Spacing.medium)
+                    .padding(.bottom, 104)
                 }
             }
-            .navigationTitle("Blood Pressure")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: BloodPressureRoute.self) { route in
                 switch route {
                 case .cameraUpload:
@@ -185,62 +257,100 @@ struct BloodPressureHomeView: View {
         }
     }
 
+    private var readingHeader: some View {
+        VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
+            HStack(alignment: .top) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                        .frame(width: 40, height: 40)
+                        .background(.white)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                VStack(spacing: 4) {
+                    Image("TodayHeaderAvatar")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 42, height: 42)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(.white, lineWidth: 2))
+
+                    Text("小宁")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.textPrimary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("读数卡片")
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
+
+                Text("通过拍照上传今天的血压计读数。")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
+            }
+        }
+    }
+
     @ViewBuilder
     private var recentMeasurementCard: some View {
-        DSCard {
-            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                HStack(alignment: .top, spacing: DSTheme.Spacing.medium) {
-                    Image(systemName: "calendar.badge.clock")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(DSTheme.Color.primary)
-                        .frame(width: 44, height: 44)
-                        .background(DSTheme.Color.primarySoft)
-                        .clipShape(Circle())
+        DSCard(padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("今天的读数")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                    VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-                        Text("最近测量")
-                            .font(.headline)
-                            .foregroundStyle(DSTheme.Color.textPrimary)
+                HStack(spacing: 16) {
+                    Image("BPReadingMonitorHero")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 160, height: 150)
+                        .accessibilityHidden(true)
 
-                        if let reading = latestReading {
-                            Text("\(reading.systolic)/\(reading.diastolic) mmHg")
-                                .font(.system(size: 34, weight: .bold, design: .rounded))
-                                .foregroundStyle(DSTheme.Color.textPrimary)
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let reading = todayReading {
+                            Text("\(reading.systolic) / \(reading.diastolic)")
+                                .font(.system(size: 30, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.75)
 
+                            Text("mmHg")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(DSTheme.Color.textSecondary)
+
                             if let pulse = reading.pulse {
                                 Text("脉搏 \(pulse) bpm")
-                                    .font(.subheadline)
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                             }
-
-                            Text(Self.relativeMeasurementText(for: reading.measuredAt))
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(DSTheme.Color.textSecondary)
                         } else {
-                            Text("还未记录读数")
+                            Text("今天还没有读数")
                                 .font(.title3.weight(.bold))
-                                .foregroundStyle(DSTheme.Color.textPrimary)
+                                .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
+                                .fixedSize(horizontal: false, vertical: true)
 
-                            Text("添加你的第一次血压读数")
-                                .font(.subheadline)
-                                .foregroundStyle(DSTheme.Color.textSecondary)
+                            Text("拍照上传血压计屏幕，系统会自动识别并分析。")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-
-                    Spacer(minLength: 0)
-
-                    HStack(spacing: DSTheme.Spacing.small) {
-                        BPQuickActionButton(systemImage: "camera.fill", accessibilityLabel: "拍照上传读数") {
-                            path.append(.cameraUpload)
-                        }
-
-                        BPQuickActionButton(systemImage: "square.and.pencil", accessibilityLabel: "手动添加读数") {
-                            path.append(.confirmReading(viewModel.emptyDraft))
-                        }
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                path.append(.cameraUpload)
             }
         }
     }
@@ -417,23 +527,36 @@ struct BloodPressureHomeView: View {
     }
 
     private var trendCard: some View {
-        DSCard {
-            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
+        DSCard(padding: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("\(trendPoints.count) 天趋势")
-                        .font(.headline)
-                        .foregroundStyle(DSTheme.Color.textPrimary)
+                    Text("最近 7 天趋势")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
                     Spacer()
 
-                    HStack(spacing: DSTheme.Spacing.small) {
-                        TrendLegendItem(title: "收缩压", color: DSTheme.Color.primary)
-                        TrendLegendItem(title: "舒张压", color: DSTheme.Color.success)
+                    HStack(spacing: 8) {
+                        TrendLegendItem(title: "收缩压 (mmHg)", imageName: "BPReadingChartSystolicGlyph")
+                        TrendLegendItem(title: "舒张压 (mmHg)", imageName: "BPReadingChartDiastolicGlyph")
                     }
                 }
 
-                BPTrendChart(points: trendPoints)
-                    .frame(height: 190)
+                BPTrendChart(points: displayedTrendPoints)
+                    .frame(height: 210)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .font(.caption.weight(.bold))
+
+                    Text(trendPoints.isEmpty ? "上传后可查看趋势变化" : "趋势用于观察变化，不用于诊断。")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color(red: 0.37, green: 0.50, blue: 0.74))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .background(Color(red: 0.93, green: 0.96, blue: 1.0))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
     }
@@ -577,6 +700,32 @@ struct BloodPressureHomeView: View {
         formatter.setLocalizedDateFormatFromTemplate("yyyyMMMd HH:mm")
         return formatter
     }()
+
+    private static let trendDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.dateFormat = "M/d"
+        return formatter
+    }()
+
+    private static let trendWeekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.dateFormat = "EEE"
+        return formatter
+    }()
+
+    #if DEBUG
+    private static var confirmReadingTestDraft: BPReadingDraft {
+        BPReadingDraft(
+            source: .cameraRecognition,
+            systolic: "128",
+            diastolic: "82",
+            pulse: "72",
+            measuredAt: Date()
+        )
+    }
+    #endif
 }
 
 private enum BloodPressureRoute: Hashable {
@@ -623,86 +772,130 @@ private extension BPInterpretationSeverity {
 
 private struct TrendLegendItem: View {
     let title: String
-    let color: Color
+    let imageName: String
 
     var body: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
+        HStack(spacing: 4) {
+            Image(imageName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 16, height: 8)
+                .clipped()
 
             Text(title)
-                .font(.caption.weight(.semibold))
+                .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .lineLimit(1)
         }
     }
 }
 
+private struct BPTrendDisplayPoint: Identifiable, Hashable {
+    let id = UUID()
+    let dayLabel: String
+    let weekdayLabel: String
+    let systolic: Int?
+    let diastolic: Int?
+
+    static let placeholderWeek: [BPTrendDisplayPoint] = [
+        BPTrendDisplayPoint(dayLabel: "6/3", weekdayLabel: "周二", systolic: 126, diastolic: 82),
+        BPTrendDisplayPoint(dayLabel: "6/4", weekdayLabel: "周三", systolic: 124, diastolic: 80),
+        BPTrendDisplayPoint(dayLabel: "6/5", weekdayLabel: "周四", systolic: 128, diastolic: 84),
+        BPTrendDisplayPoint(dayLabel: "6/6", weekdayLabel: "周五", systolic: 122, diastolic: 78),
+        BPTrendDisplayPoint(dayLabel: "6/7", weekdayLabel: "周六", systolic: 130, diastolic: 85),
+        BPTrendDisplayPoint(dayLabel: "6/8", weekdayLabel: "周日", systolic: 125, diastolic: 81),
+        BPTrendDisplayPoint(dayLabel: "6/9", weekdayLabel: "周一\n(今天)", systolic: nil, diastolic: nil)
+    ]
+}
+
 private struct BPTrendChart: View {
-    let points: [BloodPressureTrendPoint]
+    let points: [BPTrendDisplayPoint]
 
-    private var allValues: [Int] {
-        points.flatMap { [$0.systolic, $0.diastolic] }
+    private let minValue = 40
+    private let maxValue = 160
+    private let yAxisMarks = [160, 140, 120, 100, 80, 60, 40]
+
+    private var systolicColor: Color {
+        Color(red: 0.06, green: 0.32, blue: 1.0)
     }
 
-    private var minValue: Int {
-        max((allValues.min() ?? 70) - 8, 0)
-    }
-
-    private var maxValue: Int {
-        (allValues.max() ?? 130) + 8
+    private var diastolicColor: Color {
+        Color(red: 1.0, green: 0.14, blue: 0.42)
     }
 
     var body: some View {
-        VStack(spacing: DSTheme.Spacing.small) {
-            GeometryReader { proxy in
-                ZStack {
-                    gridLines
-
-                    trendPath(values: points.map(\.systolic), in: proxy.size)
-                        .stroke(DSTheme.Color.primary, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-
-                    trendPath(values: points.map(\.diastolic), in: proxy.size)
-                        .stroke(DSTheme.Color.success, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-
-                    pointMarkers(values: points.map(\.systolic), color: DSTheme.Color.primary, size: proxy.size)
-                    pointMarkers(values: points.map(\.diastolic), color: DSTheme.Color.success, size: proxy.size)
+        VStack(spacing: 6) {
+            HStack(alignment: .top, spacing: 7) {
+                VStack {
+                    ForEach(yAxisMarks, id: \.self) { mark in
+                        Text("\(mark)")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color(red: 0.40, green: 0.48, blue: 0.62))
+                            .frame(maxHeight: .infinity, alignment: mark == yAxisMarks.first ? .top : mark == yAxisMarks.last ? .bottom : .center)
+                    }
                 }
+                .frame(width: 26, height: 148)
+
+                GeometryReader { proxy in
+                    ZStack {
+                        gridLines(in: proxy.size)
+
+                        trendPath(values: points.map(\.systolic), in: proxy.size)
+                            .stroke(systolicColor, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+
+                        trendPath(values: points.map(\.diastolic), in: proxy.size)
+                            .stroke(diastolicColor, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+
+                        pointMarkers(values: points.map(\.systolic), color: systolicColor, size: proxy.size)
+                        pointMarkers(values: points.map(\.diastolic), color: diastolicColor, size: proxy.size)
+                        valueLabels(values: points.map(\.systolic), color: systolicColor, yOffset: -14, size: proxy.size)
+                        valueLabels(values: points.map(\.diastolic), color: diastolicColor, yOffset: 14, size: proxy.size)
+                        missingValueMarkers(size: proxy.size)
+                    }
+                }
+                .frame(height: 148)
             }
 
-            HStack {
+            HStack(spacing: 0) {
                 ForEach(points) { point in
-                    Text(point.day)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(DSTheme.Color.textSecondary)
+                    Text("\(point.dayLabel)\n\(point.weekdayLabel)")
+                        .font(.system(size: 9, weight: .medium))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Color(red: 0.40, green: 0.48, blue: 0.62))
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.8)
                         .frame(maxWidth: .infinity)
                 }
             }
+            .padding(.leading, 33)
         }
     }
 
-    private var gridLines: some View {
-        VStack {
-            ForEach(0..<4, id: \.self) { _ in
+    private func gridLines(in size: CGSize) -> some View {
+        ZStack {
+            ForEach(yAxisMarks, id: \.self) { mark in
                 Rectangle()
-                    .fill(DSTheme.Color.border)
+                    .fill(DSTheme.Color.border.opacity(0.75))
                     .frame(height: 1)
-
-                Spacer()
+                    .position(x: size.width / 2, y: chartY(for: mark, in: size))
             }
         }
     }
 
-    private func trendPath(values: [Int], in size: CGSize) -> Path {
+    private func trendPath(values: [Int?], in size: CGSize) -> Path {
         Path { path in
-            guard values.count > 1 else { return }
+            var didMove = false
 
             for index in values.indices {
-                let point = chartPoint(for: values[index], index: index, count: values.count, size: size)
+                guard let value = values[index] else {
+                    continue
+                }
 
-                if index == values.startIndex {
+                let point = chartPoint(for: value, index: index, count: values.count, size: size)
+
+                if !didMove {
                     path.move(to: point)
+                    didMove = true
                 } else {
                     path.addLine(to: point)
                 }
@@ -710,29 +903,70 @@ private struct BPTrendChart: View {
         }
     }
 
-    private func pointMarkers(values: [Int], color: Color, size: CGSize) -> some View {
+    private func pointMarkers(values: [Int?], color: Color, size: CGSize) -> some View {
         ZStack {
             ForEach(values.indices, id: \.self) { index in
-                Circle()
-                    .fill(color)
-                    .frame(width: 8, height: 8)
-                    .position(chartPoint(for: values[index], index: index, count: values.count, size: size))
+                if let value = values[index] {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 7, height: 7)
+                        .position(chartPoint(for: value, index: index, count: values.count, size: size))
+                }
+            }
+        }
+    }
+
+    private func valueLabels(values: [Int?], color: Color, yOffset: CGFloat, size: CGSize) -> some View {
+        ZStack {
+            ForEach(values.indices, id: \.self) { index in
+                if let value = values[index] {
+                    Text("\(value)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(color)
+                        .position(
+                            x: chartPoint(for: value, index: index, count: values.count, size: size).x,
+                            y: chartPoint(for: value, index: index, count: values.count, size: size).y + yOffset
+                        )
+                }
+            }
+        }
+    }
+
+    private func missingValueMarkers(size: CGSize) -> some View {
+        ZStack {
+            ForEach(points.indices, id: \.self) { index in
+                if points[index].systolic == nil && points[index].diastolic == nil {
+                    Text("--")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(systolicColor)
+                        .position(x: chartX(for: index, count: points.count, size: size), y: chartY(for: 125, in: size))
+
+                    Text("--")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(diastolicColor)
+                        .position(x: chartX(for: index, count: points.count, size: size), y: chartY(for: 82, in: size))
+                }
             }
         }
     }
 
     private func chartPoint(for value: Int, index: Int, count: Int, size: CGSize) -> CGPoint {
-        let horizontalInset: CGFloat = 10
-        let verticalInset: CGFloat = 12
+        CGPoint(x: chartX(for: index, count: count, size: size), y: chartY(for: value, in: size))
+    }
+
+    private func chartX(for index: Int, count: Int, size: CGSize) -> CGFloat {
+        let horizontalInset: CGFloat = 12
         let usableWidth = max(size.width - horizontalInset * 2, 1)
-        let usableHeight = max(size.height - verticalInset * 2, 1)
         let xStep = count > 1 ? usableWidth / CGFloat(count - 1) : 0
+        return horizontalInset + CGFloat(index) * xStep
+    }
+
+    private func chartY(for value: Int, in size: CGSize) -> CGFloat {
+        let verticalInset: CGFloat = 8
+        let usableHeight = max(size.height - verticalInset * 2, 1)
         let valueRange = max(maxValue - minValue, 1)
         let normalized = CGFloat(value - minValue) / CGFloat(valueRange)
-        let x = horizontalInset + CGFloat(index) * xStep
-        let y = verticalInset + (1 - normalized) * usableHeight
-
-        return CGPoint(x: x, y: y)
+        return verticalInset + (1 - normalized) * usableHeight
     }
 }
 

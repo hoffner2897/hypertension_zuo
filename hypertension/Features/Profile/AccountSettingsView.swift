@@ -15,6 +15,9 @@ struct AccountSettingsView: View {
     @State private var isLoadingProfile = false
     @State private var isEditingHealthData = false
     @State private var selectedHealthField: HealthDataField?
+    #if DEBUG
+    @State private var isShowingHealthConnectTest = false
+    #endif
 
     private let profileService = ProfileService()
 
@@ -81,6 +84,21 @@ struct AccountSettingsView: View {
 
                         healthSection
 
+                        #if DEBUG
+                        Button {
+                            isShowingHealthConnectTest = true
+                        } label: {
+                            Label("测试 Apple Health 连接界面", systemImage: "heart.text.square.fill")
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(DSTheme.Color.primary)
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: 52)
+                                .background(DSTheme.Color.primarySoft)
+                                .clipShape(RoundedRectangle(cornerRadius: DSTheme.Radius.medium, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        #endif
+
                         DSSecondaryButton("退出登录", systemImage: "rectangle.portrait.and.arrow.right") {
                             Task {
                                 await appState.logout()
@@ -146,6 +164,18 @@ struct AccountSettingsView: View {
                 }
                 .presentationDetents([.large])
             }
+            #if DEBUG
+            .sheet(isPresented: $isShowingHealthConnectTest) {
+                HealthConnectView(
+                    onConnect: {
+                        isShowingHealthConnectTest = false
+                    },
+                    onSkip: {
+                        isShowingHealthConnectTest = false
+                    }
+                )
+            }
+            #endif
             .task {
                 await loadProfile()
                 await healthViewModel.refresh()

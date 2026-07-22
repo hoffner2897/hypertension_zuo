@@ -208,7 +208,7 @@
 			mainGroup = 35C227A42FEF9D800032291F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				A1B2C3D52FEF000000000001 /* XCLocalSwiftPackageReference "external/GRDB.swift" */,
+				A1B2C3D52FEF000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 35C227AE2FEF9D800032291F /* Products */;
@@ -408,6 +408,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				BPHEALTH_API_BASE_URL = "https://bphealth-api-staging.onrender.com";
 				CODE_SIGN_ENTITLEMENTS = hypertension/hypertension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -447,6 +448,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				BPHEALTH_API_BASE_URL = "https://bphealth-api-staging.onrender.com";
 				CODE_SIGN_ENTITLEMENTS = hypertension/hypertension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -602,17 +604,21 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		A1B2C3D52FEF000000000001 /* XCLocalSwiftPackageReference "external/GRDB.swift" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = external/GRDB.swift;
+/* Begin XCRemoteSwiftPackageReference section */
+		A1B2C3D52FEF000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.0.0;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		A1B2C3D62FEF000000000001 /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D52FEF000000000001 /* XCLocalSwiftPackageReference "external/GRDB.swift" */;
+			package = A1B2C3D52FEF000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
 		};
 /* End XCSwiftPackageProductDependency section */

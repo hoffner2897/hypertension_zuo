@@ -7,7 +7,11 @@ struct AuthEntryView: View {
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var isLoading = false
+    @State private var isPreparingTestSession = false
     @State private var localError: String?
+    #if DEBUG
+    @State private var isShowingHealthConnectTest = false
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -49,12 +53,74 @@ struct AuthEntryView: View {
                                 await submit()
                             }
                         }
+                        .disabled(isPreparingTestSession)
+
+                        #if DEBUG
+                        Button {
+                            Task {
+                                isPreparingTestSession = true
+                                await appState.enterDebugTestSession()
+                                isPreparingTestSession = false
+                            }
+                        } label: {
+                            Group {
+                                if isPreparingTestSession {
+                                    HStack(spacing: DSTheme.Spacing.small) {
+                                        ProgressView()
+                                        Text("正在准备测试版…")
+                                    }
+                                } else {
+                                    Label("免注册进入测试版", systemImage: "hammer.circle.fill")
+                                }
+                            }
+                            .font(.headline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .tint(DSTheme.Color.primary)
+                        .disabled(isLoading || isPreparingTestSession)
+                        .accessibilityIdentifier("auth.debugPreviewButton")
+
+                        Button {
+                            isShowingHealthConnectTest = true
+                        } label: {
+                            Label("测试 Apple Health 连接界面", systemImage: "heart.text.square.fill")
+                                .font(.headline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .tint(DSTheme.Color.primary)
+                        .disabled(isLoading || isPreparingTestSession)
+                        .accessibilityIdentifier("auth.healthConnectPreviewButton")
+
+                        Text("仅开发包显示。连接测试后端，可直接使用账号同步与在线 AI。")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(DSTheme.Color.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .multilineTextAlignment(.center)
+                        #endif
                     }
                     .padding(DSTheme.Spacing.large)
                 }
             }
             .navigationTitle(mode.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
+            #if DEBUG
+            .sheet(isPresented: $isShowingHealthConnectTest) {
+                HealthConnectView(
+                    onConnect: {
+                        isShowingHealthConnectTest = false
+                    },
+                    onSkip: {
+                        isShowingHealthConnectTest = false
+                    }
+                )
+            }
+            #endif
         }
     }
 

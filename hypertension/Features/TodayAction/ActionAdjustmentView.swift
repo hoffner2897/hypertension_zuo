@@ -277,11 +277,14 @@ struct ActionAdjustDemoView: View {
     }
 
     private func apply(_ adjustedItems: [TodayActionItem]) {
+        let adjustmentTimestamp = Date()
         for adjustedItem in adjustedItems {
             guard let index = items.firstIndex(where: { $0.id == adjustedItem.id }) else {
                 continue
             }
-            items[index] = adjustedItem
+            var stampedItem = adjustedItem
+            stampedItem.clientUpdatedAt = adjustmentTimestamp
+            items[index] = stampedItem
         }
 
         items.sort { $0.scheduledStartAt < $1.scheduledStartAt }
@@ -562,7 +565,9 @@ private struct ActionTrendSuggestionRequest: Encodable {
         self.now = Self.formatter.string(from: now)
         self.timeZone = TimeZone.current.identifier
         self.todayActions = items.map { ActionTrendActionSnapshot(item: $0, now: now) }
-        self.recentActions = recent.prefix(100).map(ActionTrendActionSnapshot.init)
+        self.recentActions = recent.prefix(100).map { observation in
+            ActionTrendActionSnapshot(observation)
+        }
     }
 
     private static let formatter: ISO8601DateFormatter = {
@@ -1386,6 +1391,31 @@ private struct MovementAdjustmentEditor: View {
         return originalItem.type
     }
 
+    private var adjustedCatalogExercise: LowBarrierExercise? {
+        guard !usesCustomMovement,
+              originalItem.exerciseId != nil,
+              originalItem.exerciseScene != nil,
+              originalItem.exerciseEnergy != nil else { return nil }
+
+        if adjustedMovementName == originalItem.title,
+           let originalExerciseID = originalItem.exerciseId,
+           let originalExercise = LowBarrierExerciseCatalog.exercise(id: originalExerciseID) {
+            return originalExercise
+        }
+
+        let catalogName = adjustedMovementName == MovementOption.calfRaise.rawValue
+            ? "提踵"
+            : adjustedMovementName
+        let matches = LowBarrierExerciseCatalog.all.filter { $0.name == catalogName }
+
+        if let originalSceneTitle = originalItem.exerciseScene,
+           let originalScene = ExerciseScene(title: originalSceneTitle) {
+            return matches.first(where: { $0.scene == originalScene })
+        }
+
+        return matches.first
+    }
+
     private var customInputIsValid: Bool {
         !usesCustomMovement || !trimmedCustomMovementName.isEmpty
     }
@@ -1668,8 +1698,35 @@ private struct MovementAdjustmentEditor: View {
         ) ?? adjustedStartDate
         updated.title = adjustedMovementName
         updated.type = adjustedType
-        updated.description = adjustedType.description(durationMinutes: adjustedDuration)
-        updated.reason = adjustedType.reason
+
+        if let catalogExercise = adjustedCatalogExercise {
+            updated.type = .walk
+            updated.exerciseId = catalogExercise.id
+            updated.exerciseScene = catalogExercise.scene.rawValue
+            updated.exerciseMovementAdvice = catalogExercise.movementAdvice
+            updated.exerciseIntensityAdvice = catalogExercise.intensityAdvice
+            updated.description = catalogExercise.movementAdvice
+            updated.reason = "根据当前场景、精力和情景状态推荐的低门槛运动。"
+        } else if originalItem.exerciseId != nil {
+            // Keep adjusted catalog actions syncable without pretending that
+            // an arbitrary custom activity has catalog-authored AI copy.
+            updated.exerciseId = "custom-adjusted"
+            updated.exerciseMovementAdvice = adjustedType.description(durationMinutes: adjustedDuration)
+            updated.exerciseIntensityAdvice = "保持自然呼吸和舒适节奏；如有明显不适，请停止并休息。"
+            updated.type = .walk
+            updated.description = adjustedType.description(durationMinutes: adjustedDuration)
+            updated.reason = adjustedType.reason
+        } else {
+            updated.exerciseId = nil
+            updated.exerciseScene = nil
+            updated.exerciseEnergy = nil
+            updated.exerciseContexts = []
+            updated.exerciseMovementAdvice = nil
+            updated.exerciseIntensityAdvice = nil
+            updated.description = adjustedType.description(durationMinutes: adjustedDuration)
+            updated.reason = adjustedType.reason
+        }
+
         updated.status = .pending
         updated.displayStatus = .pending
         updated.completedAt = nil

@@ -11,6 +11,7 @@ import SwiftUI
 import UIKit
 
 struct BPCameraUploadMockView: View {
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: BPCameraUploadViewModel
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isShowingCamera = false
@@ -46,121 +47,172 @@ struct BPCameraUploadMockView: View {
                 .ignoresSafeArea()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
-                    DSSectionHeader(
-                        "拍照上传",
-                        subtitle: "拍摄或选择血压计屏幕照片，识别后请确认读数。",
-                        systemImage: "camera.fill"
-                    )
-
+                VStack(alignment: .leading, spacing: 18) {
+                    uploadHeader
                     monitorFrame
-
-                    DSCard {
-                        VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                            instructionRow("请将血压计屏幕放入框内", systemImage: "viewfinder")
-                            instructionRow("确保数字清晰可见", systemImage: "text.viewfinder")
-                        }
-                    }
-
-                    if let recognitionResult = viewModel.recognitionResult {
-                        recognitionSummaryCard(recognitionResult)
-                    }
 
                     if let errorMessage = viewModel.errorMessage {
                         errorRow(errorMessage)
                     }
 
-                    VStack(spacing: DSTheme.Spacing.small) {
-                        DSPrimaryButton(
-                            "识别读数",
-                            systemImage: "text.viewfinder",
-                            isLoading: viewModel.isRecognizing
-                        ) {
-                            Task {
-                                if let draft = await viewModel.recognizeReading() {
-                                    onRecognized(draft)
-                                }
-                            }
-                        }
-
-                        HStack(spacing: DSTheme.Spacing.small) {
-                            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                                pickerButtonLabel("选择照片", systemImage: "photo")
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(viewModel.isRecognizing)
-
-                            Button {
+                    VStack(spacing: 12) {
+                        Button {
+                            if CameraCaptureView.isAvailable {
                                 isShowingCamera = true
-                            } label: {
-                                pickerButtonLabel("拍照", systemImage: "camera.fill")
+                            } else {
+                                viewModel.showCameraUnavailableMessage()
                             }
-                            .buttonStyle(.plain)
-                            .disabled(viewModel.isRecognizing || !CameraCaptureView.isAvailable)
+                        } label: {
+                            uploadPrimaryButtonLabel
                         }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isRecognizing)
 
-                        DSSecondaryButton("手动输入", systemImage: "square.and.pencil") {
-                            onManualInput(BPReadingDraft(source: .manual))
+                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                            Text("从相册选择")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(DSTheme.Color.primary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(.white)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        .stroke(DSTheme.Color.primary, lineWidth: 1.1)
+                                }
+                                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                         }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isRecognizing)
                     }
                 }
-                .padding(DSTheme.Spacing.large)
+                .padding(.horizontal, DSTheme.Spacing.large)
+                .padding(.top, DSTheme.Spacing.medium)
+                .padding(.bottom, 104)
             }
         }
-        .navigationTitle("拍照上传")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .onChange(of: selectedPhotoItem) { _, newItem in
             Task {
                 await viewModel.loadPhoto(from: newItem)
+                await recognizeLoadedImage()
             }
         }
         .sheet(isPresented: $isShowingCamera) {
             CameraCaptureView { image in
                 viewModel.setCameraImage(image)
+                Task {
+                    await recognizeLoadedImage()
+                }
             }
             .ignoresSafeArea()
         }
     }
 
-    private var monitorFrame: some View {
-        DSCard {
-            VStack(spacing: DSTheme.Spacing.medium) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: DSTheme.Radius.large, style: .continuous)
-                        .stroke(DSTheme.Color.primary, style: StrokeStyle(lineWidth: 3, dash: [10, 8]))
-                        .background(
-                            RoundedRectangle(cornerRadius: DSTheme.Radius.large, style: .continuous)
-                                .fill(DSTheme.Color.primarySoft.opacity(0.7))
-                        )
-
-                    if let selectedImage = viewModel.selectedImage {
-                        Image(uiImage: selectedImage)
-                            .resizable()
-                            .scaledToFill()
-                            .clipShape(RoundedRectangle(cornerRadius: DSTheme.Radius.large, style: .continuous))
-                    } else {
-                        VStack(spacing: DSTheme.Spacing.medium) {
-                            Image(systemName: "display")
-                                .font(.system(size: 46, weight: .semibold))
-                                .foregroundStyle(DSTheme.Color.primary)
-
-                            Text("添加血压计照片")
-                                .font(.title3.weight(.bold))
-                                .foregroundStyle(DSTheme.Color.textPrimary)
-
-                            Text("支持拍照或从相册选择")
-                                .font(.subheadline)
-                                .foregroundStyle(DSTheme.Color.textSecondary)
-                        }
-                    }
+    private var uploadHeader: some View {
+        VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
+            HStack(alignment: .top) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                        .frame(width: 40, height: 40)
+                        .background(.white)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
                 }
-                .frame(height: 220)
-                .clipShape(RoundedRectangle(cornerRadius: DSTheme.Radius.large, style: .continuous))
+                .buttonStyle(.plain)
 
-                Text(viewModel.selectedImage == nil ? "尚未选择照片" : "照片已准备识别")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(DSTheme.Color.textSecondary)
+                Spacer()
+
+                VStack(spacing: 4) {
+                    Image("TodayHeaderAvatar")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 42, height: 42)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(.white, lineWidth: 2))
+
+                    Text("小宁")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.textPrimary)
+                }
             }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("拍照上传")
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
+
+                Text("请将血压计屏幕放入取景框内。")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
+            }
+        }
+    }
+
+    private var monitorFrame: some View {
+        ZStack(alignment: .bottom) {
+            ZStack {
+                if let selectedImage = viewModel.selectedImage {
+                    Image(uiImage: selectedImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    BPMonitorSamplePhoto()
+                }
+
+                CameraFocusCorners()
+                    .padding(30)
+
+                if viewModel.isRecognizing {
+                    ProgressView()
+                        .tint(.white)
+                        .padding(14)
+                        .background(.black.opacity(0.44))
+                        .clipShape(Circle())
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .aspectRatio(0.94, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            Text(viewModel.selectedImage == nil ? "保持画面清晰，避免反光" : "正在准备识别，请保持读数清晰")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 22)
+                .padding(.vertical, 9)
+                .background(.black.opacity(0.58))
+                .clipShape(Capsule())
+                .padding(.bottom, 18)
+        }
+    }
+
+    private var uploadPrimaryButtonLabel: some View {
+        HStack(spacing: DSTheme.Spacing.small) {
+            if viewModel.isRecognizing {
+                ProgressView()
+                    .tint(.white)
+            }
+
+            Text(viewModel.isRecognizing ? "识别中..." : "拍摄血压计屏幕")
+                .font(.headline.weight(.bold))
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .frame(height: 54)
+        .background(DSTheme.Color.primary)
+        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+    }
+
+    private func recognizeLoadedImage() async {
+        guard viewModel.selectedImage != nil else {
+            return
+        }
+
+        if let draft = await viewModel.recognizeReading() {
+            onRecognized(draft)
         }
     }
 
@@ -238,6 +290,84 @@ struct BPCameraUploadMockView: View {
     }
 }
 
+private struct BPMonitorSamplePhoto: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.82, green: 0.80, blue: 0.72),
+                    Color(red: 0.94, green: 0.89, blue: 0.80)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(.white.opacity(0.32))
+                .frame(width: 170, height: 170)
+                .blur(radius: 28)
+                .offset(x: -130, y: -170)
+
+            Rectangle()
+                .fill(Color(red: 0.76, green: 0.68, blue: 0.56).opacity(0.42))
+                .frame(height: 96)
+                .offset(y: 182)
+
+            Image("BPReadingMonitorHero")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 310)
+                .shadow(color: .black.opacity(0.14), radius: 18, x: 0, y: 12)
+                .padding(.horizontal, 24)
+        }
+    }
+}
+
+private struct CameraFocusCorners: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let cornerSize: CGFloat = 34
+
+            ZStack {
+                FocusCorner()
+                    .frame(width: cornerSize, height: cornerSize)
+                    .position(x: cornerSize / 2, y: cornerSize / 2)
+
+                FocusCorner()
+                    .scaleEffect(x: -1, y: 1)
+                    .frame(width: cornerSize, height: cornerSize)
+                    .position(x: proxy.size.width - cornerSize / 2, y: cornerSize / 2)
+
+                FocusCorner()
+                    .scaleEffect(x: 1, y: -1)
+                    .frame(width: cornerSize, height: cornerSize)
+                    .position(x: cornerSize / 2, y: proxy.size.height - cornerSize / 2)
+
+                FocusCorner()
+                    .scaleEffect(x: -1, y: -1)
+                    .frame(width: cornerSize, height: cornerSize)
+                    .position(x: proxy.size.width - cornerSize / 2, y: proxy.size.height - cornerSize / 2)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+private struct FocusCorner: View {
+    var body: some View {
+        Path { path in
+            path.move(to: CGPoint(x: 1.5, y: 31))
+            path.addLine(to: CGPoint(x: 1.5, y: 8))
+            path.addQuadCurve(to: CGPoint(x: 8, y: 1.5), control: CGPoint(x: 1.5, y: 1.5))
+            path.addLine(to: CGPoint(x: 31, y: 1.5))
+        }
+        .stroke(
+            Color(red: 0.03, green: 0.33, blue: 1.0),
+            style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
+        )
+    }
+}
+
 #Preview {
     NavigationStack {
         BPCameraUploadMockView(onRecognized: { _ in }, onManualInput: { _ in })
@@ -300,6 +430,20 @@ final class BPCameraUploadViewModel: ObservableObject {
     func setCameraImage(_ image: UIImage) {
         setImage(image, data: Self.uploadData(for: image))
     }
+
+    func showCameraUnavailableMessage() {
+        errorMessage = "当前设备不支持相机，请从相册选择照片。"
+    }
+
+    #if DEBUG
+    func loadBundledTestImage() {
+        guard let image = UIImage(named: "TodayCardMorningBloodPressure") else {
+            errorMessage = "内置测试图片不可用。"
+            return
+        }
+        setCameraImage(image)
+    }
+    #endif
 
     private func setImage(_ image: UIImage, data: Data?) {
         selectedImage = image
