@@ -13,11 +13,16 @@ import type { AuthUserLookup } from "./auth/authMiddleware.js";
 import { isAuthenticatedRequest, requireAuth } from "./auth/authMiddleware.js";
 import { unauthorized } from "./errors.js";
 import { consumeAIUsageQuota } from "./services/aiUsageQuotaService.js";
+import {
+  createExerciseActionRouter,
+  type ExerciseActionRepository
+} from "./routes/exerciseActionRoutes.js";
 
 export interface AppDependencies {
   mealAnalysisService?: MealAnalysisService | null;
   authUserLookup?: AuthUserLookup;
   recognitionService?: BPRecognitionService;
+  exerciseActionRepository?: ExerciseActionRepository;
 }
 
 export function createApp(config: ServerConfig, dependencies: AppDependencies = {}): express.Express {
@@ -35,6 +40,10 @@ export function createApp(config: ServerConfig, dependencies: AppDependencies = 
   app.use("/meal-records", createMealRecordRouter(config, {
     analysisService: dependencies.mealAnalysisService,
     authUserLookup: dependencies.authUserLookup
+  }));
+  app.use("/exercise-actions", createExerciseActionRouter(config, {
+    authUserLookup: dependencies.authUserLookup,
+    repository: dependencies.exerciseActionRepository
   }));
 
   app.get("/health", (_request, response) => {

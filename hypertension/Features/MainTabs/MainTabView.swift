@@ -61,7 +61,32 @@ struct MainTabView: View {
             $0.title == item.title &&
             Calendar.current.isDate($0.scheduledStartAt, equalTo: item.scheduledStartAt, toGranularity: .minute)
         }) {
-            todayActionItems[index] = item
+            let existingItem = todayActionItems[index]
+            let keepsExistingExerciseSync = existingItem.exerciseId != nil && item.exerciseId == nil
+            let replacement = TodayActionItem(
+                id: existingItem.id,
+                type: item.type,
+                title: item.title,
+                description: item.description,
+                reason: item.reason,
+                scheduledStartAt: item.scheduledStartAt,
+                durationMinutes: item.durationMinutes,
+                status: item.status,
+                completedAt: item.completedAt,
+                sortOrder: item.sortOrder,
+                bloodPressureText: item.bloodPressureText,
+                adviceText: item.adviceText,
+                exerciseId: keepsExistingExerciseSync ? "custom-adjusted" : item.exerciseId,
+                exerciseScene: keepsExistingExerciseSync ? existingItem.exerciseScene : item.exerciseScene,
+                exerciseEnergy: keepsExistingExerciseSync ? existingItem.exerciseEnergy : item.exerciseEnergy,
+                exerciseContexts: keepsExistingExerciseSync ? existingItem.exerciseContexts : item.exerciseContexts,
+                exerciseMovementAdvice: keepsExistingExerciseSync ? item.description : item.exerciseMovementAdvice,
+                exerciseIntensityAdvice: keepsExistingExerciseSync
+                    ? "保持自然呼吸和舒适节奏；如有明显不适，请停止并休息。"
+                    : item.exerciseIntensityAdvice,
+                clientUpdatedAt: Date()
+            )
+            todayActionItems[index] = replacement
         } else {
             todayActionItems.append(item)
         }

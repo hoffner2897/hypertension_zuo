@@ -269,6 +269,49 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
     secondaryAccessToken = secondaryRegistration.body.accessToken;
     secondaryUserId = secondaryRegistration.body.user.id;
 
+    const exerciseActionId = randomUUID();
+    const createdExerciseAction = await requestJSON(baseURL, `/exercise-actions/${exerciseActionId}`, {
+      method: "PUT",
+      headers: authHeaders(primaryAccessToken),
+      body: exerciseActionPayload("原地踏步", "2026-07-21T15:00:00.000Z")
+    });
+    assert.equal(createdExerciseAction.response.status, 200);
+    assert.equal(createdExerciseAction.body.applied, true);
+    assert.equal(createdExerciseAction.body.action.id, exerciseActionId);
+
+    const staleExerciseAction = await requestJSON(baseURL, `/exercise-actions/${exerciseActionId}`, {
+      method: "PUT",
+      headers: authHeaders(primaryAccessToken),
+      body: exerciseActionPayload("不应覆盖的新名称", "2026-07-21T14:59:59.000Z")
+    });
+    assert.equal(staleExerciseAction.response.status, 200);
+    assert.equal(staleExerciseAction.body.applied, false);
+    assert.equal(staleExerciseAction.body.action.title, "原地踏步");
+
+    const crossUserExerciseAction = await requestJSON(baseURL, `/exercise-actions/${exerciseActionId}`, {
+      method: "PUT",
+      headers: authHeaders(secondaryAccessToken),
+      body: exerciseActionPayload("试图覆盖", "2026-07-21T16:00:00.000Z")
+    });
+    assert.equal(crossUserExerciseAction.response.status, 409);
+    assert.equal(crossUserExerciseAction.body.code, "EXERCISE_ACTION_ID_CONFLICT");
+
+    const primaryExerciseActions = await requestJSON(
+      baseURL,
+      "/exercise-actions?localDay=2026-07-21",
+      { headers: authHeaders(primaryAccessToken) }
+    );
+    assert.equal(primaryExerciseActions.response.status, 200);
+    assert.equal(primaryExerciseActions.body.actions.length, 1);
+    assert.equal(primaryExerciseActions.body.actions[0].clientUpdatedAt, "2026-07-21T15:00:00.000Z");
+
+    const secondaryExerciseActions = await requestJSON(
+      baseURL,
+      "/exercise-actions?localDay=2026-07-21",
+      { headers: authHeaders(secondaryAccessToken) }
+    );
+    assert.deepEqual(secondaryExerciseActions.body.actions, []);
+
     const crossUserReadingUpdate = await requestJSON(baseURL, `/readings/${readingId}`, {
       method: "PUT",
       headers: authHeaders(secondaryAccessToken),
@@ -497,6 +540,7 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
     });
     assert.equal(deletePrimaryResponse.status, 204);
     assert.equal(await prisma.mealRecord.count({ where: { userId: primaryUserId } }), 0);
+    assert.equal(await prisma.exerciseAction.count({ where: { userId: primaryUserId } }), 0);
     assert.equal(await prisma.aIDailyUsage.count({ where: { userId: primaryUserId } }), 0);
 
     const deletedUserMe = await requestJSON(baseURL, "/auth/me", {
@@ -508,6 +552,7 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
       requestJSON(baseURL, "/profile", { headers: authHeaders(primaryAccessToken) }),
       requestJSON(baseURL, "/readings", { headers: authHeaders(primaryAccessToken) }),
       requestJSON(baseURL, "/meal-records?date=2026-07-21", { headers: authHeaders(primaryAccessToken) }),
+      requestJSON(baseURL, "/exercise-actions?localDay=2026-07-21", { headers: authHeaders(primaryAccessToken) }),
       requestJSON(baseURL, "/action-adjustments/trend-suggestions", {
         method: "POST",
         headers: authHeaders(primaryAccessToken),
@@ -607,6 +652,24 @@ function actionSuggestionPayload() {
       }
     ],
     recentActions: []
+  };
+}
+
+function exerciseActionPayload(title: string, clientUpdatedAt: string) {
+  return {
+    exerciseId: "indoor-in-place-march",
+    title,
+    scene: "室内居家",
+    energy: "精力一般",
+    contexts: ["久坐后"],
+    scheduledStartAt: "2026-07-21T15:00:00.000Z",
+    durationMinutes: 10,
+    status: "pending",
+    completedAt: null,
+    movementAdvice: "身体站直，双脚交替抬起。",
+    intensityAdvice: "呼吸稍快，但仍能完整说话。",
+    localDay: "2026-07-21",
+    clientUpdatedAt
   };
 }
 
