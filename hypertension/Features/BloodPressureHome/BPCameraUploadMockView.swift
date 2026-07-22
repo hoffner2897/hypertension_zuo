@@ -99,6 +99,12 @@ struct BPCameraUploadMockView: View {
                             .disabled(viewModel.isRecognizing || !CameraCaptureView.isAvailable)
                         }
 
+                        #if DEBUG
+                        DSSecondaryButton("使用内置测试图", systemImage: "photo.badge.checkmark") {
+                            viewModel.loadBundledTestImage()
+                        }
+                        #endif
+
                         DSSecondaryButton("手动输入", systemImage: "square.and.pencil") {
                             onManualInput(BPReadingDraft(source: .manual))
                         }
@@ -300,6 +306,16 @@ final class BPCameraUploadViewModel: ObservableObject {
     func setCameraImage(_ image: UIImage) {
         setImage(image, data: Self.uploadData(for: image))
     }
+
+    #if DEBUG
+    func loadBundledTestImage() {
+        guard let image = UIImage(named: "TodayCardMorningBloodPressure") else {
+            errorMessage = "内置测试图片不可用。"
+            return
+        }
+        setCameraImage(image)
+    }
+    #endif
 
     private func setImage(_ image: UIImage, data: Data?) {
         selectedImage = image

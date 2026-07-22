@@ -49,6 +49,31 @@ struct AuthEntryView: View {
                                 await submit()
                             }
                         }
+
+                        #if DEBUG
+                        Button {
+                            Task {
+                                isLoading = true
+                                await appState.enterDebugTestSession()
+                                isLoading = false
+                            }
+                        } label: {
+                            Label("免注册进入测试版", systemImage: "hammer.circle.fill")
+                                .font(.headline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .tint(DSTheme.Color.primary)
+                        .accessibilityIdentifier("auth.debugPreviewButton")
+
+                        Text("仅开发包显示。连接测试后端，可直接使用账号同步与在线 AI。")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(DSTheme.Color.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .multilineTextAlignment(.center)
+                        #endif
                     }
                     .padding(DSTheme.Spacing.large)
                 }

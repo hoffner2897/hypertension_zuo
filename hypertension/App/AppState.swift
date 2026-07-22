@@ -109,6 +109,16 @@ final class AppState: ObservableObject {
         routeState = .signedOut
     }
 
+    #if DEBUG
+    /// 仅供开发包使用现成测试账号进入；用户无需注册，但仍获得真实服务端会话。
+    func enterDebugTestSession() async {
+        await login(
+            email: "phone-ai-test@bphealth.local",
+            password: "BPHealthTest2026!"
+        )
+    }
+    #endif
+
     @discardableResult
     func deleteAccount(password: String) async -> String? {
         let deletedUserId = currentUser?.id

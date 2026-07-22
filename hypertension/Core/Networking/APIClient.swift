@@ -34,7 +34,7 @@ final class APIClient {
 
     static let shared = APIClient()
 
-    var baseURL = URL(string: "https://bphealth-api-staging.onrender.com")!
+    var baseURL = APIClient.configuredBaseURL()
     var accessToken: String?
 
     private let dataLoader: DataLoader
@@ -42,6 +42,17 @@ final class APIClient {
     private let decoder = JSONDecoder()
     private var authorizationRefreshHandler: AuthorizationRefreshHandler?
     private var authorizationRefreshTask: Task<String, Error>?
+
+    private static func configuredBaseURL(bundle: Bundle = .main) -> URL {
+        if let value = bundle.object(forInfoDictionaryKey: "BPHealthAPIBaseURL") as? String,
+           !value.isEmpty,
+           !value.contains("$("),
+           let url = URL(string: value) {
+            return url
+        }
+
+        return URL(string: "https://bphealth-api-staging.onrender.com")!
+    }
 
     init(session: URLSession = .shared) {
         dataLoader = { request in
