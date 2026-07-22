@@ -2,6 +2,7 @@ import { fetch, ProxyAgent } from "undici";
 import type { BPRecognitionResult } from "../domain/bloodPressureRecognition.js";
 import { normalizeRecognitionResult } from "../domain/bloodPressureRecognition.js";
 import type { BPRecognitionService } from "./bpRecognitionService.js";
+import type { NormalizedImageBase64 } from "../domain/imageBase64.js";
 
 interface OpenAIRecognitionServiceOptions {
   apiKey: string;
@@ -59,7 +60,7 @@ export class OpenAIBPRecognitionService implements BPRecognitionService {
     this.proxyURL = options.proxyURL;
   }
 
-  async recognize(imageBase64: string): Promise<BPRecognitionResult> {
+  async recognize(image: NormalizedImageBase64): Promise<BPRecognitionResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
@@ -73,32 +74,7 @@ export class OpenAIBPRecognitionService implements BPRecognitionService {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          model: this.model,
-          input: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "input_text",
-                  text: recognitionPrompt
-                },
-                {
-                  type: "input_image",
-                  image_url: `data:image/png;base64,${imageBase64}`
-                }
-              ]
-            }
-          ],
-          text: {
-            format: {
-              type: "json_schema",
-              name: "blood_pressure_recognition",
-              strict: true,
-              schema: recognitionSchema
-            }
-          }
-        })
+        body: JSON.stringify(makeOpenAIBPRecognitionRequestBody(this.model, image))
       });
     } catch (error) {
       throw new Error(`OpenAI request failed before receiving a response: ${describeFetchError(error)}`);
@@ -116,6 +92,39 @@ export class OpenAIBPRecognitionService implements BPRecognitionService {
     const parsed = JSON.parse(text) as unknown;
     return normalizeRecognitionResult(parsed);
   }
+}
+
+export function makeOpenAIBPRecognitionRequestBody(
+  model: string,
+  image: NormalizedImageBase64
+) {
+  return {
+    model,
+    store: false,
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: recognitionPrompt
+          },
+          {
+            type: "input_image",
+            image_url: `data:${image.mimeType};base64,${image.base64}`
+          }
+        ]
+      }
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "blood_pressure_recognition",
+        strict: true,
+        schema: recognitionSchema
+      }
+    }
+  };
 }
 
 function describeFetchError(error: unknown): string {

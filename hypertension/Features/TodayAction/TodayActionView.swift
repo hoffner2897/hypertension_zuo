@@ -1,11 +1,37 @@
 import SwiftUI
+import SwiftData
 
 struct TodayActionView: View {
     @Binding var items: [TodayActionItem]
+    let userId: String
     let onOpenBloodPressure: () -> Void
 
     @State private var path: [TodayActionRoute] = []
+    @State private var activeMealItem: TodayActionItem?
+    @State private var isShowingAccountSettings = false
+    @State private var mealRecords: [MealKind: MealRecord] = [:]
+    @State private var headerDisplayName = "我的"
+    @Query private var savedReadings: [BloodPressureReading]
+    private let mealRecordService = MealRecordService()
+    private let profileService = ProfileService()
     private let statusBarClearance: CGFloat = 54
+
+    init(
+        items: Binding<[TodayActionItem]>,
+        userId: String,
+        onOpenBloodPressure: @escaping () -> Void = {}
+    ) {
+        self._items = items
+        self.userId = userId
+        self.onOpenBloodPressure = onOpenBloodPressure
+        self._savedReadings = Query(
+            filter: #Predicate<BloodPressureReading> { reading in
+                reading.userId == userId
+            },
+            sort: \BloodPressureReading.measuredAt,
+            order: .reverse
+        )
+    }
 
     private var completedCount: Int {
         items.filter { $0.status == .completed }.count
@@ -25,6 +51,13 @@ struct TodayActionView: View {
 
     private var hasMissedItems: Bool {
         items.contains { $0.effectiveStatus(now: Date()) == .missed }
+    }
+
+    private var readingRefreshKey: String {
+        savedReadings
+            .filter { Calendar.current.isDateInToday($0.measuredAt) }
+            .map { "\($0.id.uuidString)-\($0.systolic)-\($0.diastolic)-\($0.measuredAt.timeIntervalSince1970)" }
+            .joined(separator: "|")
     }
 
     var body: some View {
@@ -66,33 +99,62 @@ struct TodayActionView: View {
                     }
                 }
             }
+            .sheet(item: $activeMealItem) { item in
+                MealRecordSheet(
+                    item: item,
+                    existingRecord: mealRecord(for: item),
+                    onSaved: { record in
+                        mealRecords[record.mealType] = record
+                        applyMealRecord(record)
+                    }
+                )
+            }
+            .sheet(isPresented: $isShowingAccountSettings) {
+                AccountSettingsView()
+            }
+            .task(id: userId) {
+                items = ActionHistoryStore.restoreToday(items, userId: userId)
+                applyTodayBloodPressureReadings()
+                ActionHistoryStore.saveToday(items, userId: userId)
+                await loadMealRecords()
+                await loadHeaderProfile()
+            }
+            .onChange(of: isShowingAccountSettings) { wasShowing, isShowing in
+                if wasShowing && !isShowing {
+                    Task { await loadHeaderProfile() }
+                }
+            }
+            .onChange(of: readingRefreshKey) { _, _ in
+                applyTodayBloodPressureReadings()
+            }
+            .onChange(of: items) { _, updatedItems in
+                ActionHistoryStore.saveToday(updatedItems, userId: userId)
+            }
         }
     }
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("今日行动")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                Text("Today's Action")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(DSTheme.Color.textSecondary)
-            }
+            ActionPageTitle(title: "今日行动", subtitle: "Today's Action")
 
             Spacer()
 
-            VStack(spacing: 4) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 42))
-                    .foregroundStyle(Color(red: 0.18, green: 0.41, blue: 0.92))
-                    .background(Circle().fill(.white))
+            Button {
+                isShowingAccountSettings = true
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 42))
+                        .foregroundStyle(Color(red: 0.18, green: 0.41, blue: 0.92))
+                        .background(Circle().fill(.white))
 
-                Text("小宁")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(DSTheme.Color.textPrimary)
+                    Text(headerDisplayName)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.textPrimary)
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("打开账号与健康数据")
         }
     }
 
@@ -129,7 +191,14 @@ struct TodayActionView: View {
                 items: displayItems,
                 now: now,
                 onSelect: { id in
-                    path.append(.detail(id))
+                    guard let item = item(with: id) else { return }
+                    if item.type == .diet {
+                        activeMealItem = item
+                    } else if item.type == .bpRecheck {
+                        onOpenBloodPressure()
+                    } else {
+                        path.append(.detail(id))
+                    }
                 }
             )
             .frame(height: timelineHeight(for: displayItems.count))
@@ -163,11 +232,81 @@ struct TodayActionView: View {
 
         items[index] = item
     }
+
+    private func mealRecord(for item: TodayActionItem) -> MealRecord? {
+        guard let mealKind = MealKind(actionTitle: item.title) else { return nil }
+        return mealRecords[mealKind]
+    }
+
+    private func loadMealRecords() async {
+        guard !userId.isEmpty else { return }
+        do {
+            let records = try await mealRecordService.records()
+            mealRecords = Dictionary(uniqueKeysWithValues: records.map { ($0.mealType, $0) })
+            for record in records {
+                applyMealRecord(record)
+            }
+        } catch {
+            // Keep today's actions usable offline; records will load on the next refresh.
+        }
+    }
+
+    private func loadHeaderProfile() async {
+        guard !userId.isEmpty else { return }
+        guard let response = try? await profileService.fetchProfile(),
+              let profile = response.profile else { return }
+        let trimmedName = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedName.isEmpty {
+            headerDisplayName = trimmedName
+        }
+    }
+
+    private func applyMealRecord(_ record: MealRecord) {
+        guard let index = items.firstIndex(where: {
+            $0.type == .diet && MealKind(actionTitle: $0.title) == record.mealType
+        }) else { return }
+
+        items[index].status = .completed
+        items[index].displayStatus = .completed
+        items[index].completedAt = ISO8601DateFormatter().date(from: record.recordedAt) ?? Date()
+        items[index].adviceText = record.cardSummary
+    }
+
+    private func applyTodayBloodPressureReadings() {
+        let todayReadings = savedReadings
+            .filter { Calendar.current.isDateInToday($0.measuredAt) }
+            .sorted { $0.measuredAt < $1.measuredAt }
+
+        let morningReading = todayReadings.first {
+            Calendar.current.component(.hour, from: $0.measuredAt) < 12
+        }
+        let eveningReading = todayReadings.last {
+            Calendar.current.component(.hour, from: $0.measuredAt) >= 12
+        }
+
+        for index in items.indices where items[index].type == .bpRecheck {
+            let reading = items[index].title.contains("早晨") ? morningReading : eveningReading
+            if let reading {
+                items[index].status = .completed
+                items[index].displayStatus = .completed
+                items[index].completedAt = reading.measuredAt
+                items[index].bloodPressureText = "\(reading.systolic)/\(reading.diastolic)"
+            } else {
+                if items[index].status == .completed {
+                    items[index].status = .pending
+                    items[index].displayStatus = .pending
+                    items[index].completedAt = nil
+                }
+                items[index].bloodPressureText = nil
+            }
+        }
+    }
 }
 
 struct ActionGenerateDemoView: View {
-    let onOpenBloodPressure: () -> Void
+    let userId: String
     let onGenerateAction: (TodayActionItem) -> Void
+    @Query private var savedReadings: [BloodPressureReading]
     @State private var activeSheet: ActionGenerationSheet?
     @State private var scene = "公共室内"
     @State private var energy = "精力一般"
@@ -176,41 +315,47 @@ struct ActionGenerateDemoView: View {
     @State private var currentMovement = "慢走"
     @State private var movementDuration = 15
     @State private var currentTime = "15:30"
-    @State private var reminderTimes = ["18:30", "20:00"]
-    @State private var usesSystemPreference = true
     @State private var customMovementName = ""
+    @State private var preferenceStartTime = "18:30"
+    @State private var preferenceEndTime = "19:30"
+
+    init(userId: String, onGenerateAction: @escaping (TodayActionItem) -> Void) {
+        self.userId = userId
+        self.onGenerateAction = onGenerateAction
+        self._savedReadings = Query(
+            filter: #Predicate<BloodPressureReading> { reading in
+                reading.userId == userId
+            },
+            sort: \BloodPressureReading.measuredAt,
+            order: .reverse
+        )
+    }
+
+    private var latestTodayReading: BloodPressureReading? {
+        savedReadings.first { Calendar.current.isDateInToday($0.measuredAt) }
+    }
+
+    private var bloodPressureState: ActionGenerationBloodPressureState {
+        ActionGenerationBloodPressureState(reading: latestTodayReading)
+    }
+
+    private var isExerciseSafetyBlocked: Bool {
+        hasDiscomfort || bloodPressureState == .needsAttention
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                TreeStageBackground(completionRate: 0.35)
+                DSTheme.Color.appBackground
                     .ignoresSafeArea()
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("行动生成")
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
-
-                                Text("Action Studio")
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(DSTheme.Color.textSecondary)
-                            }
-
-                            Spacer()
-
-                            VStack(spacing: 4) {
-                                Image(systemName: "person.crop.circle.fill")
-                                    .font(.system(size: 38))
-                                    .foregroundStyle(DSTheme.Color.primary)
-
-                                Text("小宁")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(DSTheme.Color.textPrimary)
-                            }
-                        }
+                        ActionPageTitle(
+                            title: "行动生成",
+                            subtitle: "Action Studio",
+                            subtitleFont: .subheadline.weight(.medium)
+                        )
 
                         DSCard(padding: DSTheme.Spacing.small) {
                             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
@@ -221,17 +366,17 @@ struct ActionGenerateDemoView: View {
 
                                     Spacer()
 
-                                    Label("状态正常", systemImage: "checkmark.circle.fill")
+                                    Label(bloodPressureState.title, systemImage: bloodPressureState.systemImage)
                                         .font(.caption2.weight(.bold))
-                                        .foregroundStyle(DSTheme.Color.success)
+                                        .foregroundStyle(bloodPressureState.tint)
                                         .padding(.horizontal, 9)
                                         .padding(.vertical, 5)
-                                        .background(DSTheme.Color.success.opacity(0.12))
+                                        .background(bloodPressureState.tint.opacity(0.12))
                                         .clipShape(Capsule())
                                 }
 
                                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                                    Text("128 / 82")
+                                    Text(latestTodayReading.map { "\($0.systolic) / \($0.diastolic)" } ?? "-- / --")
                                         .font(.system(size: 30, weight: .bold, design: .rounded))
                                         .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
 
@@ -240,7 +385,7 @@ struct ActionGenerateDemoView: View {
                                         .foregroundStyle(DSTheme.Color.textSecondary)
                                 }
 
-                                Label("如有头晕、胸闷、心慌或明显不适，请先休息并复测。", systemImage: "shield.checkered")
+                                Label(bloodPressureState.guidance, systemImage: "shield.checkered")
                                     .font(.caption2.weight(.medium))
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                                     .lineLimit(2)
@@ -276,7 +421,7 @@ struct ActionGenerateDemoView: View {
 
                             ActionSetupCard(
                                 title: "当前运动选择",
-                                value: currentMovement.isEmpty ? "先选择再开始" : currentMovement,
+                                value: isExerciseSafetyBlocked ? "请先休息并复测" : (currentMovement.isEmpty ? "先选择再开始" : currentMovement),
                                 systemImage: "figure.walk.circle.fill",
                                 illustration: "figure.walk",
                                 tint: DSTheme.Color.primary
@@ -284,15 +429,6 @@ struct ActionGenerateDemoView: View {
                                 activeSheet = .currentMovement
                             }
 
-                            ActionSetupCard(
-                                title: "后续运动时间",
-                                value: "\(reminderTimes.count) 个提醒时段",
-                                systemImage: "clock.badge.checkmark.fill",
-                                illustration: "alarm.fill",
-                                tint: Color(red: 0.36, green: 0.49, blue: 0.82)
-                            ) {
-                                activeSheet = .reminders
-                            }
                         }
 
                         Button {
@@ -344,17 +480,12 @@ struct ActionGenerateDemoView: View {
                         DSPrimaryButton("继续设置") {
                             activeSheet = .scene
                         }
-
-                        DSSecondaryButton("先记录血压", systemImage: "heart.text.square") {
-                            onOpenBloodPressure()
-                        }
                     }
                     .padding(DSTheme.Spacing.large)
                     .padding(.bottom, 170)
                 }
             }
-            .navigationTitle("行动生成")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarHidden(true)
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .scene:
@@ -373,6 +504,7 @@ struct ActionGenerateDemoView: View {
                     CurrentMovementSheet(
                         scene: scene,
                         stateSummary: stateSummary,
+                        isSafetyBlocked: isExerciseSafetyBlocked,
                         movement: $currentMovement,
                         duration: $movementDuration,
                         time: $currentTime
@@ -380,16 +512,17 @@ struct ActionGenerateDemoView: View {
                         generateCurrentMovement()
                         activeSheet = nil
                     }
-                case .reminders:
-                    ReminderTimeSheet(reminderTimes: $reminderTimes) {
-                        generateReminderMovements()
-                        activeSheet = nil
-                    }
                 case .preference:
                     PreferenceMovementSheet(
-                        usesSystemPreference: $usesSystemPreference,
-                        customMovementName: $customMovementName
+                        customMovementName: $customMovementName,
+                        startTime: $preferenceStartTime,
+                        endTime: $preferenceEndTime,
+                        isSafetyBlocked: isExerciseSafetyBlocked,
+                        onClose: {
+                            activeSheet = nil
+                        }
                     ) {
+                        generatePreferenceMovement()
                         activeSheet = nil
                     }
                 }
@@ -411,6 +544,7 @@ struct ActionGenerateDemoView: View {
     }
 
     private func generateCurrentMovement() {
+        guard !isExerciseSafetyBlocked else { return }
         let item = TodayActionItem.generatedMovement(
             title: generatedActionTitle,
             timeText: currentTime,
@@ -420,86 +554,19 @@ struct ActionGenerateDemoView: View {
         onGenerateAction(item)
     }
 
-    private func generateReminderMovements() {
-        for (index, timeText) in reminderTimes.enumerated() {
-            let item = TodayActionItem.generatedMovement(
-                title: "运动提醒",
-                timeText: timeText,
-                duration: movementDuration,
-                order: 100 + index
-            )
-            onGenerateAction(item)
-        }
+    private func generatePreferenceMovement() {
+        guard !isExerciseSafetyBlocked else { return }
+        let item = TodayActionItem.generatedMovement(
+            title: customMovementName.trimmingCharacters(in: .whitespacesAndNewlines),
+            timeText: preferenceStartTime,
+            duration: Self.durationInMinutes(from: preferenceStartTime, to: preferenceEndTime),
+            order: 100
+        )
+        onGenerateAction(item)
     }
-}
 
-struct ActionAdjustDemoView: View {
-    @Binding var items: [TodayActionItem]
-    @State private var selectedItem: TodayActionItem?
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                TreeStageBackground(completionRate: 0.65)
-                    .ignoresSafeArea()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
-                        DSSectionHeader(
-                            "行动调整",
-                            subtitle: "替换行动、调整时间或时长，保持今日计划适合当下。",
-                            systemImage: "slider.horizontal.3"
-                        )
-
-                        ForEach(items) { item in
-                            DSCard {
-                                HStack(spacing: DSTheme.Spacing.medium) {
-                                    Image(systemName: item.type.systemImage)
-                                        .font(.title3.weight(.semibold))
-                                        .foregroundStyle(DSTheme.Color.primary)
-                                        .frame(width: 42, height: 42)
-                                        .background(DSTheme.Color.primarySoft)
-                                        .clipShape(Circle())
-
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(item.title)
-                                            .font(.headline)
-                                            .foregroundStyle(DSTheme.Color.textPrimary)
-
-                                        Text(item.timeRangeText)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(DSTheme.Color.textSecondary)
-                                    }
-
-                                    Spacer()
-
-                                    Button {
-                                        selectedItem = item
-                                    } label: {
-                                        Image(systemName: "slider.horizontal.3")
-                                            .font(.headline)
-                                            .foregroundStyle(DSTheme.Color.primary)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                    .padding(DSTheme.Spacing.large)
-                    .padding(.bottom, 170)
-                }
-            }
-            .navigationTitle("行动调整")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(item: $selectedItem) { item in
-                TodayActionAdjustView(item: item) { updatedItem in
-                    if let index = items.firstIndex(where: { $0.id == updatedItem.id }) {
-                        items[index] = updatedItem
-                    }
-                    selectedItem = nil
-                }
-            }
-        }
+    private static func durationInMinutes(from startTime: String, to endTime: String) -> Int {
+        max(TimeSlot.minutes(for: endTime) - TimeSlot.minutes(for: startTime), 30)
     }
 }
 
@@ -507,11 +574,74 @@ private enum ActionGenerationSheet: String, Identifiable {
     case scene
     case status
     case currentMovement
-    case reminders
     case preference
 
     var id: String {
         rawValue
+    }
+}
+
+private enum ActionGenerationBloodPressureState: Equatable {
+    case noReading
+    case reassuring
+    case watch
+    case repeatReading
+    case needsAttention
+
+    init(reading: BloodPressureReading?) {
+        guard let reading else {
+            self = .noReading
+            return
+        }
+
+        if reading.systolic >= 180 || reading.diastolic >= 120 {
+            self = .needsAttention
+        } else if reading.systolic >= 135 || reading.diastolic >= 85 {
+            self = .repeatReading
+        } else if reading.systolic >= 120 || reading.diastolic >= 80 || reading.systolic < 90 || reading.diastolic < 60 {
+            self = .watch
+        } else {
+            self = .reassuring
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .noReading: "今日暂无读数"
+        case .reassuring: "读数较稳定"
+        case .watch: "建议观察"
+        case .repeatReading: "建议复测"
+        case .needsAttention: "需要重视"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .noReading: "minus.circle.fill"
+        case .reassuring: "checkmark.circle.fill"
+        case .watch: "eye.circle.fill"
+        case .repeatReading: "arrow.clockwise.circle.fill"
+        case .needsAttention: "exclamationmark.triangle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .reassuring: DSTheme.Color.success
+        case .noReading, .watch: DSTheme.Color.primary
+        case .repeatReading, .needsAttention: DSTheme.Color.warning
+        }
+    }
+
+    var guidance: String {
+        switch self {
+        case .noReading:
+            "尚无今日读数；运动建议仅依据你填写的当前状态。"
+        case .needsAttention:
+            "请先安静休息并复测；如伴明显不适，请及时寻求医疗帮助。"
+        case .reassuring, .watch, .repeatReading:
+            "如有头晕、胸闷、心慌或明显不适，请先休息并复测。"
+        }
     }
 }
 
@@ -580,6 +710,34 @@ private struct ActionSetupCard: View {
             .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct ActionPageTitle: View {
+    let title: String
+    let subtitle: String
+    let subtitleFont: Font
+
+    init(
+        title: String,
+        subtitle: String,
+        subtitleFont: Font = .subheadline.weight(.semibold)
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.subtitleFont = subtitleFont
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+
+            Text(subtitle)
+                .font(subtitleFont)
+                .foregroundStyle(DSTheme.Color.textSecondary)
+        }
     }
 }
 
@@ -740,6 +898,7 @@ private struct StatusSelectionSheet: View {
 private struct CurrentMovementSheet: View {
     let scene: String
     let stateSummary: String
+    let isSafetyBlocked: Bool
     @Binding var movement: String
     @Binding var duration: Int
     @Binding var time: String
@@ -759,6 +918,10 @@ private struct CurrentMovementSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("当前位置：\(scene)", systemImage: "mappin.circle.fill")
                 Label("当前状态：\(stateSummary)", systemImage: "heart.circle.fill")
+                if isSafetyBlocked {
+                    Label("当前不生成运动：请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DSTheme.Color.warning)
+                }
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(DSTheme.Color.primary)
@@ -802,7 +965,7 @@ private struct CurrentMovementSheet: View {
 
             SheetSectionTitle("预约开始时间", systemImage: "clock.fill")
             Menu {
-                ForEach(["15:30", "16:00", "16:30", "17:00"], id: \.self) { value in
+                ForEach(Self.movementStartTimes, id: \.self) { value in
                     Button(value) {
                         time = value
                     }
@@ -820,109 +983,37 @@ private struct CurrentMovementSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
-            Label("后续提醒时段将优先避开用餐、复测后再安排运动补充。", systemImage: "info.circle.fill")
-                .font(.caption)
-                .foregroundStyle(DSTheme.Color.textSecondary)
-                .padding(DSTheme.Spacing.medium)
-                .background(DSTheme.Color.primarySoft.opacity(0.75))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-            DSPrimaryButton("确认当前运动", action: onConfirm)
+            DSPrimaryButton(
+                isSafetyBlocked ? "请先休息并复测" : "确认当前运动",
+                isDisabled: isSafetyBlocked,
+                action: onConfirm
+            )
         }
         .presentationDetents([.large])
     }
-}
 
-private struct ReminderTimeSheet: View {
-    @Binding var reminderTimes: [String]
-    let onConfirm: () -> Void
-
-    var body: some View {
-        SheetContent {
-            ActionSheetHeader(title: "后续运动时间", subtitle: "先设置今天剩余时段，到点后再选择具体运动", onClose: onConfirm)
-
-            VStack(spacing: DSTheme.Spacing.small) {
-                ForEach(Array(reminderTimes.enumerated()), id: \.offset) { index, time in
-                    HStack(spacing: DSTheme.Spacing.small) {
-                        Image(systemName: "clock.fill")
-                            .foregroundStyle(DSTheme.Color.primary)
-                            .frame(width: 34, height: 34)
-                            .background(DSTheme.Color.primarySoft)
-                            .clipShape(Circle())
-
-                        Text("第 \(index + 1) 个提醒时段")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(DSTheme.Color.textPrimary)
-
-                        Spacer()
-
-                        Text(time)
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(DSTheme.Color.textSecondary)
-                    }
-                    .padding(DSTheme.Spacing.medium)
-                    .background(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-
-                Button {
-                    guard reminderTimes.count < 3 else { return }
-                    reminderTimes.append("21:00")
-                } label: {
-                    Label("添加提醒时段", systemImage: "plus.circle")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(DSTheme.Color.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(DSTheme.Spacing.medium)
-                        .background(.white.opacity(0.68))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(DSTheme.Color.primary.opacity(0.35), style: StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
-                        }
-                }
-                .buttonStyle(.plain)
-                .disabled(reminderTimes.count >= 3)
-            }
-
-            Text("每天最多设置 3 个运动提醒时段。")
-                .font(.caption)
-                .foregroundStyle(DSTheme.Color.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            DSPrimaryButton("确认后续时间", action: onConfirm)
+    private static let movementStartTimes: [String] = {
+        (0..<(24 * 2)).map { slot in
+            String(format: "%02d:%02d", slot / 2, (slot % 2) * 30)
         }
-        .presentationDetents([.medium, .large])
-    }
+    }()
 }
 
 private struct PreferenceMovementSheet: View {
-    @Binding var usesSystemPreference: Bool
     @Binding var customMovementName: String
+    @Binding var startTime: String
+    @Binding var endTime: String
+    let isSafetyBlocked: Bool
+    let onClose: () -> Void
     let onConfirm: () -> Void
 
     var body: some View {
         SheetContent {
-            ActionSheetHeader(title: "偏好运动设置（可选）", subtitle: "记录你已有的运动计划，我们会提供时长和注意事项提醒", onClose: onConfirm)
-
-            VStack(spacing: DSTheme.Spacing.small) {
-                PreferenceModeRow(
-                    title: "按系统低门槛运动生成",
-                    isSelected: usesSystemPreference
-                ) {
-                    usesSystemPreference = true
-                }
-
-                PreferenceModeRow(
-                    title: "我已有想做的运动",
-                    isSelected: !usesSystemPreference
-                ) {
-                    usesSystemPreference = false
-                }
-            }
+            ActionSheetHeader(
+                title: "偏好运动设置（可选）",
+                subtitle: "填写运动名称和时间，保存后会加入今日行动",
+                onClose: onClose
+            )
 
             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                 Text("运动名称")
@@ -931,24 +1022,58 @@ private struct PreferenceMovementSheet: View {
 
                 TextField("例如：骑车", text: $customMovementName)
                     .textInputAutocapitalization(.never)
+                    .foregroundStyle(DSTheme.Color.textPrimary)
+                    .tint(DSTheme.Color.primary)
                     .padding(DSTheme.Spacing.medium)
                     .background(.white)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(DSTheme.Color.border, lineWidth: 1)
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
             HStack(spacing: DSTheme.Spacing.small) {
-                StaticTimeField(title: "开始时间", value: "18:30")
-                StaticTimeField(title: "结束时间", value: "19:30")
+                TimeSelectionField(
+                    title: "开始时间",
+                    value: $startTime,
+                    options: TimeSlot.values.filter { $0 != TimeSlot.values.last }
+                ) { newStartTime in
+                    guard TimeSlot.minutes(for: endTime) <= TimeSlot.minutes(for: newStartTime),
+                          let nextTime = TimeSlot.next(after: newStartTime) else {
+                        return
+                    }
+
+                    endTime = nextTime
+                }
+
+                TimeSelectionField(
+                    title: "结束时间",
+                    value: $endTime,
+                    options: TimeSlot.values.filter {
+                        TimeSlot.minutes(for: $0) > TimeSlot.minutes(for: startTime)
+                    }
+                )
             }
 
-            Label("系统只提供记录、时长和注意事项提醒，不作为主动推荐。", systemImage: "info.circle.fill")
+            Label("保存后会按所选时间生成一张运动卡片，并显示在今日行动的时间轴中。", systemImage: "info.circle.fill")
                 .font(.caption)
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .padding(DSTheme.Spacing.medium)
                 .background(DSTheme.Color.primarySoft.opacity(0.75))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            DSPrimaryButton("保存偏好运动", action: onConfirm)
+            if isSafetyBlocked {
+                Label("当前状态不适合直接生成今日运动，请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSTheme.Color.warning)
+            }
+
+            DSPrimaryButton(
+                "保存偏好运动",
+                isDisabled: customMovementName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSafetyBlocked,
+                action: onConfirm
+            )
         }
         .presentationDetents([.large])
     }
@@ -1075,38 +1200,23 @@ private struct StatusChip: View {
     }
 }
 
-private struct PreferenceModeRow: View {
+private struct TimeSelectionField: View {
     let title: String
-    let isSelected: Bool
-    let action: () -> Void
+    @Binding var value: String
+    let options: [String]
+    let onSelect: (String) -> Void
 
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: DSTheme.Spacing.small) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? DSTheme.Color.primary : DSTheme.Color.textSecondary)
-
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(DSTheme.Color.textPrimary)
-
-                Spacer()
-            }
-            .padding(DSTheme.Spacing.medium)
-            .background(isSelected ? DSTheme.Color.primarySoft.opacity(0.72) : .white)
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isSelected ? DSTheme.Color.primary.opacity(0.55) : DSTheme.Color.border, lineWidth: 1)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .buttonStyle(.plain)
+    init(
+        title: String,
+        value: Binding<String>,
+        options: [String],
+        onSelect: @escaping (String) -> Void = { _ in }
+    ) {
+        self.title = title
+        self._value = value
+        self.options = options
+        self.onSelect = onSelect
     }
-}
-
-private struct StaticTimeField: View {
-    let title: String
-    let value: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
@@ -1114,20 +1224,57 @@ private struct StaticTimeField: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
 
-            HStack {
-                Text(value)
-                    .font(.headline)
-                    .foregroundStyle(DSTheme.Color.textPrimary)
+            Menu {
+                ForEach(options, id: \.self) { option in
+                    Button(option) {
+                        value = option
+                        onSelect(option)
+                    }
+                }
+            } label: {
+                HStack {
+                    Text(value)
+                        .font(.headline)
+                        .foregroundStyle(DSTheme.Color.textPrimary)
 
-                Spacer()
+                    Spacer()
 
-                Image(systemName: "clock")
-                    .foregroundStyle(DSTheme.Color.textSecondary)
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                }
+                .padding(DSTheme.Spacing.medium)
+                .background(.white)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(DSTheme.Color.border, lineWidth: 1)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .padding(DSTheme.Spacing.medium)
-            .background(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .buttonStyle(.plain)
         }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private enum TimeSlot {
+    static let values: [String] = {
+        (0..<(24 * 2)).map { slot in
+            String(format: "%02d:%02d", slot / 2, (slot % 2) * 30)
+        }
+    }()
+
+    static func minutes(for value: String) -> Int {
+        let parts = value.split(separator: ":").compactMap { Int($0) }
+        return (parts.first ?? 0) * 60 + (parts.dropFirst().first ?? 0)
+    }
+
+    static func next(after value: String) -> String? {
+        guard let index = values.firstIndex(of: value), values.indices.contains(index + 1) else {
+            return nil
+        }
+
+        return values[index + 1]
     }
 }
 
@@ -1193,7 +1340,8 @@ private struct TodayTreeTimelineView: View {
             let bottomInset: CGFloat = 84
             let usableHeight = max(size.height - topInset - bottomInset, 1)
             let lanePadding: CGFloat = 14
-            let cardWidth = max((size.width - lanePadding * 2 - 28) / 2, 122)
+            let centerGutter = min(78, max(62, size.width * 0.2))
+            let cardWidth = max((size.width - lanePadding * 2 - centerGutter) / 2, 104)
             let leftCardX = lanePadding + cardWidth / 2
             let rightCardX = size.width - lanePadding - cardWidth / 2
             let sortedItems = items.sorted {
@@ -1245,8 +1393,8 @@ private struct TodayTreeTimelineView: View {
                     let y = positions.itemY[item.id] ?? topInset + usableHeight * range.progress(for: item.scheduledStartAt)
                     let isMeal = item.type == .diet
                     let cardX = isMeal ? rightCardX : leftCardX
-                    let cardEdgeX = isMeal ? cardX - cardWidth / 2 + 8 : cardX + cardWidth / 2 - 8
-                    let axisEdgeX = isMeal ? axisX + 18 : axisX - 18
+                    let cardEdgeX = isMeal ? cardX - cardWidth / 2 + 6 : cardX + cardWidth / 2 - 6
+                    let axisEdgeX = isMeal ? axisX + 28 : axisX - 28
 
                     TimelineConnector(
                         fromX: axisEdgeX,
@@ -1297,21 +1445,34 @@ private struct TimelinePositioner {
             return lhs.date < rhs.date
         }
 
-        var resolved: [TimelinePositionEvent: CGFloat] = [:]
-        var previousY: CGFloat?
+        let effectiveSpacing: CGFloat
+        if events.count > 1 {
+            effectiveSpacing = min(minimumSpacing, usableHeight / CGFloat(events.count - 1))
+        } else {
+            effectiveSpacing = 0
+        }
 
-        for event in events {
+        var resolvedY = events.enumerated().map { index, event in
             let naturalY = topInset + usableHeight * range.progress(for: event.date)
-            let y: CGFloat
-            if let previousY {
-                y = max(naturalY, previousY + minimumSpacing)
-            } else {
-                y = naturalY
+            let lowerBound = topInset + CGFloat(index) * effectiveSpacing
+            return max(naturalY, lowerBound)
+        }
+
+        if resolvedY.count > 1 {
+            for index in 1..<resolvedY.count {
+                resolvedY[index] = max(resolvedY[index], resolvedY[index - 1] + effectiveSpacing)
             }
 
-            resolved[event] = y
-            previousY = y
+            let lastIndex = resolvedY.count - 1
+            resolvedY[lastIndex] = min(resolvedY[lastIndex], topInset + usableHeight)
+
+            for index in stride(from: lastIndex - 1, through: 0, by: -1) {
+                let upperBound = topInset + usableHeight - CGFloat(lastIndex - index) * effectiveSpacing
+                resolvedY[index] = min(resolvedY[index], resolvedY[index + 1] - effectiveSpacing, upperBound)
+            }
         }
+
+        let resolved = Dictionary(uniqueKeysWithValues: zip(events, resolvedY))
 
         var itemY: [UUID: CGFloat] = [:]
         var currentY = topInset + usableHeight * range.progress(for: now)
@@ -1402,9 +1563,17 @@ private struct DesignActionCard: View {
 
             switch item.type {
             case .bpRecheck:
-                metricPill(item.bloodPressureText ?? "128/82", suffix: "mmHg")
+                if let bloodPressureText = item.bloodPressureText {
+                    metricPill(bloodPressureText, suffix: "mmHg")
+                } else {
+                    Text("点击前往记录")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                }
             case .diet:
-                adviceBox
+                if item.displayStatus == .completed, item.adviceText != nil {
+                    adviceBox
+                }
             case .walk:
                 EmptyView()
             case .rest, .hydration, .sleep, .custom:
@@ -1415,14 +1584,18 @@ private struct DesignActionCard: View {
             }
         }
         .padding(10)
-        .frame(maxWidth: .infinity, minHeight: item.type == .diet ? 158 : 116, alignment: .topLeading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: item.type == .diet && item.displayStatus == .completed ? 158 : 116,
+            alignment: .topLeading
+        )
         .background(.white.opacity(0.93))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
     }
 
     private var statusPill: some View {
-        Text(item.displayStatus.title)
+        Text(item.type == .diet && item.displayStatus != .completed ? "开始" : item.displayStatus.title)
             .font(.caption2.weight(.bold))
             .foregroundStyle(statusTextColor)
             .padding(.horizontal, 10)
@@ -1577,19 +1750,23 @@ private struct TreeStageBackground: View {
     var hasMissedItems = false
 
     var body: some View {
-        Image(assetName)
-            .resizable()
-            .scaledToFill()
-            .overlay {
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.18),
-                        Color.white.opacity(0.02),
-                        Color.black.opacity(0.04)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+        GeometryReader { proxy in
+            Image(assetName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottom)
+                .clipped()
+                .overlay {
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.18),
+                            Color.white.opacity(0.02),
+                            Color.black.opacity(0.04)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
             }
     }
 
@@ -1694,7 +1871,11 @@ private struct TodayActionDetailView: View {
                             onComplete()
                         }
 
-                        DSSecondaryButton("调整行动", systemImage: "slider.horizontal.3") {
+                        DSSecondaryButton(
+                            "调整行动",
+                            systemImage: "slider.horizontal.3",
+                            isDisabled: item.status == .completed
+                        ) {
                             onAdjust()
                         }
 
@@ -1709,70 +1890,6 @@ private struct TodayActionDetailView: View {
         }
         .navigationTitle("行动详情")
         .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-private struct TodayActionAdjustView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var draft: TodayActionItem
-
-    let onSave: (TodayActionItem) -> Void
-
-    init(item: TodayActionItem, onSave: @escaping (TodayActionItem) -> Void) {
-        _draft = State(initialValue: item)
-        self.onSave = onSave
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                TreeStageBackground(completionRate: 0.55)
-                    .ignoresSafeArea()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
-                        DSSectionHeader("调整行动", subtitle: "修改标题、时间、时长或类型。", systemImage: "slider.horizontal.3")
-
-                        DSCard {
-                            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                                TextField("行动标题", text: $draft.title)
-                                    .font(.body.weight(.semibold))
-                                    .textFieldStyle(.roundedBorder)
-
-                                Stepper(value: $draft.durationMinutes, in: 5...90, step: 5) {
-                                    Text("时长 \(draft.durationMinutes) 分钟")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(DSTheme.Color.textPrimary)
-                                }
-
-                                DatePicker("开始时间", selection: $draft.scheduledStartAt, displayedComponents: [.hourAndMinute])
-                                    .font(.subheadline.weight(.semibold))
-
-                                Picker("行动类型", selection: $draft.type) {
-                                    ForEach(TodayActionType.allCases) { type in
-                                        Label(type.title, systemImage: type.systemImage).tag(type)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                            }
-                        }
-
-                        DSPrimaryButton("保存调整", systemImage: "checkmark.circle.fill") {
-                            draft.scheduledEndAt = Calendar.current.date(byAdding: .minute, value: draft.durationMinutes, to: draft.scheduledStartAt) ?? draft.scheduledStartAt
-                            onSave(draft)
-                        }
-
-                        DSSecondaryButton("取消", systemImage: "xmark.circle") {
-                            dismiss()
-                        }
-                    }
-                    .padding(DSTheme.Spacing.large)
-                    .padding(.bottom, 130)
-                }
-            }
-            .navigationTitle("调整")
-            .navigationBarTitleDisplayMode(.inline)
-        }
     }
 }
 
@@ -1977,20 +2094,20 @@ struct TodayActionItem: Identifiable, Hashable {
 
     static func demoItems() -> [TodayActionItem] {
         [
-            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0, bloodPressureText: "128/82"),
-            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1, adviceText: "白米饭和鸡蛋较清淡，建议后续搭配蔬菜或水果，更利于控压。"),
-            make(.diet, title: "午餐建议", hour: 12, minute: 0, duration: 25, order: 2, adviceText: "咖喱鸡米饭较均衡，建议少盐少油，并搭配更多蔬菜或杂粮饭。"),
-            make(.diet, title: "晚餐建议", hour: 18, minute: 30, duration: 25, order: 3, adviceText: "猪肉末彩椒碗有蛋白质和蔬菜，建议少盐少油；下次类似食材可搭配瘦肉、彩椒和杂粮饭。"),
-            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 4, bloodPressureText: "128/82")
+            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0),
+            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1),
+            make(.diet, title: "午餐建议", hour: 12, minute: 0, duration: 25, order: 2),
+            make(.diet, title: "晚餐建议", hour: 18, minute: 30, duration: 25, order: 3),
+            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 4)
         ]
     }
 
     static func generatedDemoItems() -> [TodayActionItem] {
         [
-            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0, bloodPressureText: "128/82"),
-            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1, adviceText: "白米饭和鸡蛋较清淡，建议后续搭配蔬菜或水果，更利于控压。"),
+            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0),
+            make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1),
             make(.walk, title: "饭后散步", hour: 19, minute: 30, duration: 15, order: 2),
-            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 3, bloodPressureText: "128/82")
+            make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 3)
         ]
     }
 
@@ -2212,5 +2329,5 @@ enum TodayActionStatus: String, Hashable {
 
 #Preview {
     @Previewable @State var items = TodayActionItem.demoItems()
-    TodayActionView(items: $items, onOpenBloodPressure: {})
+    TodayActionView(items: $items, userId: "preview-user")
 }

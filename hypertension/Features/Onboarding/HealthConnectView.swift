@@ -19,7 +19,7 @@ struct HealthConnectView: View {
         ("体重", "scalemass.fill"),
         ("步数", "shoeprints.fill"),
         ("运动", "figure.run"),
-        ("心率", "heart.fill"),
+        ("静息心率", "heart.fill"),
         ("睡眠", "moon.zzz.fill")
     ]
 
@@ -37,6 +37,10 @@ struct HealthConnectView: View {
                     )
 
                     illustrationCard
+
+                    if let errorMessage = viewModel.errorMessage {
+                        AuthErrorBanner(message: errorMessage)
+                    }
 
                     DSCard {
                         VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
@@ -70,10 +74,17 @@ struct HealthConnectView: View {
                     }
 
                     VStack(spacing: DSTheme.Spacing.small) {
-                        DSPrimaryButton("连接 Apple Health", systemImage: "link") {
+                        DSPrimaryButton(
+                            "连接 Apple Health",
+                            systemImage: "link",
+                            isLoading: viewModel.isLoading,
+                            isDisabled: viewModel.isPrimaryActionDisabled
+                        ) {
                             Task {
                                 await viewModel.requestAuthorization()
-                                onConnect()
+                                if viewModel.errorMessage == nil {
+                                    onConnect()
+                                }
                             }
                         }
 

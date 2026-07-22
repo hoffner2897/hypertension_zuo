@@ -2,6 +2,7 @@ import Combine
 import SwiftUI
 
 struct HealthKitSummaryView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = HealthKitSummaryViewModel()
     @State private var isEditingData = false
     @State private var selectedField: HealthDataField?
@@ -12,7 +13,7 @@ struct HealthKitSummaryView: View {
                 viewModel: viewModel,
                 primaryTitle: viewModel.primaryActionTitle,
                 primaryIcon: viewModel.primaryActionIcon,
-                isPrimaryDisabled: false,
+                isPrimaryDisabled: viewModel.isPrimaryActionDisabled,
                 onPrimary: {
                     Task {
                         await viewModel.primaryAction()
@@ -54,6 +55,12 @@ struct HealthKitSummaryView: View {
             .task {
                 await viewModel.refresh()
             }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task {
+                    await viewModel.refresh()
+                }
+            }
             .sheet(isPresented: $isEditingData) {
                 HealthDataEditorView(draft: viewModel.makeDraft()) { draft in
                     Task {
@@ -79,6 +86,7 @@ struct HealthKitSummaryView: View {
 }
 
 struct SyncedHealthDataContent: View {
+    @Environment(\.openURL) private var openURL
     @ObservedObject var viewModel: HealthKitSummaryViewModel
     let primaryTitle: String
     let primaryIcon: String
@@ -130,7 +138,7 @@ struct SyncedHealthDataContent: View {
                         .font(.title3)
                         .foregroundStyle(DSTheme.Color.primary)
 
-                    Text("这些数据将用于后续理解血压读数，不用于诊断。点击重新同步会用 Apple Health 当前可读取的数据更新；Apple Health 缺失的项目会保留手动补充值。")
+                    Text("这些数据用于理解读数和趋势，不用于诊断。BPHealth 只读取你允许的项目；未授权或没有记录的项目会显示为缺失，并保留已有的手动补充值。同步的数据会保存到你的 BPHealth 账号。")
                         .font(.subheadline)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -149,17 +157,26 @@ struct SyncedHealthDataContent: View {
                 DSSecondaryButton(secondaryTitle, systemImage: secondaryIcon, isDisabled: viewModel.isLoading) {
                     onSecondary()
                 }
+
+                if viewModel.shouldOfferSettings {
+                    DSSecondaryButton("打开系统设置", systemImage: "gearshape.fill", isDisabled: viewModel.isLoading) {
+                        guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else {
+                            return
+                        }
+                        openURL(settingsURL)
+                    }
+                }
             }
         }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
-            Text("已同步基础数据")
+            Text("健康基础数据")
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(DSTheme.Color.primary)
 
-            Text("这些信息已从 Apple Health 和 Apple Watch 自动获取，也可以手动补充。")
+            Text("查看 Apple Health 当前可读取的数据，并手动补充缺失项目。")
                 .font(.subheadline)
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -214,10 +231,21 @@ struct SyncedHealthCardModel: Identifiable {
     let source: HealthDataValueSource
 }
 
-enum HealthDataValueSource {
+enum HealthDataValueSource: Equatable {
     case health
     case manual
     case missing
+
+    var title: String {
+        switch self {
+        case .health:
+            "Apple Health"
+        case .manual:
+            "已保存/手动"
+        case .missing:
+            "未读取"
+        }
+    }
 }
 
 enum HealthDataField: String, CaseIterable, Identifiable {
@@ -254,6 +282,10 @@ private struct SyncedHealthDataCard: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(DSTheme.Color.textSecondary)
                 }
+
+                Text(card.source.title)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(card.source == .missing ? DSTheme.Color.textSecondary : DSTheme.Color.primary)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(card.title)
@@ -491,8 +523,10 @@ final class HealthKitSummaryViewModel: ObservableObject {
             "Apple Health 不可用"
         case .notDetermined:
             "等待授权"
-        case .sharingDenied:
-            "未获得读取权限"
+        case .accessRequested:
+            "暂未读到健康数据"
+        case .partiallyAuthorized:
+            "已读取部分健康数据"
         case .sharingAuthorized:
             "已连接 Apple Health"
         }
@@ -504,8 +538,10 @@ final class HealthKitSummaryViewModel: ObservableObject {
             "当前设备不支持 HealthKit，仍可手动维护基础数据。"
         case .notDetermined:
             "授权后，BPHealth 会读取年龄、性别、身高、体重、步数、运动、心率和睡眠。"
-        case .sharingDenied:
-            "请在系统健康权限设置中允许读取，或手动补充缺失数据。"
+        case .accessRequested:
+            "Apple 不向读取型 app 披露单项拒绝状态。当前没有读到记录，可能是权限未开启或 Apple Health 暂无相应数据。"
+        case .partiallyAuthorized:
+            "已读取你允许且存在记录的项目；其余项目可能未授权或暂时没有数据，可在系统设置中检查。"
         case .sharingAuthorized:
             "已读取可用数据，缺失项目可以手动补充。"
         }
@@ -525,8 +561,10 @@ final class HealthKitSummaryViewModel: ObservableObject {
             "exclamationmark.triangle.fill"
         case .notDetermined:
             "heart.text.square"
-        case .sharingDenied:
+        case .accessRequested:
             "lock.fill"
+        case .partiallyAuthorized:
+            "checkmark.circle.badge.questionmark"
         case .sharingAuthorized:
             "checkmark.seal.fill"
         }
@@ -534,19 +572,34 @@ final class HealthKitSummaryViewModel: ObservableObject {
 
     var primaryActionTitle: String {
         switch summary.authorizationStatus {
-        case .sharingAuthorized:
-            "重新同步"
-        default:
+        case .unavailable:
+            "Apple Health 不可用"
+        case .notDetermined:
             "连接 Apple Health"
+        case .accessRequested, .partiallyAuthorized, .sharingAuthorized:
+            "重新同步"
         }
     }
 
     var primaryActionIcon: String {
         switch summary.authorizationStatus {
-        case .sharingAuthorized:
+        case .accessRequested, .partiallyAuthorized, .sharingAuthorized:
             "arrow.clockwise"
-        default:
+        case .unavailable, .notDetermined:
             "link"
+        }
+    }
+
+    var isPrimaryActionDisabled: Bool {
+        summary.authorizationStatus == .unavailable
+    }
+
+    var shouldOfferSettings: Bool {
+        switch summary.authorizationStatus {
+        case .accessRequested, .partiallyAuthorized:
+            true
+        case .unavailable, .notDetermined, .sharingAuthorized:
+            false
         }
     }
 
@@ -568,14 +621,14 @@ final class HealthKitSummaryViewModel: ObservableObject {
 
     var cards: [SyncedHealthCardModel] {
         [
-            SyncedHealthCardModel(id: .birthYear, title: "年龄", value: ageText, unit: "岁", systemImage: "person.crop.circle", source: source(profile?.birthYear, summary.birthYear)),
-            SyncedHealthCardModel(id: .sex, title: "性别", value: sexText, unit: "", systemImage: "figure.stand", source: source(profile?.sex, summary.biologicalSex)),
-            SyncedHealthCardModel(id: .heightCm, title: "身高", value: format(resolvedHeightCm, decimals: 0), unit: "cm", systemImage: "ruler", source: source(profile?.heightCm, summary.latestHeightCm)),
-            SyncedHealthCardModel(id: .weightKg, title: "体重", value: format(resolvedWeightKg, decimals: 1), unit: "kg", systemImage: "scalemass", source: source(profile?.weightKg, summary.latestBodyMassKg)),
-            SyncedHealthCardModel(id: .todaySteps, title: "今日步数", value: format(resolvedSteps.map(Double.init), decimals: 0), unit: "", systemImage: "shoeprints.fill", source: source(profile?.todaySteps.map(Double.init), summary.todaySteps)),
-            SyncedHealthCardModel(id: .exerciseMinutes, title: "运动", value: format(resolvedExerciseMinutes.map(Double.init), decimals: 0), unit: "分钟", systemImage: "figure.run", source: source(profile?.exerciseMinutes.map(Double.init), summary.todayExerciseMinutes)),
-            SyncedHealthCardModel(id: .restingHeartRate, title: "静息心率", value: format(resolvedRestingHeartRate.map(Double.init), decimals: 0), unit: "bpm", systemImage: "waveform.path.ecg", source: source(profile?.restingHeartRate.map(Double.init), summary.latestRestingHeartRate)),
-            SyncedHealthCardModel(id: .sleepHours, title: "睡眠", value: format(resolvedSleepHours, decimals: 1), unit: "小时", systemImage: "moon.zzz.fill", source: source(profile?.sleepHours, summary.recentSleep.first?.hours))
+            SyncedHealthCardModel(id: .birthYear, title: "年龄", value: ageText, unit: "岁", systemImage: "person.crop.circle", source: source(healthValue: summary.birthYear, savedValue: profile?.birthYear)),
+            SyncedHealthCardModel(id: .sex, title: "性别", value: sexText, unit: "", systemImage: "figure.stand", source: source(healthValue: summary.biologicalSex, savedValue: profile?.sex)),
+            SyncedHealthCardModel(id: .heightCm, title: "身高", value: format(resolvedHeightCm, decimals: 0), unit: "cm", systemImage: "ruler", source: source(healthValue: summary.latestHeightCm, savedValue: profile?.heightCm)),
+            SyncedHealthCardModel(id: .weightKg, title: "体重", value: format(resolvedWeightKg, decimals: 1), unit: "kg", systemImage: "scalemass", source: source(healthValue: summary.latestBodyMassKg, savedValue: profile?.weightKg)),
+            SyncedHealthCardModel(id: .todaySteps, title: "今日步数", value: format(resolvedSteps.map(Double.init), decimals: 0), unit: "", systemImage: "shoeprints.fill", source: source(healthValue: summary.todaySteps, savedValue: profile?.todaySteps.map(Double.init))),
+            SyncedHealthCardModel(id: .exerciseMinutes, title: "运动", value: format(resolvedExerciseMinutes.map(Double.init), decimals: 0), unit: "分钟", systemImage: "figure.run", source: source(healthValue: summary.todayExerciseMinutes, savedValue: profile?.exerciseMinutes.map(Double.init))),
+            SyncedHealthCardModel(id: .restingHeartRate, title: "静息心率", value: format(resolvedRestingHeartRate.map(Double.init), decimals: 0), unit: "bpm", systemImage: "waveform.path.ecg", source: source(healthValue: summary.latestRestingHeartRate, savedValue: profile?.restingHeartRate.map(Double.init))),
+            SyncedHealthCardModel(id: .sleepHours, title: "睡眠", value: format(resolvedSleepHours, decimals: 1), unit: "小时", systemImage: "moon.zzz.fill", source: source(healthValue: summary.recentSleep.first?.hours, savedValue: profile?.sleepHours))
         ]
     }
 
@@ -600,10 +653,12 @@ final class HealthKitSummaryViewModel: ObservableObject {
 
     func primaryAction() async {
         switch summary.authorizationStatus {
-        case .sharingAuthorized:
-            await syncFromAppleHealth()
-        default:
+        case .unavailable:
+            errorMessage = "当前设备不支持 Apple Health，可以手动补充健康基础数据。"
+        case .notDetermined:
             await requestAuthorization()
+        case .accessRequested, .partiallyAuthorized, .sharingAuthorized:
+            await syncFromAppleHealth()
         }
     }
 
@@ -616,8 +671,9 @@ final class HealthKitSummaryViewModel: ObservableObject {
             summary.authorizationStatus = state
             summary = try await healthKitService.fetchSummary()
             try await loadProfile()
-            await saveHealthSyncedProfile()
-            errorMessage = nil
+            if await saveHealthSyncedProfile() {
+                errorMessage = nil
+            }
         } catch {
             errorMessage = "Apple Health 授权或读取失败，可以先手动补充。"
         }
@@ -630,8 +686,9 @@ final class HealthKitSummaryViewModel: ObservableObject {
         do {
             summary = try await healthKitService.fetchSummary()
             try await loadProfile()
-            _ = await saveHealthSyncedProfile()
-            errorMessage = nil
+            if await saveHealthSyncedProfile() {
+                errorMessage = nil
+            }
         } catch {
             try? await loadProfile()
             errorMessage = "重新同步 Apple Health 失败，可以使用已保存或手动补充的数据。"
@@ -710,7 +767,7 @@ final class HealthKitSummaryViewModel: ObservableObject {
                 restingHeartRate: restingHeartRate,
                 sleepHours: sleepHours,
                 healthDataSource: hasHealthData ? "Apple Health / Apple Watch + 手动补充" : "手动输入",
-                healthDataSyncedAt: Date()
+                healthDataSyncedAt: currentProfile.healthDataSyncedAt.flatMap(Self.parseSyncedDate)
             )
             profile = response.profile
             errorMessage = nil
@@ -790,8 +847,8 @@ final class HealthKitSummaryViewModel: ObservableObject {
                 exerciseMinutes: intFrom(summary.todayExerciseMinutes) ?? currentProfile.exerciseMinutes,
                 restingHeartRate: intFrom(summary.latestRestingHeartRate) ?? currentProfile.restingHeartRate,
                 sleepHours: summary.recentSleep.first?.hours ?? currentProfile.sleepHours,
-                healthDataSource: hasHealthData ? "Apple Health / Apple Watch" : currentProfile.healthDataSource,
-                healthDataSyncedAt: Date()
+                healthDataSource: healthDataSourceAfterSync(currentProfile: currentProfile),
+                healthDataSyncedAt: hasHealthData ? Date() : currentProfile.healthDataSyncedAt.flatMap(Self.parseSyncedDate)
             )
             profile = response.profile
             errorMessage = nil
@@ -803,36 +860,36 @@ final class HealthKitSummaryViewModel: ObservableObject {
     }
 
     private var resolvedBirthYear: Int? {
-        profile?.birthYear ?? summary.birthYear
+        summary.birthYear ?? profile?.birthYear
     }
 
     private var resolvedSex: String? {
-        let value = profile?.sex ?? summary.biologicalSex
+        let value = summary.biologicalSex ?? profile?.sex
         return value == "prefer_not_to_say" ? nil : value
     }
 
     private var resolvedHeightCm: Double? {
-        profile?.heightCm ?? summary.latestHeightCm
+        summary.latestHeightCm ?? profile?.heightCm
     }
 
     private var resolvedWeightKg: Double? {
-        profile?.weightKg ?? summary.latestBodyMassKg
+        summary.latestBodyMassKg ?? profile?.weightKg
     }
 
     private var resolvedSteps: Int? {
-        profile?.todaySteps ?? intFrom(summary.todaySteps)
+        intFrom(summary.todaySteps) ?? profile?.todaySteps
     }
 
     private var resolvedExerciseMinutes: Int? {
-        profile?.exerciseMinutes ?? intFrom(summary.todayExerciseMinutes)
+        intFrom(summary.todayExerciseMinutes) ?? profile?.exerciseMinutes
     }
 
     private var resolvedRestingHeartRate: Int? {
-        profile?.restingHeartRate ?? intFrom(summary.latestRestingHeartRate)
+        intFrom(summary.latestRestingHeartRate) ?? profile?.restingHeartRate
     }
 
     private var resolvedSleepHours: Double? {
-        profile?.sleepHours ?? summary.recentSleep.first?.hours
+        summary.recentSleep.first?.hours ?? profile?.sleepHours
     }
 
     private var hasHealthData: Bool {
@@ -847,12 +904,16 @@ final class HealthKitSummaryViewModel: ObservableObject {
     }
 
     private var hasManualProfileData: Bool {
-        profile?.heightCm != nil ||
-            profile?.weightKg != nil ||
-            profile?.todaySteps != nil ||
-            profile?.exerciseMinutes != nil ||
-            profile?.restingHeartRate != nil ||
-            profile?.sleepHours != nil
+        guard let source = profile?.healthDataSource?.lowercased() else {
+            return profile?.heightCm != nil ||
+                profile?.weightKg != nil ||
+                profile?.todaySteps != nil ||
+                profile?.exerciseMinutes != nil ||
+                profile?.restingHeartRate != nil ||
+                profile?.sleepHours != nil
+        }
+
+        return source.contains("手动") || source.contains("manual")
     }
 
     private var ageText: String {
@@ -875,16 +936,26 @@ final class HealthKitSummaryViewModel: ObservableObject {
         }
     }
 
-    private func source<T>(_ manualValue: T?, _ healthValue: T?) -> HealthDataValueSource {
-        if manualValue != nil {
-            return .manual
-        }
-
+    private func source<T>(healthValue: T?, savedValue: T?) -> HealthDataValueSource {
         if healthValue != nil {
             return .health
         }
 
+        if savedValue != nil {
+            return .manual
+        }
+
         return .missing
+    }
+
+    private func healthDataSourceAfterSync(currentProfile: UserProfile) -> String? {
+        guard hasHealthData else {
+            return currentProfile.healthDataSource
+        }
+
+        return hasManualProfileData
+            ? "Apple Health / Apple Watch + 手动补充"
+            : "Apple Health / Apple Watch"
     }
 
     private static func syncedDate(from profile: UserProfile) -> Date? {
@@ -892,12 +963,22 @@ final class HealthKitSummaryViewModel: ObservableObject {
             return nil
         }
 
-        return isoFormatter.date(from: value)
+        return parseSyncedDate(value)
+    }
+
+    private static func parseSyncedDate(_ value: String) -> Date? {
+        isoFormatter.date(from: value) ?? standardISOFormatter.date(from: value)
     }
 
     private static let isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let standardISOFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
 

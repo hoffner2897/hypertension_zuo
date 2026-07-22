@@ -14,6 +14,8 @@ struct BloodPressureHomeView: View {
     @StateObject private var viewModel = BloodPressureHomeViewModel()
     @State private var path: [BloodPressureRoute] = []
     @State private var isInterpretationExpanded = false
+    @State private var showsAllHistory = false
+    @State private var readingPendingDeletion: BloodPressureReading?
     @Query private var savedReadings: [BloodPressureReading]
 
     init(userId: String = "") {
@@ -33,6 +35,10 @@ struct BloodPressureHomeView: View {
 
     private var trendPoints: [BloodPressureTrendPoint] {
         viewModel.trendPoints(from: savedReadings)
+    }
+
+    private var displayedHistoryReadings: [BloodPressureReading] {
+        showsAllHistory ? savedReadings : Array(savedReadings.prefix(5))
     }
 
     private var interpretationRefreshKey: String {
@@ -79,6 +85,24 @@ struct BloodPressureHomeView: View {
                             trendCard
                         }
 
+                        if !savedReadings.isEmpty {
+                            historyCard
+                        }
+
+                        if let historyActionErrorMessage = viewModel.historyActionErrorMessage {
+                            DSCard {
+                                HStack(alignment: .top, spacing: DSTheme.Spacing.small) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(DSTheme.Color.warning)
+
+                                    Text(historyActionErrorMessage)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(DSTheme.Color.warning)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+
                     }
                     .padding(DSTheme.Spacing.large)
                 }
@@ -99,13 +123,20 @@ struct BloodPressureHomeView: View {
                 case .confirmReading(let draft):
                     BPConfirmReadingView(draft: draft, userId: userId) { _ in
                         path.removeAll()
-                        Task {
-                            await viewModel.syncPendingReadings(userId: userId)
-                            await viewModel.refreshRemoteReadings(
-                                userId: userId,
-                                repository: SwiftDataBloodPressureReadingRepository(modelContext: modelContext)
-                            )
+                        refreshAfterLocalChange()
+                    }
+                case .editReading(let readingId):
+                    if let reading = savedReadings.first(where: { $0.id == readingId }) {
+                        BPConfirmReadingView(
+                            draft: BPReadingDraft(reading: reading),
+                            userId: userId,
+                            existingReading: reading
+                        ) { _ in
+                            path.removeAll()
+                            refreshAfterLocalChange()
                         }
+                    } else {
+                        ContentUnavailableView("找不到这条读数", systemImage: "heart.slash")
                     }
                 }
             }
@@ -121,6 +152,35 @@ struct BloodPressureHomeView: View {
                     reading: latestReading,
                     recentReadings: Array(savedReadings.prefix(20))
                 )
+            }
+            .alert(
+                "删除这条读数？",
+                isPresented: Binding(
+                    get: { readingPendingDeletion != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            readingPendingDeletion = nil
+                        }
+                    }
+                ),
+                presenting: readingPendingDeletion
+            ) { reading in
+                Button("删除", role: .destructive) {
+                    Task {
+                        _ = await viewModel.deleteReading(
+                            reading,
+                            userId: userId,
+                            repository: SwiftDataBloodPressureReadingRepository(modelContext: modelContext)
+                        )
+                        readingPendingDeletion = nil
+                    }
+                }
+
+                Button("取消", role: .cancel) {
+                    readingPendingDeletion = nil
+                }
+            } message: { reading in
+                Text("将删除 \(reading.systolic)/\(reading.diastolic) mmHg（\(Self.historyDateFormatter.string(from: reading.measuredAt))）。此操作不能撤销。")
             }
         }
     }
@@ -403,11 +463,126 @@ struct BloodPressureHomeView: View {
             }
         }
     }
+
+    private var historyCard: some View {
+        DSCard {
+            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
+                HStack {
+                    VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
+                        Text("历史读数")
+                            .font(.headline)
+                            .foregroundStyle(DSTheme.Color.textPrimary)
+
+                        Text("共 \(savedReadings.count) 条，按测量时间排列")
+                            .font(.caption)
+                            .foregroundStyle(DSTheme.Color.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                }
+
+                ForEach(displayedHistoryReadings) { reading in
+                    historyRow(reading)
+
+                    if reading.id != displayedHistoryReadings.last?.id {
+                        Divider()
+                    }
+                }
+
+                if savedReadings.count > 5 {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showsAllHistory.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Text(showsAllHistory ? "收起" : "查看全部 \(savedReadings.count) 条")
+                            Image(systemName: showsAllHistory ? "chevron.up" : "chevron.down")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func historyRow(_ reading: BloodPressureReading) -> some View {
+        HStack(spacing: DSTheme.Spacing.medium) {
+            VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
+                Text("\(reading.systolic)/\(reading.diastolic) mmHg")
+                    .font(.headline)
+                    .foregroundStyle(DSTheme.Color.textPrimary)
+
+                HStack(spacing: DSTheme.Spacing.small) {
+                    Text(Self.historyDateFormatter.string(from: reading.measuredAt))
+
+                    if let pulse = reading.pulse {
+                        Text("脉搏 \(pulse)")
+                    }
+
+                    Text(BPReadingSource.fromStoredValue(reading.source).label)
+                }
+                .font(.caption)
+                .foregroundStyle(DSTheme.Color.textSecondary)
+            }
+
+            Spacer(minLength: 0)
+
+            Menu {
+                Button {
+                    viewModel.clearHistoryActionError()
+                    path.append(.editReading(reading.id))
+                } label: {
+                    Label("编辑", systemImage: "square.and.pencil")
+                }
+
+                Button(role: .destructive) {
+                    viewModel.clearHistoryActionError()
+                    readingPendingDeletion = reading
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+                    .foregroundStyle(DSTheme.Color.primary)
+                    .frame(width: 44, height: 44)
+            }
+            .disabled(viewModel.isUpdatingHistory)
+            .accessibilityLabel("管理 \(reading.systolic)/\(reading.diastolic) 读数")
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func refreshAfterLocalChange() {
+        Task {
+            await viewModel.syncPendingReadings(userId: userId)
+            await viewModel.refreshRemoteReadings(
+                userId: userId,
+                repository: SwiftDataBloodPressureReadingRepository(modelContext: modelContext)
+            )
+        }
+    }
+
+    private static let historyDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.setLocalizedDateFormatFromTemplate("yyyyMMMd HH:mm")
+        return formatter
+    }()
 }
 
 private enum BloodPressureRoute: Hashable {
     case cameraUpload
     case confirmReading(BPReadingDraft)
+    case editReading(UUID)
 }
 
 private struct BPQuickActionButton: View {

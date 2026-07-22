@@ -21,6 +21,17 @@ enum BloodPressureReadingSource {
   health_import
 }
 
+enum MealType {
+  breakfast
+  lunch
+  dinner
+}
+
+enum AIUsageFeature {
+  bp_recognition
+  meal_analysis
+}
+
 model User {
   id              String    @id @default(uuid()) @db.Uuid
   email           String    @unique
@@ -33,6 +44,8 @@ model User {
   refreshTokens           RefreshToken[]
   emailVerificationTokens EmailVerificationToken[]
   bloodPressureReadings   BloodPressureReading[]
+  mealRecords             MealRecord[]
+  aiDailyUsage            AIDailyUsage[]
 
   @@map("users")
 }
@@ -112,4 +125,38 @@ model BloodPressureReading {
   @@index([userId, measuredAt])
   @@index([userId, deletedAt])
   @@map("blood_pressure_readings")
+}
+
+model MealRecord {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  mealType          MealType @map("meal_type")
+  mealDate          String   @map("meal_date") @db.VarChar(10)
+  analysis          String
+  similarSuggestion String   @map("similar_suggestion")
+  cardSummary       String   @map("card_summary")
+  recordedAt        DateTime @map("recorded_at") @db.Timestamptz(3)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mealDate, mealType])
+  @@index([userId, recordedAt])
+  @@map("meal_records")
+}
+
+model AIDailyUsage {
+  userId       String         @map("user_id") @db.Uuid
+  usageDate    DateTime       @map("usage_date") @db.Date
+  feature      AIUsageFeature
+  requestCount Int            @default(0) @map("request_count")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, usageDate, feature])
+  @@index([usageDate, feature])
+  @@map("ai_daily_usage")
 }

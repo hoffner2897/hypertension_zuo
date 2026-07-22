@@ -65,6 +65,11 @@ struct ProfileSetupView: View {
             return
         }
 
+        guard trimmedName.count <= 80 else {
+            errorMessage = "昵称不能超过 80 个字符。"
+            return
+        }
+
         guard let year = Int(birthYear), year >= 1900, year <= Calendar.current.component(.year, from: Date()) else {
             errorMessage = "请输入有效出生年份。"
             return

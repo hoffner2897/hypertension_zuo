@@ -14,9 +14,13 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            TodayActionView(items: $todayActionItems) {
-                selectedTab = .bloodPressure
-            }
+            TodayActionView(
+                items: $todayActionItems,
+                userId: appState.currentUser?.id ?? "",
+                onOpenBloodPressure: {
+                    selectedTab = .bloodPressure
+                }
+            )
             .tabItem {
                 Label("今日行动", systemImage: "figure.walk.motion")
             }
@@ -29,9 +33,7 @@ struct MainTabView: View {
             .tag(MainTab.bloodPressure)
 
             ActionGenerateDemoView(
-                onOpenBloodPressure: {
-                    selectedTab = .bloodPressure
-                },
+                userId: appState.currentUser?.id ?? "",
                 onGenerateAction: { item in
                     upsertTodayAction(item)
                     selectedTab = .today
@@ -42,7 +44,10 @@ struct MainTabView: View {
             }
             .tag(MainTab.actionGenerate)
 
-            ActionAdjustDemoView(items: $todayActionItems)
+            ActionAdjustDemoView(
+                items: $todayActionItems,
+                userId: appState.currentUser?.id ?? ""
+            )
             .tabItem {
                 Label("行动调整", systemImage: "slider.horizontal.3")
             }

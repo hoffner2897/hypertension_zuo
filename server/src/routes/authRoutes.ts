@@ -4,6 +4,7 @@ import type { ServerConfig } from "../config.js";
 import { prisma } from "../db/prisma.js";
 import { badRequest, conflict, forbidden, unauthorized } from "../errors.js";
 import { isAuthenticatedRequest, requireAuth } from "../auth/authMiddleware.js";
+import type { AuthUserLookup } from "../auth/authMiddleware.js";
 import { hashPassword, verifyPassword } from "../auth/passwords.js";
 import { parseBody } from "./validation.js";
 import {
@@ -47,7 +48,7 @@ const deleteAccountSchema = z.object({
   password
 });
 
-export function createAuthRouter(config: ServerConfig): Router {
+export function createAuthRouter(config: ServerConfig, authUserLookup?: AuthUserLookup): Router {
   const router = Router();
 
   router.post("/register", async (request, response, next) => {
@@ -61,16 +62,24 @@ export function createAuthRouter(config: ServerConfig): Router {
         throw conflict("EMAIL_ALREADY_REGISTERED", "Email is already registered.");
       }
 
-      const createdUser = await prisma.user.create({
-        data: {
-          email: input.email,
-          passwordHash: await hashPassword(input.password),
-          emailVerifiedAt: new Date()
-        },
-        include: {
-          profile: true
+      let createdUser;
+      try {
+        createdUser = await prisma.user.create({
+          data: {
+            email: input.email,
+            passwordHash: await hashPassword(input.password),
+            emailVerifiedAt: new Date()
+          },
+          include: {
+            profile: true
+          }
+        });
+      } catch (error) {
+        if (isUniqueConstraintError(error)) {
+          throw conflict("EMAIL_ALREADY_REGISTERED", "Email is already registered.");
         }
-      });
+        throw error;
+      }
 
       const authResponse = await issueAuthResponse(config, createdUser.id, input.deviceId);
       response.status(201).json(authResponse);
@@ -115,10 +124,18 @@ export function createAuthRouter(config: ServerConfig): Router {
         throw unauthorized("INVALID_REFRESH_TOKEN", "Refresh token is invalid.");
       }
 
-      await prisma.refreshToken.update({
-        where: { id: storedToken.id },
+      const revoked = await prisma.refreshToken.updateMany({
+        where: {
+          id: storedToken.id,
+          revokedAt: null,
+          expiresAt: { gt: new Date() }
+        },
         data: { revokedAt: new Date() }
       });
+
+      if (revoked.count !== 1) {
+        throw unauthorized("INVALID_REFRESH_TOKEN", "Refresh token is invalid.");
+      }
 
       const authResponse = await issueAuthResponse(config, storedToken.user.id, input.deviceId ?? storedToken.deviceId);
       response.json(authResponse);
@@ -144,7 +161,7 @@ export function createAuthRouter(config: ServerConfig): Router {
     }
   });
 
-  router.get("/me", requireAuth(config), async (request, response, next) => {
+  router.get("/me", requireAuth(config, authUserLookup), async (request, response, next) => {
     try {
       if (!isAuthenticatedRequest(request)) {
         throw unauthorized();
@@ -226,7 +243,7 @@ export function createAuthRouter(config: ServerConfig): Router {
     }
   });
 
-  router.delete("/account", requireAuth(config), async (request, response, next) => {
+  router.delete("/account", requireAuth(config, authUserLookup), async (request, response, next) => {
     try {
       if (!isAuthenticatedRequest(request)) {
         throw unauthorized();
@@ -311,4 +328,11 @@ function serializeUser(user: {
     emailVerified: Boolean(user.emailVerifiedAt),
     profileCompleted: Boolean(user.profile?.completedAt)
   };
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "code" in error
+    && error.code === "P2002";
 }

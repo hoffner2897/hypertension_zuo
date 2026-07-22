@@ -79,28 +79,18 @@ struct RemoteBPRecognitionResponse: Decodable {
 
 @MainActor
 struct RemoteBloodPressureRecognitionService: BloodPressureRecognitionService {
-    let endpointURL: URL
-    var urlSession: URLSession = .shared
+    var apiClient: APIClient = .shared
 
     func recognizeReading(from imageData: Data?) async throws -> BPRecognitionResult {
         guard let imageData else {
             throw BPRecognitionError.missingImage
         }
 
-        var request = URLRequest(url: endpointURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            RemoteBPRecognitionRequest(imageBase64: imageData.base64EncodedString())
+        let decoded: RemoteBPRecognitionResponse = try await apiClient.post(
+            "/recognize-bp",
+            body: RemoteBPRecognitionRequest(imageBase64: imageData.base64EncodedString()),
+            requiresAuth: true
         )
-
-        let (data, response) = try await urlSession.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw BPRecognitionError.serviceUnavailable
-        }
-
-        let decoded = try JSONDecoder().decode(RemoteBPRecognitionResponse.self, from: data)
         return BPRecognitionResult(
             systolic: decoded.systolic,
             diastolic: decoded.diastolic,

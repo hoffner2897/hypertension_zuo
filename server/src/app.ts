@@ -4,20 +4,38 @@ import type { ServerConfig } from "./config.js";
 import { createAuthRouter } from "./routes/authRoutes.js";
 import { createProfileRouter } from "./routes/profileRoutes.js";
 import { createReadingRouter, createReadingSyncRouter } from "./routes/readingRoutes.js";
+import { createActionAdjustmentRouter } from "./routes/actionAdjustmentRoutes.js";
 import { MockBPRecognitionService, type BPRecognitionService } from "./services/bpRecognitionService.js";
 import { OpenAIBPRecognitionService } from "./services/openAIBPRecognitionService.js";
+import { createMealRecordRouter } from "./routes/mealRecordRoutes.js";
+import type { MealAnalysisService } from "./services/openAIMealAnalysisService.js";
+import type { AuthUserLookup } from "./auth/authMiddleware.js";
+import { isAuthenticatedRequest, requireAuth } from "./auth/authMiddleware.js";
+import { unauthorized } from "./errors.js";
+import { consumeAIUsageQuota } from "./services/aiUsageQuotaService.js";
 
-export function createApp(config: ServerConfig): express.Express {
+export interface AppDependencies {
+  mealAnalysisService?: MealAnalysisService | null;
+  authUserLookup?: AuthUserLookup;
+  recognitionService?: BPRecognitionService;
+}
+
+export function createApp(config: ServerConfig, dependencies: AppDependencies = {}): express.Express {
   const app = express();
-  const recognitionService = makeRecognitionService(config);
+  const recognitionService = dependencies.recognitionService ?? makeRecognitionService(config);
 
   app.use(corsHeaders);
   app.use(optionsHandler);
   app.use(express.json({ limit: "8mb" }));
-  app.use("/auth", createAuthRouter(config));
-  app.use("/profile", createProfileRouter(config));
-  app.use("/readings", createReadingRouter(config));
-  app.use("/sync/readings", createReadingSyncRouter(config));
+  app.use("/auth", createAuthRouter(config, dependencies.authUserLookup));
+  app.use("/profile", createProfileRouter(config, dependencies.authUserLookup));
+  app.use("/readings", createReadingRouter(config, dependencies.authUserLookup));
+  app.use("/sync/readings", createReadingSyncRouter(config, dependencies.authUserLookup));
+  app.use("/action-adjustments", createActionAdjustmentRouter(config, dependencies.authUserLookup));
+  app.use("/meal-records", createMealRecordRouter(config, {
+    analysisService: dependencies.mealAnalysisService,
+    authUserLookup: dependencies.authUserLookup
+  }));
 
   app.get("/health", (_request, response) => {
     response.json({
@@ -27,10 +45,21 @@ export function createApp(config: ServerConfig): express.Express {
     });
   });
 
-  app.post("/recognize-bp", async (request, response, next) => {
+  app.post("/recognize-bp", requireAuth(config, dependencies.authUserLookup), async (request, response, next) => {
     try {
-      const { imageBase64 } = parseRecognizeBPRequest(request.body);
-      const result = await recognitionService.recognize(imageBase64);
+      if (!isAuthenticatedRequest(request)) {
+        throw unauthorized();
+      }
+
+      const { image } = parseRecognizeBPRequest(request.body);
+      if (config.recognitionMode === "openai") {
+        await consumeAIUsageQuota({
+          userId: request.auth.userId,
+          feature: "bp_recognition",
+          dailyLimit: config.bpRecognitionDailyLimit
+        });
+      }
+      const result = await recognitionService.recognize(image);
       response.json(result);
     } catch (error) {
       next(error);
@@ -105,6 +134,10 @@ function statusCodeForError(error: unknown): number {
 }
 
 function codeForError(error: unknown): string {
+  if (isPayloadTooLargeError(error)) {
+    return "PAYLOAD_TOO_LARGE";
+  }
+
   if (error instanceof BadRequestError || error instanceof SyntaxError) {
     return "BAD_REQUEST";
   }
@@ -117,7 +150,15 @@ function codeForError(error: unknown): string {
 }
 
 function messageForError(error: unknown): string {
-  if (error instanceof Error) {
+  if (isPayloadTooLargeError(error)) {
+    return "Request body is too large.";
+  }
+
+  if (error instanceof SyntaxError) {
+    return "Malformed JSON request body.";
+  }
+
+  if (error instanceof BadRequestError || isErrorWithCode(error)) {
     return error.message;
   }
 
@@ -130,4 +171,10 @@ function isErrorWithStatusCode(error: unknown): error is Error & { statusCode: n
 
 function isErrorWithCode(error: unknown): error is Error & { code: string } {
   return error instanceof Error && "code" in error && typeof error.code === "string";
+}
+
+function isPayloadTooLargeError(error: unknown): boolean {
+  return error instanceof Error
+    && (("statusCode" in error && error.statusCode === 413)
+      || ("type" in error && error.type === "entity.too.large"));
 }
