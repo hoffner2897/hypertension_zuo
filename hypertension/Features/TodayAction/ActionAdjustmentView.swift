@@ -12,6 +12,7 @@ struct ActionAdjustDemoView: View {
 
     @State private var path: [ActionAdjustmentRoute] = []
     @StateObject private var viewModel = ActionAdjustmentViewModel()
+    private let statusBarClearance: CGFloat = 54
 
     init(items: Binding<[TodayActionItem]>, userId: String) {
         self._items = items
@@ -51,17 +52,25 @@ struct ActionAdjustDemoView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                DSTheme.Color.appBackground
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.96, green: 0.99, blue: 1.0),
+                        Color(red: 0.91, green: 0.96, blue: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
                     .ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                        AdjustmentPageTitle()
+                    VStack(alignment: .leading, spacing: 12) {
+                        header
                         todayStatusCard
                         actionListCard
                         trendSuggestionsCard
                     }
-                    .padding(DSTheme.Spacing.large)
+                    .padding(.horizontal, DSTheme.Spacing.medium)
+                    .padding(.top, statusBarClearance)
                     .padding(.bottom, 150)
                 }
             }
@@ -89,55 +98,88 @@ struct ActionAdjustDemoView: View {
         }
     }
 
-    private var todayStatusCard: some View {
-        DSCard {
-            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                Label("今日状态", systemImage: "waveform.path.ecg")
-                    .font(.headline.weight(.bold))
+    private var header: some View {
+        HStack(alignment: .top) {
+            AdjustmentPageTitle()
+
+            Spacer()
+
+            VStack(spacing: 4) {
+                Image("TodayHeaderAvatar")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 42, height: 42)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(.white, lineWidth: 2)
+                    )
+                    .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
+
+                Text("小宁")
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                HStack(spacing: DSTheme.Spacing.medium) {
-                    Image(systemName: "heart.circle.fill")
-                        .font(.system(size: 48, weight: .semibold))
-                        .foregroundStyle(DSTheme.Color.primary)
-                        .frame(width: 68, height: 68)
-                        .background(DSTheme.Color.primarySoft.opacity(0.7))
-                        .clipShape(Circle())
-
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("血压")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(DSTheme.Color.textSecondary)
-
-                        if let latestReading {
-                            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                                Text("\(latestReading.systolic)/\(latestReading.diastolic)")
-                                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                                Text("mmHg")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(DSTheme.Color.textSecondary)
-                            }
-
-                            Text(Self.measurementTimeFormatter.string(from: latestReading.measuredAt))
-                                .font(.caption)
-                                .foregroundStyle(DSTheme.Color.textSecondary)
-                        } else {
-                            Text("暂无读数")
-                                .font(.title3.weight(.bold))
-                                .foregroundStyle(DSTheme.Color.textPrimary)
-
-                            Text("记录后会在这里显示最新血压")
-                                .font(.caption)
-                                .foregroundStyle(DSTheme.Color.textSecondary)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-                }
             }
         }
+    }
+
+    private var todayStatusCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "heart.text.square.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 21, height: 21)
+                    .background(DSTheme.Color.primary)
+                    .clipShape(Circle())
+
+                Text("今日状态")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+            }
+
+            HStack(spacing: 12) {
+                Image("ActionAdjustStatusHeart")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 58, height: 58)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("血压")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(DSTheme.Color.textSecondary)
+
+                    if let latestReading {
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Text("\(latestReading.systolic)/\(latestReading.diastolic)")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+
+                            Text("mmHg")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(DSTheme.Color.textSecondary)
+                        }
+
+                        Text(Self.measurementTimeFormatter.string(from: latestReading.measuredAt))
+                            .font(.caption2)
+                            .foregroundStyle(DSTheme.Color.textSecondary)
+                    } else {
+                        Text("暂无读数")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+
+                        Text("记录后会显示最新血压")
+                            .font(.caption2)
+                            .foregroundStyle(DSTheme.Color.textSecondary)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .actionAdjustmentCardStyle()
     }
 
     private var actionListCard: some View {
@@ -163,94 +205,70 @@ struct ActionAdjustDemoView: View {
             }
         }
         .background(.white)
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: DSTheme.cardShadow, radius: 14, x: 0, y: 7)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(red: 0.87, green: 0.92, blue: 0.99), lineWidth: 1)
+        }
+        .shadow(color: Color(red: 0.18, green: 0.39, blue: 0.82).opacity(0.08), radius: 14, x: 0, y: 7)
     }
 
     private var trendSuggestionsCard: some View {
-        DSCard {
-            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                HStack(alignment: .firstTextBaseline, spacing: DSTheme.Spacing.small) {
-                    Label("趋势调整", systemImage: "chart.line.uptrend.xyaxis")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(DSTheme.Color.primary)
 
-                    Spacer(minLength: 8)
+                Text("趋势调整")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                    Text(viewModel.evidenceDays > 1 ? "基于近\(viewModel.evidenceDays)天记录" : "基于今日进度生成建议")
-                        .font(.caption2)
-                        .foregroundStyle(DSTheme.Color.textSecondary)
-                }
+                Spacer(minLength: 8)
 
-                if viewModel.isLoading && viewModel.suggestions.isEmpty {
-                    HStack(spacing: DSTheme.Spacing.small) {
-                        ProgressView()
-                        Text("正在分析当前行动…")
-                            .font(.subheadline)
-                            .foregroundStyle(DSTheme.Color.textSecondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, DSTheme.Spacing.small)
-                } else if viewModel.suggestions.isEmpty {
-                    Label(
-                        viewModel.dataNote ?? "当前没有需要调整的行动。",
-                        systemImage: "checkmark.circle.fill"
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(DSTheme.Color.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(DSTheme.Spacing.medium)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(DSTheme.Color.primarySoft.opacity(0.45))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                } else {
-                    ForEach(viewModel.suggestions) { suggestion in
-                        Button {
-                            guard let target = target(for: suggestion) else {
-                                return
-                            }
-                            path.append(ActionAdjustmentRoute(target: target, suggestion: suggestion))
-                        } label: {
-                            HStack(spacing: DSTheme.Spacing.medium) {
-                                Image(systemName: suggestion.kind.systemImage)
-                                    .font(.title3.weight(.semibold))
-                                    .foregroundStyle(DSTheme.Color.primary)
-                                    .frame(width: 46, height: 46)
-                                    .background(DSTheme.Color.primarySoft)
-                                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-
-                                Text(suggestion.message)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(DSTheme.Color.textPrimary)
-                                    .multilineTextAlignment(.leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                Spacer(minLength: 0)
-
-                                if suggestion.targetActionId != nil {
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(DSTheme.Color.primary)
-                                }
-                            }
-                            .padding(DSTheme.Spacing.medium)
-                            .background(.white)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(DSTheme.Color.border, lineWidth: 1)
-                            }
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(suggestion.targetActionId == nil)
-                    }
-                }
-
-                Label("建议仅用于优化行动安排，不构成诊断或治疗建议。", systemImage: "info.circle.fill")
+                Text(viewModel.evidenceDays > 1 ? "基于近\(viewModel.evidenceDays)天记录为你提供优化建议" : "基于近期趋势为你提供优化建议")
                     .font(.caption2)
                     .foregroundStyle(DSTheme.Color.textSecondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.trailing)
             }
+
+            if viewModel.isLoading && viewModel.suggestions.isEmpty {
+                TrendSuggestionRow(
+                    systemImage: "clock",
+                    message: "正在分析当前行动安排..."
+                )
+            } else if viewModel.suggestions.isEmpty {
+                TrendSuggestionRow(
+                    systemImage: "checkmark.circle.fill",
+                    message: viewModel.dataNote ?? "当前没有需要调整的行动。"
+                )
+            } else {
+                ForEach(viewModel.suggestions) { suggestion in
+                    Button {
+                        guard let target = target(for: suggestion) else {
+                            return
+                        }
+                        path.append(ActionAdjustmentRoute(target: target, suggestion: suggestion))
+                    } label: {
+                        TrendSuggestionRow(
+                            systemImage: suggestion.kind.systemImage,
+                            message: suggestion.message,
+                            showsChevron: suggestion.targetActionId != nil
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(suggestion.targetActionId == nil)
+                }
+            }
+
+            Label("建议将根据你的数据持续优化。", systemImage: "info.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(DSTheme.Color.textSecondary)
+                .padding(.top, 2)
         }
+        .padding(14)
+        .actionAdjustmentCardStyle()
     }
 
     private func target(for suggestion: ActionTrendSuggestion) -> ActionAdjustmentTarget? {
@@ -336,31 +354,39 @@ private struct AdjustmentEntryRow: View {
     let onAdjust: () -> Void
 
     var body: some View {
-        HStack(spacing: DSTheme.Spacing.medium) {
-            AdjustmentArtwork(item: entry.items.first, fallbackSystemImage: entry.systemImage)
-                .frame(width: 92, height: 92)
+        HStack(spacing: 10) {
+            AdjustmentArtwork(assetName: entry.artworkAssetName, fallbackSystemImage: entry.systemImage)
+                .frame(width: 72, height: 72)
 
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(entry.title)
-                    .font(.title3.weight(.bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+                    .lineLimit(1)
 
-                Label(entry.scheduleText, systemImage: "clock")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(DSTheme.Color.textSecondary)
-                    .lineLimit(2)
+                HStack(spacing: 5) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color(red: 0.36, green: 0.52, blue: 0.82))
+
+                    Text(entry.scheduleText)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(DSTheme.Color.textSecondary)
+                        .lineLimit(2)
+                }
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 0)
 
             if entry.hasAdjustableItems {
-                VStack(spacing: 8) {
+                HStack(spacing: 8) {
                     Text("可调整")
-                        .font(.caption.weight(.bold))
+                        .font(.caption2.weight(.bold))
                         .foregroundStyle(DSTheme.Color.success)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(DSTheme.Color.success.opacity(0.10))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(red: 0.89, green: 0.98, blue: 0.91))
                         .clipShape(Capsule())
 
                     Button(action: onAdjust) {
@@ -368,50 +394,123 @@ private struct AdjustmentEntryRow: View {
                             Text("调整")
                             Image(systemName: "chevron.right")
                         }
-                        .font(.subheadline.weight(.bold))
+                        .font(.caption.weight(.bold))
                         .foregroundStyle(DSTheme.Color.primary)
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 9)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         .overlay {
                             Capsule()
-                                .stroke(DSTheme.Color.primary.opacity(0.65), lineWidth: 1.2)
+                                .stroke(DSTheme.Color.primary.opacity(0.65), lineWidth: 1)
                         }
                     }
                     .buttonStyle(.plain)
                 }
             } else {
                 Text("已完成")
-                    .font(.caption.weight(.bold))
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
                     .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
+                    .padding(.vertical, 6)
                     .background(DSTheme.Color.border.opacity(0.55))
                     .clipShape(Capsule())
             }
         }
-        .padding(DSTheme.Spacing.medium)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 }
 
 private struct AdjustmentArtwork: View {
-    let item: TodayActionItem?
+    let assetName: String
     let fallbackSystemImage: String
+
+    init(assetName: String, fallbackSystemImage: String) {
+        self.assetName = assetName
+        self.fallbackSystemImage = fallbackSystemImage
+    }
+
+    init(item: TodayActionItem?, fallbackSystemImage: String) {
+        self.assetName = Self.assetName(for: item, fallbackSystemImage: fallbackSystemImage)
+        self.fallbackSystemImage = fallbackSystemImage
+    }
 
     var body: some View {
         Group {
-            if let assetName = item?.timelineArtworkAssetName {
-                Image(assetName)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Image(systemName: fallbackSystemImage)
-                    .font(.system(size: 34, weight: .semibold))
+            Image(assetName)
+                .resizable()
+                .scaledToFit()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DSTheme.Color.primarySoft.opacity(0.25))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(red: 0.88, green: 0.93, blue: 1.0), lineWidth: 1)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private static func assetName(for item: TodayActionItem?, fallbackSystemImage: String) -> String {
+        guard let item else {
+            return "ActionAdjustWalk"
+        }
+
+        if let assetName = item.timelineArtworkAssetName {
+            return assetName
+        }
+
+        if item.type == .bpRecheck || item.title.contains("血压") {
+            return "ActionAdjustBloodPressure"
+        }
+
+        if item.type == .diet || item.title.contains("餐") || item.title.contains("饮食") {
+            return "ActionAdjustDiet"
+        }
+
+        if item.type == .walk || item.title.contains("步") || item.title.contains("走") {
+            return "ActionAdjustWalk"
+        }
+
+        return item.timelineArtworkAssetName ?? "ActionAdjustWalk"
+    }
+}
+
+private struct TrendSuggestionRow: View {
+    let systemImage: String
+    let message: String
+    var showsChevron = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(DSTheme.Color.primary)
+                .frame(width: 42, height: 42)
+                .background(DSTheme.Color.primarySoft.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            Text(message)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(DSTheme.Color.primary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(DSTheme.Color.primarySoft.opacity(0.7))
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.98, green: 0.995, blue: 1.0))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(red: 0.88, green: 0.93, blue: 1.0), lineWidth: 1)
+        }
     }
 }
 
@@ -468,6 +567,37 @@ private struct ActionAdjustmentEntry: Identifiable {
         items.contains { $0.status != .completed }
     }
 
+    var artworkAssetName: String {
+        switch target {
+        case .bloodPressure:
+            return "ActionAdjustBloodPressure"
+        case .diet:
+            return "ActionAdjustDiet"
+        case .single:
+            guard let item = items.first else {
+                return "ActionAdjustWalk"
+            }
+
+            if let assetName = item.timelineArtworkAssetName {
+                return assetName
+            }
+
+            if item.type == .walk || item.title.contains("步") || item.title.contains("走") {
+                return "ActionAdjustWalk"
+            }
+
+            if item.type == .bpRecheck {
+                return "ActionAdjustBloodPressure"
+            }
+
+            if item.type == .diet {
+                return "ActionAdjustDiet"
+            }
+
+            return item.timelineArtworkAssetName ?? "ActionAdjustWalk"
+        }
+    }
+
     static func makeEntries(from items: [TodayActionItem]) -> [ActionAdjustmentEntry] {
         let sortedItems = items.sortedByStartTime()
         var entries: [ActionAdjustmentEntry] = []
@@ -508,6 +638,19 @@ private struct ActionAdjustmentEntry: Identifiable {
         }
 
         return entries
+    }
+}
+
+private extension View {
+    func actionAdjustmentCardStyle(cornerRadius: CGFloat = 16) -> some View {
+        self
+            .background(.white)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color(red: 0.87, green: 0.92, blue: 0.99), lineWidth: 1)
+            }
+            .shadow(color: Color(red: 0.18, green: 0.39, blue: 0.82).opacity(0.08), radius: 14, x: 0, y: 7)
     }
 }
 
@@ -1041,26 +1184,67 @@ private struct AdjustmentDetailHeader: View {
     let onBack: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
+        VStack(alignment: .leading, spacing: 8) {
             Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.title2.weight(.semibold))
+                Image(systemName: "arrow.left")
+                    .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
                     .frame(width: 38, height: 38, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("行动调整")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("行动调整")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                Text("Action Adjustment")
-                    .font(.subheadline)
-                    .foregroundStyle(DSTheme.Color.textSecondary)
+                    Text("Action Adjustment")
+                        .font(.subheadline)
+                        .foregroundStyle(DSTheme.Color.textSecondary)
+                }
+
+                Spacer()
+
+                VStack(spacing: 4) {
+                    Image("TodayHeaderAvatar")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 42, height: 42)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(.white, lineWidth: 2)
+                        )
+                        .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
+
+                    Text("小宁")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+                }
             }
         }
+    }
+}
+
+private struct IconText: View {
+    let assetName: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(assetName)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 15, height: 15)
+                .foregroundStyle(Color(red: 0.36, green: 0.52, blue: 0.82))
+
+            Text(text)
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
     }
 }
 
@@ -1183,21 +1367,19 @@ private struct AdjustmentConfirmBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Divider()
-                .overlay(DSTheme.Color.border)
-
             DSPrimaryButton("确认调整", isDisabled: isDisabled, action: action)
-                .padding(.horizontal, DSTheme.Spacing.large)
-                .padding(.top, DSTheme.Spacing.small)
-                .padding(.bottom, DSTheme.Spacing.small)
+                .padding(.horizontal, DSTheme.Spacing.medium)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
         }
-        .background(.ultraThinMaterial)
+        .background(.white)
+        .shadow(color: Color(red: 0.18, green: 0.39, blue: 0.82).opacity(0.08), radius: 14, x: 0, y: -6)
     }
 }
 
 private enum MovementAdjustmentReason: String, CaseIterable, Identifiable, Hashable {
     case time = "时间安排变化"
-    case duration = "想缩短运动时长"
+    case duration = "想调整运动时长"
     case energy = "精力变化"
     case scene = "场景变化"
     case otherExercise = "想尝试其他运动"
@@ -1216,6 +1398,21 @@ private enum MovementAdjustmentReason: String, CaseIterable, Identifiable, Hasha
             "mappin.and.ellipse"
         case .otherExercise:
             "figure.run"
+        }
+    }
+
+    var assetName: String {
+        switch self {
+        case .time:
+            "ActionAdjustReasonTime"
+        case .duration:
+            "ActionAdjustReasonDuration"
+        case .energy:
+            "ActionAdjustReasonEnergy"
+        case .scene:
+            "ActionAdjustReasonScene"
+        case .otherExercise:
+            "ActionAdjustReasonExercise"
         }
     }
 }
@@ -1277,6 +1474,7 @@ private struct MovementAdjustmentEditor: View {
     private let durationOptions = [10, 15, 20, 30]
     private let reasonColumns = [
         GridItem(.flexible(), spacing: DSTheme.Spacing.small),
+        GridItem(.flexible(), spacing: DSTheme.Spacing.small),
         GridItem(.flexible(), spacing: DSTheme.Spacing.small)
     ]
     private let movementColumns = [
@@ -1336,7 +1534,12 @@ private struct MovementAdjustmentEditor: View {
             }
         }
 
-        self._selectedReasons = State(initialValue: reasons)
+        let usesDefaultEnergyAdjustment = reasons.isEmpty
+        if usesDefaultEnergyAdjustment {
+            movement = .slowWalk
+        }
+
+        self._selectedReasons = State(initialValue: usesDefaultEnergyAdjustment ? [.energy] : reasons)
         self._selectedTime = State(initialValue: timeText)
         self._selectedDuration = State(initialValue: duration)
         self._selectedMovement = State(initialValue: movement)
@@ -1420,24 +1623,24 @@ private struct MovementAdjustmentEditor: View {
         !usesCustomMovement || !trimmedCustomMovementName.isEmpty
     }
 
-    private var hasActualChange: Bool {
-        !AdjustmentClock.isSameMinute(adjustedStartDate, originalItem.scheduledStartAt)
-            || adjustedDuration != originalItem.durationMinutes
-            || adjustedMovementName != originalItem.title
-            || adjustedType != originalItem.type
-    }
-
     private var canSave: Bool {
-        !isLocked && !selectedReasons.isEmpty && customInputIsValid && hasActualChange
+        !isLocked && !selectedReasons.isEmpty && customInputIsValid
     }
 
     var body: some View {
         ZStack {
-            DSTheme.Color.appBackground
+            LinearGradient(
+                colors: [
+                    Color(red: 0.96, green: 0.99, blue: 1.0),
+                    Color(red: 0.91, green: 0.96, blue: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
                 .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
+                VStack(alignment: .leading, spacing: 10) {
                     AdjustmentDetailHeader(onBack: onBack)
                     originalPlanCard
                     reasonSelectionCard
@@ -1469,7 +1672,8 @@ private struct MovementAdjustmentEditor: View {
                         durationMinutes: adjustedDuration
                     )
                 }
-                .padding(DSTheme.Spacing.large)
+                .padding(.horizontal, DSTheme.Spacing.medium)
+                .padding(.top, 10)
                 .padding(.bottom, 120)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -1483,68 +1687,73 @@ private struct MovementAdjustmentEditor: View {
     }
 
     private var originalPlanCard: some View {
-        DSCard {
-            HStack(spacing: DSTheme.Spacing.medium) {
+        HStack(spacing: 18) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(red: 0.96, green: 0.985, blue: 1.0))
+
                 AdjustmentArtwork(
                     item: originalItem,
                     fallbackSystemImage: originalItem.type.systemImage
                 )
-                .frame(width: 126, height: 126)
-
-                VStack(alignment: .leading, spacing: 9) {
-                    Text(originalItem.title)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                    Text(isLocked ? "已完成" : "原计划")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(isLocked ? DSTheme.Color.textSecondary : DSTheme.Color.primary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(DSTheme.Color.primarySoft.opacity(0.75))
-                        .clipShape(Capsule())
-
-                    HStack(spacing: 10) {
-                        Label(originalItem.startTimeText, systemImage: "clock")
-                        Divider()
-                            .frame(height: 18)
-                        Label("\(originalItem.durationMinutes)分钟", systemImage: "timer")
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(DSTheme.Color.textSecondary)
-                }
-
-                Spacer(minLength: 0)
+                .padding(6)
             }
+            .frame(width: 132, height: 112)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(isLocked ? "已完成" : "原计划")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(isLocked ? DSTheme.Color.textSecondary : DSTheme.Color.primary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(DSTheme.Color.primarySoft.opacity(0.75))
+                    .clipShape(Capsule())
+
+                Text(originalItem.title)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+
+                HStack(spacing: 12) {
+                    IconText(assetName: "ActionAdjustClock", text: originalItem.startTimeText)
+                    Divider()
+                        .frame(height: 18)
+                    IconText(assetName: "ActionAdjustReasonDuration", text: "\(originalItem.durationMinutes)分钟")
+                }
+            }
+
+            Spacer(minLength: 0)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .actionAdjustmentCardStyle()
     }
 
     private var reasonSelectionCard: some View {
-        DSCard {
-            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("为什么需要调整？")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("为什么需要调整？")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                    Text("可多选，相关设置会依次显示在下方。")
-                        .font(.caption)
-                        .foregroundStyle(DSTheme.Color.textSecondary)
-                }
+                Text("可多选，系统会根据你的选择生成调整方案。")
+                    .font(.caption)
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+            }
 
-                LazyVGrid(columns: reasonColumns, alignment: .leading, spacing: DSTheme.Spacing.small) {
-                    ForEach(MovementAdjustmentReason.allCases) { reason in
-                        AdjustmentReasonButton(
-                            reason: reason,
-                            isSelected: selectedReasons.contains(reason),
-                            isDisabled: isLocked
-                        ) {
-                            toggle(reason)
-                        }
+            LazyVGrid(columns: reasonColumns, alignment: .leading, spacing: DSTheme.Spacing.small) {
+                ForEach(MovementAdjustmentReason.allCases) { reason in
+                    AdjustmentReasonButton(
+                        reason: reason,
+                        isSelected: selectedReasons.contains(reason),
+                        isDisabled: isLocked
+                    ) {
+                        toggle(reason)
                     }
                 }
             }
         }
+        .padding(12)
+        .actionAdjustmentCardStyle()
     }
 
     private var lockedNotice: some View {
@@ -1574,67 +1783,77 @@ private struct MovementAdjustmentEditor: View {
     }
 
     private var durationCard: some View {
-        DSCard {
-            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                Label("选择本次运动时长", systemImage: "timer")
-                    .font(.headline.weight(.bold))
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("选择本次运动时长")
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                HStack(spacing: DSTheme.Spacing.small) {
-                    ForEach(durationChoices, id: \.self) { minutes in
-                        Button {
-                            selectedDuration = minutes
-                        } label: {
-                            HStack(spacing: 5) {
-                                Text("\(minutes)分钟")
-                                if selectedDuration == minutes {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.caption)
+                Text("请选择一个你希望的运动时长。")
+                    .font(.caption)
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+            }
+
+            HStack(spacing: 10) {
+                ForEach(durationChoices, id: \.self) { minutes in
+                    Button {
+                        selectedDuration = minutes
+                    } label: {
+                        ZStack(alignment: .bottomTrailing) {
+                            Text("\(minutes)分钟")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(selectedDuration == minutes ? DSTheme.Color.primary : Color(red: 0.05, green: 0.14, blue: 0.46))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 46)
+                                .background(selectedDuration == minutes ? Color(red: 0.93, green: 0.97, blue: 1.0) : .white)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(selectedDuration == minutes ? DSTheme.Color.primary : DSTheme.Color.border, lineWidth: 1.2)
                                 }
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                            if selectedDuration == minutes {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(DSTheme.Color.primary)
+                                    .background(Circle().fill(.white))
+                                    .offset(x: 5, y: 5)
                             }
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(selectedDuration == minutes ? DSTheme.Color.primary : DSTheme.Color.textPrimary)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 48)
-                            .background(selectedDuration == minutes ? DSTheme.Color.primarySoft.opacity(0.7) : .white)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                    .stroke(selectedDuration == minutes ? DSTheme.Color.primary : DSTheme.Color.border, lineWidth: 1.2)
-                            }
-                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                         }
-                        .buttonStyle(.plain)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
+        .padding(12)
+        .actionAdjustmentCardStyle()
     }
 
     private var movementOptionsCard: some View {
-        DSCard {
-            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(selectedReasons.contains(.scene) ? "选择更适合当前场景的运动" : "选择其他低门槛运动")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("选择其他低门槛运动")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                    Text("动作简单、无需器械，强度更容易控制。")
-                        .font(.caption)
-                        .foregroundStyle(DSTheme.Color.textSecondary)
-                }
+                Text("动作简单、无需器械，强度更容易控制。")
+                    .font(.caption)
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+            }
 
-                LazyVGrid(columns: movementColumns, spacing: DSTheme.Spacing.small) {
-                    ForEach(MovementOption.allCases) { movement in
-                        MovementOptionButton(
-                            movement: movement,
-                            isSelected: selectedMovement == movement
-                        ) {
-                            selectedMovement = movement
-                        }
+            LazyVGrid(columns: movementColumns, spacing: 10) {
+                ForEach(MovementOption.allCases) { movement in
+                    MovementOptionButton(
+                        movement: movement,
+                        isSelected: selectedMovement == movement
+                    ) {
+                        selectedMovement = movement
                     }
                 }
             }
         }
+        .padding(12)
+        .actionAdjustmentCardStyle()
     }
 
     private var customMovementCard: some View {
@@ -1742,31 +1961,40 @@ private struct AdjustmentReasonButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: reason.systemImage)
-                    .foregroundStyle(isSelected ? DSTheme.Color.primary : DSTheme.Color.textSecondary)
-                    .frame(width: 22)
+            ZStack(alignment: .bottomTrailing) {
+                HStack(spacing: 7) {
+                    Image(reason.assetName)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
+                        .foregroundStyle(isSelected ? DSTheme.Color.primary : Color(red: 0.47, green: 0.52, blue: 0.66))
 
-                Text(reason.rawValue)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(isSelected ? DSTheme.Color.primary : DSTheme.Color.textPrimary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.82)
+                    Text(reason.rawValue)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isSelected ? DSTheme.Color.primary : Color(red: 0.05, green: 0.14, blue: 0.46))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
 
-                Spacer(minLength: 0)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 9)
+                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
 
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.caption)
-                    .foregroundStyle(isSelected ? DSTheme.Color.primary : DSTheme.Color.border)
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                        .background(Circle().fill(.white))
+                        .offset(x: 4, y: 4)
+                }
             }
-            .padding(.horizontal, 11)
-            .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
-            .background(isSelected ? DSTheme.Color.primarySoft.opacity(0.55) : .white)
+            .background(isSelected ? Color(red: 0.93, green: 0.97, blue: 1.0) : .white)
             .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isSelected ? DSTheme.Color.primary : DSTheme.Color.border, lineWidth: 1.2)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .opacity(isDisabled ? 0.55 : 1)
         }
         .buttonStyle(.plain)
@@ -1781,47 +2009,71 @@ private struct MovementOptionButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 7) {
-                ZStack(alignment: .bottomTrailing) {
-                    Group {
-                        if let assetName = movement.artworkAssetName {
-                            Image(assetName)
-                                .resizable()
-                                .scaledToFit()
-                        } else {
-                            Image(systemName: movement.systemImage)
-                                .font(.system(size: 37, weight: .medium))
-                                .foregroundStyle(DSTheme.Color.primary)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(DSTheme.Color.primarySoft.opacity(0.55))
-                        }
-                    }
-                    .frame(height: 86)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            ZStack(alignment: .bottomTrailing) {
+                VStack(spacing: 0) {
+                    MovementOptionArtwork(movement: movement)
+                        .frame(height: 86)
+                        .frame(maxWidth: .infinity)
 
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(DSTheme.Color.primary)
-                            .background(Circle().fill(.white))
-                            .offset(x: 4, y: 4)
-                    }
+                    Text(movement.rawValue)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(isSelected ? DSTheme.Color.primary : Color(red: 0.05, green: 0.14, blue: 0.46))
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 3)
+                        .padding(.bottom, 8)
                 }
 
-                Text(movement.rawValue)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(isSelected ? DSTheme.Color.primary : DSTheme.Color.textPrimary)
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(DSTheme.Color.primary)
+                        .background(Circle().fill(.white))
+                        .offset(x: 5, y: 5)
+                }
             }
-            .padding(9)
-            .frame(maxWidth: .infinity)
-            .background(isSelected ? DSTheme.Color.primarySoft.opacity(0.45) : .white)
+            .frame(maxWidth: .infinity, minHeight: 122)
+            .background(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(isSelected ? DSTheme.Color.primary : DSTheme.Color.border, lineWidth: 1.2)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct MovementOptionArtwork: View {
+    let movement: MovementOption
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.97, green: 0.99, blue: 1.0),
+                    Color(red: 0.92, green: 0.96, blue: 1.0)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            if let assetName = movement.artworkAssetName {
+                Image(assetName)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(.horizontal, movement == .jogInPlace ? 34 : 14)
+                    .padding(.top, 8)
+                    .padding(.bottom, 2)
+            } else {
+                Image(systemName: movement.systemImage)
+                    .font(.system(size: 36, weight: .medium))
+                    .foregroundStyle(DSTheme.Color.primary)
+                    .frame(width: 64, height: 64)
+                    .background(DSTheme.Color.primarySoft.opacity(0.65))
+                    .clipShape(Circle())
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -1832,43 +2084,58 @@ private struct MovementAdjustmentSummary: View {
     let durationMinutes: Int
 
     var body: some View {
-        DSCard {
-            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                Label("调整后的行动", systemImage: "calendar.badge.checkmark")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(DSTheme.Color.primary)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("调整后的行动")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(DSTheme.Color.primary)
 
-                HStack(alignment: .top, spacing: 0) {
-                    summaryColumn(
-                        title: "开始时间",
-                        value: TodayActionItem.timeFormatter.string(from: startDate)
-                    )
+            HStack(alignment: .top, spacing: 0) {
+                summaryColumn(
+                    title: "开始时间",
+                    value: TodayActionItem.timeFormatter.string(from: startDate)
+                )
 
-                    Divider()
-                        .frame(height: 52)
+                Divider()
+                    .frame(height: 44)
 
-                    summaryColumn(title: "运动种类", value: movementName)
+                summaryColumn(title: "运动种类", value: movementName)
 
-                    Divider()
-                        .frame(height: 52)
+                Divider()
+                    .frame(height: 44)
 
-                    summaryColumn(title: "运动时长", value: "\(durationMinutes)分钟")
-                }
-
-                Text("原计划：\(originalItem.startTimeText)  |  \(originalItem.title)  |  \(originalItem.durationMinutes)分钟")
-                    .font(.caption)
-                    .foregroundStyle(DSTheme.Color.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .fixedSize(horizontal: false, vertical: true)
+                summaryColumn(title: "运动时长", value: "\(durationMinutes)分钟")
             }
+
+            Text("原计划：\(originalItem.startTimeText)  |  \(originalItem.title)  |  \(originalItem.durationMinutes)分钟")
+                .font(.caption)
+                .foregroundStyle(DSTheme.Color.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.90, green: 0.96, blue: 1.0),
+                    Color(red: 0.98, green: 0.995, blue: 1.0)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(red: 0.87, green: 0.92, blue: 0.99), lineWidth: 1)
+        }
+        .shadow(color: Color(red: 0.18, green: 0.39, blue: 0.82).opacity(0.08), radius: 14, x: 0, y: 7)
     }
 
     private func summaryColumn(title: String, value: String) -> some View {
         VStack(spacing: 5) {
             Text(title)
                 .font(.caption)
-                .foregroundStyle(DSTheme.Color.textSecondary)
+                .foregroundStyle(Color(red: 0.29, green: 0.39, blue: 0.58))
 
             Text(value)
                 .font(.headline.weight(.bold))
