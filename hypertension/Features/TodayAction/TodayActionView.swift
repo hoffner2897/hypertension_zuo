@@ -5,7 +5,7 @@ struct TodayActionView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Binding var items: [TodayActionItem]
     let userId: String
-    let onOpenBloodPressure: () -> Void
+    let onOpenBloodPressure: (Date?) -> Void
 
     @State private var path: [TodayActionRoute] = []
     @State private var activeMealItem: TodayActionItem?
@@ -22,7 +22,7 @@ struct TodayActionView: View {
     init(
         items: Binding<[TodayActionItem]>,
         userId: String,
-        onOpenBloodPressure: @escaping () -> Void = {}
+        onOpenBloodPressure: @escaping (Date?) -> Void = { _ in }
     ) {
         self._items = items
         self.userId = userId
@@ -222,7 +222,7 @@ struct TodayActionView: View {
                     if item.type == .diet {
                         activeMealItem = item
                     } else if item.type == .bpRecheck {
-                        onOpenBloodPressure()
+                        onOpenBloodPressure(item.scheduledStartAt)
                     } else if item.isCatalogExercise {
                         activeExerciseItem = item
                     } else {
@@ -437,7 +437,8 @@ struct ActionGenerateDemoView: View {
         ExerciseRecommendationEngine.recommendations(
             sceneTitle: scene,
             energyTitle: energy,
-            contextTitles: contexts
+            contextTitles: contexts,
+            limit: 6
         )
     }
 
@@ -606,8 +607,6 @@ struct ActionGenerateDemoView: View {
                     }
                 case .currentMovement:
                     CurrentMovementSheet(
-                        scene: scene,
-                        stateSummary: stateSummary,
                         isSafetyBlocked: isExerciseSafetyBlocked,
                         options: recommendedExercises,
                         exerciseId: $currentExerciseId,
@@ -1030,8 +1029,6 @@ private struct StatusSelectionSheet: View {
 }
 
 private struct CurrentMovementSheet: View {
-    let scene: String
-    let stateSummary: String
     let isSafetyBlocked: Bool
     let options: [LowBarrierExercise]
     @Binding var exerciseId: String
@@ -1044,28 +1041,24 @@ private struct CurrentMovementSheet: View {
         SheetContent {
             ActionSheetHeader(title: "当前运动选择", subtitle: "根据已选择场景为您匹配当前运动", onClose: onClose)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Label("当前位置：\(scene)", systemImage: "mappin.circle.fill")
-                Label("当前状态：\(stateSummary)", systemImage: "heart.circle.fill")
-                if isSafetyBlocked {
-                    Label("当前不生成运动：请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(DSTheme.Color.warning)
-                }
+            if isSafetyBlocked {
+                Label("当前不生成运动：请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSTheme.Color.warning)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(DSTheme.Spacing.medium)
+                    .background(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(DSTheme.Color.primary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(DSTheme.Spacing.medium)
-            .background(DSTheme.Color.primarySoft.opacity(0.82))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            SheetSectionTitle("为你推荐的 4 项运动", systemImage: "figure.walk.circle.fill")
+            SheetSectionTitle("为你推荐的 \(options.count) 项运动", systemImage: "figure.walk.circle.fill")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSTheme.Spacing.small) {
                 ForEach(options) { option in
                     ActionChoiceTile(
                         title: option.name,
                         subtitle: option.type.rawValue,
                         systemImage: option.systemImageName,
+                        assetImageName: option.assetImageName,
                         tint: option.type == .aerobic ? DSTheme.Color.primary : Color(red: 0.38, green: 0.52, blue: 0.78),
                         isSelected: exerciseId == option.id
                     ) {
@@ -1254,6 +1247,7 @@ private struct ActionChoiceTile: View {
     let title: String
     let subtitle: String
     let systemImage: String
+    var assetImageName: String? = nil
     let tint: Color
     let isSelected: Bool
     let action: () -> Void
@@ -1262,13 +1256,28 @@ private struct ActionChoiceTile: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                 ZStack(alignment: .topTrailing) {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(tint)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 74)
-                        .background(tint.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    ZStack {
+                        if assetImageName == nil {
+                            tint.opacity(0.12)
+                        } else {
+                            Color.white
+                        }
+
+                        if let assetImageName {
+                            Image(assetImageName)
+                                .resizable()
+                                .scaledToFit()
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                        } else {
+                            Image(systemName: systemImage)
+                                .font(.system(size: 34, weight: .semibold))
+                                .foregroundStyle(tint)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 74)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")

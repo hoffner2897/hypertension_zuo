@@ -12,6 +12,8 @@ struct BloodPressureHomeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     private let userId: String
+    private let preferredMeasurementDate: Date?
+    private let onBackToToday: (() -> Void)?
     @StateObject private var viewModel = BloodPressureHomeViewModel()
     @State private var path: [BloodPressureRoute] = []
     @State private var isInterpretationExpanded = false
@@ -19,8 +21,14 @@ struct BloodPressureHomeView: View {
     @State private var readingPendingDeletion: BloodPressureReading?
     @Query private var savedReadings: [BloodPressureReading]
 
-    init(userId: String = "") {
+    init(
+        userId: String = "",
+        preferredMeasurementDate: Date? = nil,
+        onBackToToday: (() -> Void)? = nil
+    ) {
         self.userId = userId
+        self.preferredMeasurementDate = preferredMeasurementDate
+        self.onBackToToday = onBackToToday
         _savedReadings = Query(
             filter: #Predicate<BloodPressureReading> { reading in
                 reading.userId == userId
@@ -138,7 +146,7 @@ struct BloodPressureHomeView: View {
 
                         #if DEBUG
                         Button {
-                            path.append(.confirmReading(Self.confirmReadingTestDraft))
+                            path.append(.confirmReading(draftWithPreferredMeasurementDate(Self.confirmReadingTestDraft)))
                         } label: {
                             HStack(spacing: DSTheme.Spacing.small) {
                                 Image(systemName: "testtube.2")
@@ -186,10 +194,10 @@ struct BloodPressureHomeView: View {
                 case .cameraUpload:
                     BPCameraUploadMockView(
                         onRecognized: { draft in
-                            path.append(.confirmReading(draft))
+                            path.append(.confirmReading(draftWithPreferredMeasurementDate(draft)))
                         },
                         onManualInput: { draft in
-                            path.append(.confirmReading(draft))
+                            path.append(.confirmReading(draftWithPreferredMeasurementDate(draft)))
                         }
                     )
                 case .confirmReading(let draft):
@@ -261,7 +269,11 @@ struct BloodPressureHomeView: View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
             HStack(alignment: .top) {
                 Button {
-                    dismiss()
+                    if let onBackToToday {
+                        onBackToToday()
+                    } else {
+                        dismiss()
+                    }
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.headline.weight(.bold))
@@ -272,21 +284,6 @@ struct BloodPressureHomeView: View {
                         .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
-
-                Spacer()
-
-                VStack(spacing: 4) {
-                    Image("TodayHeaderAvatar")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 42, height: 42)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(.white, lineWidth: 2))
-
-                    Text("小宁")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(DSTheme.Color.textPrimary)
-                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -692,6 +689,16 @@ struct BloodPressureHomeView: View {
                 repository: SwiftDataBloodPressureReadingRepository(modelContext: modelContext)
             )
         }
+    }
+
+    private func draftWithPreferredMeasurementDate(_ draft: BPReadingDraft) -> BPReadingDraft {
+        guard let preferredMeasurementDate else {
+            return draft
+        }
+
+        var updatedDraft = draft
+        updatedDraft.measuredAt = preferredMeasurementDate
+        return updatedDraft
     }
 
     private static let historyDateFormatter: DateFormatter = {

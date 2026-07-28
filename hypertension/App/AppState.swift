@@ -110,74 +110,31 @@ final class AppState: ObservableObject {
     }
 
     #if DEBUG
-    /// 仅供开发包使用：为当前设备自动创建或复用测试账号，
-    /// 用户无需走注册流程，但仍获得可用于同步与在线 AI 的真实服务端会话。
+    /// 仅供开发包使用：创建一个纯本地预览会话，方便无网络时查看 UI。
+    /// 这个入口不会注册账号、登录后端或保存 refresh token。
     func enterDebugTestSession() async {
-        errorMessage = nil
+        clearLocalSession()
 
-        let email = Self.debugTestEmail(for: deviceId)
-        let password = "BPHealthTest2026!"
-
-        do {
-            let response = try await debugAuthResponse(
-                email: email,
-                password: password
-            )
-            try persistSession(response)
-
-            if response.user.profileCompleted {
-                routeByUser(response.user)
-                return
-            }
-
-            let profileResponse = try await ProfileService().saveProfile(
-                displayName: "小宁",
-                birthYear: 1990,
-                sex: "prefer_not_to_say"
-            )
-            guard let profile = profileResponse.profile else {
-                throw APIClientError.unexpectedResponse
-            }
-
-            completeProfile(profile)
-            errorMessage = nil
-        } catch {
-            clearLocalSession()
-            routeState = .signedOut
-            errorMessage = localizedMessage(for: error)
-        }
+        let deviceToken = Self.debugDeviceToken(for: deviceId)
+        currentUser = AuthUser(
+            id: "local-preview-\(deviceToken)",
+            email: Self.debugTestEmail(for: deviceId),
+            emailVerified: true,
+            profileCompleted: true
+        )
+        routeState = .mainApp
+        APIClient.shared.accessToken = nil
     }
 
     static func debugTestEmail(for deviceId: String) -> String {
-        let deviceToken = deviceId
-            .lowercased()
-            .filter { $0.isLetter || $0.isNumber }
-        return "phone-ai-test-v2-\(deviceToken)@bphealth.local"
+        let deviceToken = debugDeviceToken(for: deviceId)
+        return "local-ui-preview-\(deviceToken)@bphealth.local"
     }
 
-    private func debugAuthResponse(email: String, password: String) async throws -> AuthResponse {
-        do {
-            return try await authService.login(
-                email: email,
-                password: password,
-                deviceId: deviceId
-            )
-        } catch APIClientError.server(let code, _) where code == "INVALID_CREDENTIALS" {
-            do {
-                return try await authService.register(
-                    email: email,
-                    password: password,
-                    deviceId: deviceId
-                )
-            } catch APIClientError.server(let registerCode, _) where registerCode == "EMAIL_ALREADY_REGISTERED" {
-                // 处理两台请求同时创建同一测试账号的极小概率竞争。
-                return try await authService.login(
-                    email: email,
-                    password: password,
-                    deviceId: deviceId
-                )
-            }
-        }
+    private static func debugDeviceToken(for deviceId: String) -> String {
+        deviceId
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
     }
     #endif
 

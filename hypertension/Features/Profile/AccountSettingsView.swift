@@ -7,19 +7,14 @@ struct AccountSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var appState: AppState
     @StateObject private var healthViewModel = HealthKitSummaryViewModel()
-    @State private var profile: UserProfile?
     @State private var showDeleteConfirmation = false
-    @State private var showEditProfile = false
     @State private var deletePassword = ""
     @State private var isDeleting = false
-    @State private var isLoadingProfile = false
     @State private var isEditingHealthData = false
     @State private var selectedHealthField: HealthDataField?
     #if DEBUG
     @State private var isShowingHealthConnectTest = false
     #endif
-
-    private let profileService = ProfileService()
 
     var body: some View {
         NavigationStack {
@@ -45,40 +40,6 @@ struct AccountSettingsView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-
-                        DSCard {
-                            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                                HStack {
-                                    Text("Profile")
-                                        .font(.headline)
-                                        .foregroundStyle(DSTheme.Color.textPrimary)
-
-                                    Spacer()
-
-                                    Button {
-                                        showEditProfile = true
-                                    } label: {
-                                        Image(systemName: "square.and.pencil")
-                                            .font(.headline)
-                                            .foregroundStyle(DSTheme.Color.primary)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("编辑 Profile")
-                                }
-
-                                if isLoadingProfile {
-                                    ProgressView()
-                                } else if let profile {
-                                    ProfileSummaryRow(title: "昵称", value: profile.displayName)
-                                    ProfileSummaryRow(title: "出生年份", value: "\(profile.birthYear)")
-                                    ProfileSummaryRow(title: "性别", value: displaySex(profile.sex))
-                                } else {
-                                    Text("暂时没有读取到 Profile。")
-                                        .font(.subheadline)
-                                        .foregroundStyle(DSTheme.Color.textSecondary)
-                                }
                             }
                         }
 
@@ -136,18 +97,12 @@ struct AccountSettingsView: View {
             .sheet(isPresented: $showDeleteConfirmation) {
                 deleteAccountSheet
             }
-            .sheet(isPresented: $showEditProfile) {
-                EditProfileSheet(profile: profile) { updatedProfile in
-                    profile = updatedProfile
-                    appState.completeProfile(updatedProfile)
-                }
-            }
             .sheet(isPresented: $isEditingHealthData) {
                 HealthDataEditorView(draft: healthViewModel.makeDraft()) { draft in
                     Task {
                         if await healthViewModel.saveManualData(draft) {
                             isEditingHealthData = false
-                            await loadProfile()
+                            await healthViewModel.refresh()
                         }
                     }
                 }
@@ -158,7 +113,7 @@ struct AccountSettingsView: View {
                     Task {
                         if await healthViewModel.saveManualData(draft) {
                             selectedHealthField = nil
-                            await loadProfile()
+                            await healthViewModel.refresh()
                         }
                     }
                 }
@@ -177,14 +132,12 @@ struct AccountSettingsView: View {
             }
             #endif
             .task {
-                await loadProfile()
                 await healthViewModel.refresh()
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
                 Task {
                     await healthViewModel.refresh()
-                    await loadProfile()
                 }
             }
         }
@@ -199,7 +152,7 @@ struct AccountSettingsView: View {
             onPrimary: {
                 Task {
                     await healthViewModel.primaryAction()
-                    await loadProfile()
+                    await healthViewModel.refresh()
                 }
             },
             secondaryTitle: "手动补充",
@@ -291,29 +244,6 @@ struct AccountSettingsView: View {
         isDeleting = false
     }
 
-    private func loadProfile() async {
-        isLoadingProfile = true
-        defer { isLoadingProfile = false }
-
-        do {
-            profile = try await profileService.fetchProfile().profile
-        } catch {
-            profile = nil
-        }
-    }
-
-    private func displaySex(_ sex: String) -> String {
-        switch sex {
-        case "female":
-            "女性"
-        case "male":
-            "男性"
-        case "other":
-            "其他"
-        default:
-            "不想说明"
-        }
-    }
 }
 
 struct ProfileSummaryRow: View {

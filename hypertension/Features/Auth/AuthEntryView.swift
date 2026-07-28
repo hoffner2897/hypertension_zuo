@@ -97,7 +97,7 @@ struct AuthEntryView: View {
                         .disabled(isLoading || isPreparingTestSession)
                         .accessibilityIdentifier("auth.healthConnectPreviewButton")
 
-                        Text("仅开发包显示。连接测试后端，可直接使用账号同步与在线 AI。")
+                        Text("仅开发包显示。纯本地预览 UI，不连接测试后端或在线 AI。")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(DSTheme.Color.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .center)

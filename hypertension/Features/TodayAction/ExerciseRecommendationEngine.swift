@@ -140,7 +140,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果只能说几个词，请放慢踏步速度。",
             systemImageName: "figure.highintensity.intervaltraining",
-            assetImageName: "TodayCardJogInPlace",
+            assetImageName: "ExerciseMarchInPlace",
             energyTier: .medium,
             scores: scores(1, 3, 3, -1, -1),
             order: 0
@@ -157,6 +157,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "动作时保持呼吸，并能说出简短句子。如果需要憋气、动作变形或无法平稳说话，请减少次数或降低速度。",
             systemImageName: "figure.stand",
+            assetImageName: "ExerciseSitToStand",
             energyTier: .medium,
             scores: scores(-1, 3, -1, -1, -1),
             order: 1
@@ -173,6 +174,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "动作过程中应能正常呼吸并说出简短句子。如果必须憋气才能推回，请更靠近墙面站立或减少次数。",
             systemImageName: "figure.strengthtraining.traditional",
+            assetImageName: "ExerciseWallPushUp",
             energyTier: .medium,
             scores: scores(-1, 1, -1, -1, -1),
             order: 2
@@ -189,6 +191,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "采用浅角度、短时间保持，并在每次保持后充分休息；全程正常呼吸。如果出现憋气、明显发抖、头晕或无法说出短句，请立即站起休息。不要把它设计成连续 10–20 分钟的保持动作。",
             systemImageName: "figure.strengthtraining.functional",
+            assetImageName: "ExerciseWallSit",
             energyTier: .high,
             scores: scores(-3, -1, -3, -3, -3),
             order: 3
@@ -205,6 +208,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果腰背紧张、身体明显后仰或只能说几个词，请降低抬膝高度并放慢节奏。",
             systemImageName: "figure.cooldown",
+            assetImageName: "ExerciseSeatedAlternatingKneeLift",
             energyTier: .low,
             scores: scores(1, 3, 1, 3, 1),
             order: 4
@@ -221,6 +225,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "动作时保持自然呼吸，并能说出简短句子。如果需要后仰借力、膝部疼痛或无法控制小腿缓慢落下，请减小伸直幅度或减少次数。",
             systemImageName: "figure.flexibility",
+            assetImageName: "ExerciseSeatedKneeExtension",
             energyTier: .low,
             scores: scores(-1, 3, 1, 3, 1),
             order: 5
@@ -238,7 +243,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果无法连续说完一句话，请主动放慢。",
             systemImageName: "figure.walk",
-            assetImageName: "TodayCardWalk",
+            assetImageName: "ExerciseSlowWalk",
             energyTier: .low,
             scores: scores(3, 3, 3, 3, 3),
             order: 6
@@ -255,7 +260,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果只能说几个词，请减慢节奏或暂停。",
             systemImageName: "figure.highintensity.intervaltraining",
-            assetImageName: "TodayCardJogInPlace",
+            assetImageName: "ExerciseMarchInPlace",
             energyTier: .medium,
             scores: scores(1, 3, 3, -1, -1),
             order: 7
@@ -272,6 +277,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果说话开始断断续续，请减小步幅或放慢速度。",
             systemImageName: "figure.cross.training",
+            assetImageName: "ExerciseSideStep",
             energyTier: .medium,
             scores: scores(1, 3, 3, -1, -1),
             order: 8
@@ -288,6 +294,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "动作时保持自然呼吸，并能说出简短句子。如果需要憋气、身体明显晃动或小腿抽痛，请减少次数并休息。",
             systemImageName: "figure.stand",
+            assetImageName: "ExerciseCalfRaise",
             energyTier: .low,
             scores: scores(-1, 3, 1, 3, 1),
             order: 9
@@ -304,6 +311,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果脚步变乱、身体摇晃或说话断断续续，请缩小点步距离并放慢节奏。",
             systemImageName: "figure.dance",
+            assetImageName: "ExerciseForwardBackTap",
             energyTier: .medium,
             scores: scores(1, 3, 3, 1, 1),
             order: 10
@@ -320,6 +328,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "动作时保持自然呼吸，并能说出简短句子。如果身体明显倾斜、髋部不适或无法缓慢落腿，请减小抬腿幅度或减少次数。",
             systemImageName: "figure.flexibility",
+            assetImageName: "ExerciseSupportedSideLegRaise",
             energyTier: .low,
             scores: scores(-1, 3, 1, 3, 1),
             order: 11
@@ -337,7 +346,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果只能说几个词，请立即放慢。",
             systemImageName: "figure.walk",
-            assetImageName: "TodayCardWalk",
+            assetImageName: "ExerciseSlowWalk",
             energyTier: .low,
             scores: scores(3, 3, 3, 3, 3),
             order: 12
@@ -354,7 +363,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "可以完整说话，但不能轻松唱歌。如果说一句话需要多次换气，说明强度过高，应降低速度。",
             systemImageName: "figure.walk.motion",
-            assetImageName: "TodayCardWalk",
+            assetImageName: "ExerciseModerateBriskWalk",
             energyTier: .high,
             scores: scores(1, 1, 3, -3, -3),
             order: 13
@@ -371,6 +380,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果无法保持连续交谈，请缩小步幅或放慢。",
             systemImageName: "figure.cross.training",
+            assetImageName: "ExerciseSideStep",
             energyTier: .medium,
             scores: scores(1, 3, 3, -1, -1),
             order: 14
@@ -387,6 +397,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果只能说几个词，请减慢动作或暂时不抬手臂。",
             systemImageName: "figure.mixed.cardio",
+            assetImageName: "ExerciseStepJack",
             energyTier: .high,
             scores: scores(-1, 3, 3, -3, -3),
             order: 15
@@ -403,6 +414,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "呼吸稍快，但仍能完整说话，不能轻松唱歌。如果身体摇晃、脚步变乱或只能说几个词，请缩小动作范围并放慢。",
             systemImageName: "figure.dance",
+            assetImageName: "ExerciseForwardBackTap",
             energyTier: .medium,
             scores: scores(1, 3, 3, 1, 1),
             order: 16
@@ -419,6 +431,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "可以完整说话，但不能轻松唱歌。如果说话需要多次换气、膝部不适或上下台阶不稳，请降低速度、改用更低台阶或停止。",
             systemImageName: "figure.stairs",
+            assetImageName: "ExerciseLowStepUp",
             energyTier: .high,
             scores: scores(-3, 1, 1, -3, -3),
             order: 17
@@ -436,7 +449,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "可以完整说话，但不能轻松唱歌。如果无法连续说完一句话，请降低速度。",
             systemImageName: "figure.walk.motion",
-            assetImageName: "TodayCardWalk",
+            assetImageName: "ExerciseModerateBriskWalk",
             energyTier: .high,
             scores: scores(1, 1, 3, -3, -3),
             order: 18
@@ -453,6 +466,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "动作过程中应能正常呼吸并说出简短句子。如果需要憋气、膝盖不适或无法稳定站起，请减小下蹲幅度。",
             systemImageName: "figure.squat",
+            assetImageName: "ExerciseShallowSquat",
             energyTier: .medium,
             scores: scores(-1, 3, -1, -1, -1),
             order: 19
@@ -469,6 +483,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "动作时保持呼吸，并能说出简短句子。如果需要屏住呼吸才能完成，请靠近墙面或减少次数。",
             systemImageName: "figure.strengthtraining.traditional",
+            assetImageName: "ExerciseWallPushUp",
             energyTier: .medium,
             scores: scores(-1, 1, -1, 1, 1),
             order: 20
@@ -485,6 +500,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "采用浅角度、短时间保持，并在每次保持后充分休息；全程正常呼吸。如果无法说出短句、明显憋气、头晕或腿部剧烈发抖，请立即结束。不要把它设计成连续 10–20 分钟的保持动作。",
             systemImageName: "figure.strengthtraining.functional",
+            assetImageName: "ExerciseWallSit",
             energyTier: .high,
             scores: scores(-3, -1, -3, -3, -3),
             order: 21
@@ -501,6 +517,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "动作时保持自然呼吸，并能说出简短句子。如果腰部代偿、身体晃动或髋部不适，请减小抬腿幅度或减少次数。",
             systemImageName: "figure.flexibility",
+            assetImageName: "ExerciseSupportedBackLegRaise",
             energyTier: .low,
             scores: scores(-1, 3, 1, 3, 1),
             order: 22
@@ -517,6 +534,7 @@ enum LowBarrierExerciseCatalog {
             """,
             intensityAdvice: "可以完整说话，但不能轻松唱歌。如果无法连续说完一句话、膝部不适或动作不稳，请降低速度、换更低台阶或停止。",
             systemImageName: "figure.stairs",
+            assetImageName: "ExerciseLowStepUp",
             energyTier: .high,
             scores: scores(-3, 1, 1, -3, -3),
             order: 23

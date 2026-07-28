@@ -11,13 +11,15 @@ struct MainTabView: View {
     @EnvironmentObject private var appState: AppState
     @State private var selectedTab: MainTab = .today
     @State private var todayActionItems = TodayActionItem.demoItems()
+    @State private var preferredBloodPressureMeasuredAt: Date?
 
     var body: some View {
         TabView(selection: $selectedTab) {
             TodayActionView(
                 items: $todayActionItems,
                 userId: appState.currentUser?.id ?? "",
-                onOpenBloodPressure: {
+                onOpenBloodPressure: { measuredAt in
+                    preferredBloodPressureMeasuredAt = measuredAt
                     selectedTab = .bloodPressure
                 }
             )
@@ -26,7 +28,14 @@ struct MainTabView: View {
             }
             .tag(MainTab.today)
 
-            BloodPressureHomeView(userId: appState.currentUser?.id ?? "")
+            BloodPressureHomeView(
+                userId: appState.currentUser?.id ?? "",
+                preferredMeasurementDate: preferredBloodPressureMeasuredAt ?? morningBloodPressureMeasuredAt,
+                onBackToToday: {
+                    preferredBloodPressureMeasuredAt = nil
+                    selectedTab = .today
+                }
+            )
             .tabItem {
                 tabLabel("血压读数", imageName: "TabBloodPressure")
             }
@@ -54,6 +63,17 @@ struct MainTabView: View {
             .tag(MainTab.actionAdjust)
         }
         .tint(DSTheme.Color.primary)
+        .onChange(of: selectedTab) { _, tab in
+            if tab != .bloodPressure {
+                preferredBloodPressureMeasuredAt = nil
+            }
+        }
+    }
+
+    private var morningBloodPressureMeasuredAt: Date? {
+        todayActionItems.first {
+            $0.type == .bpRecheck && $0.title.contains("早晨")
+        }?.scheduledStartAt
     }
 
     private func tabLabel(_ title: String, imageName: String) -> some View {

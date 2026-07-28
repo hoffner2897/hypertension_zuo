@@ -54,7 +54,7 @@ struct hypertensionTests {
         let second = AppState.debugTestEmail(for: "a1b2c3d4")
         let anotherDevice = AppState.debugTestEmail(for: "E5F6-G7H8")
 
-        #expect(first == "phone-ai-test-v2-a1b2c3d4@bphealth.local")
+        #expect(first == "local-ui-preview-a1b2c3d4@bphealth.local")
         #expect(second == first)
         #expect(anotherDevice != first)
     }

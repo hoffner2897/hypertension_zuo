@@ -101,25 +101,6 @@ struct ActionAdjustDemoView: View {
     private var header: some View {
         HStack(alignment: .top) {
             AdjustmentPageTitle()
-
-            Spacer()
-
-            VStack(spacing: 4) {
-                Image("TodayHeaderAvatar")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 42, height: 42)
-                    .clipShape(Circle())
-                    .overlay(
-                        Circle()
-                            .stroke(.white, lineWidth: 2)
-                    )
-                    .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
-
-                Text("小宁")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-            }
         }
     }
 
@@ -1206,23 +1187,6 @@ private struct AdjustmentDetailHeader: View {
                 }
 
                 Spacer()
-
-                VStack(spacing: 4) {
-                    Image("TodayHeaderAvatar")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 42, height: 42)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(.white, lineWidth: 2)
-                        )
-                        .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
-
-                    Text("小宁")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-                }
             }
         }
     }
@@ -1441,11 +1405,13 @@ private enum MovementOption: String, CaseIterable, Identifiable, Hashable {
     var artworkAssetName: String? {
         switch self {
         case .slowWalk:
-            "TodayCardWalk"
+            "ExerciseSlowWalk"
         case .jogInPlace:
-            "TodayCardJogInPlace"
-        case .calfRaise, .wallPushUp:
-            nil
+            "ExerciseMarchInPlace"
+        case .calfRaise:
+            "ExerciseCalfRaise"
+        case .wallPushUp:
+            "ExerciseWallPushUp"
         }
     }
 
@@ -1556,6 +1522,10 @@ private struct MovementAdjustmentEditor: View {
 
     private var usesCustomMovement: Bool {
         selectedReasons.contains(.otherExercise)
+    }
+
+    private func isReasonDisabled(_ reason: MovementAdjustmentReason) -> Bool {
+        isLocked || (selectedReasons.contains(.otherExercise) && (reason == .energy || reason == .scene))
     }
 
     private var trimmedCustomMovementName: String {
@@ -1745,7 +1715,7 @@ private struct MovementAdjustmentEditor: View {
                     AdjustmentReasonButton(
                         reason: reason,
                         isSelected: selectedReasons.contains(reason),
-                        isDisabled: isLocked
+                        isDisabled: isReasonDisabled(reason)
                     ) {
                         toggle(reason)
                     }
@@ -1899,10 +1869,18 @@ private struct MovementAdjustmentEditor: View {
     }
 
     private func toggle(_ reason: MovementAdjustmentReason) {
+        guard !isReasonDisabled(reason) else {
+            return
+        }
+
         if selectedReasons.contains(reason) {
             selectedReasons.remove(reason)
         } else {
             selectedReasons.insert(reason)
+            if reason == .otherExercise {
+                selectedReasons.remove(.energy)
+                selectedReasons.remove(.scene)
+            }
         }
     }
 

@@ -12,6 +12,7 @@ struct ExerciseRecommendationEngineTests {
             #expect(exercises.count == 6)
             #expect(exercises.allSatisfy { !$0.movementAdvice.isEmpty })
             #expect(exercises.allSatisfy { !$0.intensityAdvice.isEmpty })
+            #expect(exercises.allSatisfy { $0.assetImageName != nil })
             #expect(exercises.allSatisfy { $0.movementAdviceSteps.count == 3 })
         }
     }
