@@ -55,6 +55,48 @@ BPHEALTH_STAGING_URL=https://bphealth-api-staging.onrender.com \
 npm run test:staging
 ```
 
+## Staging
+
+Use staging for TestFlight builds before production users exist. It should use hosted PostgreSQL and production-like secrets, but it can keep `BP_RECOGNITION_MODE=mock` while you are only testing the app flow.
+
+Start from `server/.env.staging.example` and set these values in Render or your hosting provider:
+
+- `BPHEALTH_ENV=staging`
+- `NODE_ENV=production`
+- `DATABASE_URL`: hosted staging PostgreSQL, not local Docker.
+- `ACCESS_TOKEN_SECRET`: strong random value, for example from `openssl rand -base64 48`.
+- `EMAIL_VERIFICATION_BASE_URL`: public HTTPS staging URL.
+- `BP_RECOGNITION_MODE`: `mock` for flow testing, `openai` for real image recognition.
+- `OPENAI_API_KEY`: required only when `BP_RECOGNITION_MODE=openai`.
+
+Before or after deployment, validate the environment:
+
+```bash
+npm run check:staging-env
+```
+
+Deploy database migrations with the production-safe Prisma command:
+
+```bash
+npm run db:deploy
+```
+
+The service should start with:
+
+```bash
+npm run build
+npm run start:staging
+```
+
+Confirm the deployed API:
+
+```bash
+curl https://bphealth-api-staging.onrender.com/health
+RUN_BPHEALTH_STAGING_E2E=1 \
+BPHEALTH_STAGING_URL=https://bphealth-api-staging.onrender.com \
+npm run test:staging
+```
+
 ## Recognition And Interpretation Modes
 
 Use mock recognition first:

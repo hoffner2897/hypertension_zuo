@@ -50,12 +50,13 @@ export function loadEnvFile(path = resolve(process.cwd(), ".env")): void {
 export function loadConfig(): ServerConfig {
   loadEnvFile();
 
-  const mode = process.env.BP_RECOGNITION_MODE ?? "mock";
-  if (mode !== "mock" && mode !== "openai") {
+  const modeInput = process.env.BP_RECOGNITION_MODE ?? "mock";
+  const mode: RecognitionMode = modeInput === "openai" ? "openai" : "mock";
+  if (modeInput !== "mock" && modeInput !== "openai") {
     throw new Error("BP_RECOGNITION_MODE must be either 'mock' or 'openai'.");
   }
 
-  return {
+  const config = {
     port: Number(process.env.PORT ?? 3000),
     recognitionMode: mode,
     openAIAPIKey: process.env.OPENAI_API_KEY,
@@ -71,6 +72,9 @@ export function loadConfig(): ServerConfig {
     emailVerificationTTLHours: Number(process.env.EMAIL_VERIFICATION_TTL_HOURS ?? 24),
     emailVerificationBaseURL: process.env.EMAIL_VERIFICATION_BASE_URL ?? "http://localhost:3000/auth/verify-email"
   };
+
+  validateDeploymentConfig(config);
+  return config;
 }
 
 function positiveIntegerEnv(name: string, fallback: number): number {
@@ -79,4 +83,83 @@ function positiveIntegerEnv(name: string, fallback: number): number {
     throw new Error(`${name} must be a positive integer.`);
   }
   return value;
+}
+
+export function validateDeploymentConfig(
+  config: ServerConfig,
+  env: NodeJS.ProcessEnv = process.env
+): void {
+  if (!isProductionLikeEnv(env)) {
+    return;
+  }
+
+  if (isPlaceholderSecret(config.accessTokenSecret)) {
+    throw new Error("ACCESS_TOKEN_SECRET must be set to a strong non-development value for staging/production.");
+  }
+
+  const databaseURL = env.DATABASE_URL;
+  if (!databaseURL) {
+    throw new Error("DATABASE_URL is required for staging/production.");
+  }
+
+  assertNonLocalURL(databaseURL, "DATABASE_URL");
+  assertPublicHTTPSURL(config.emailVerificationBaseURL, "EMAIL_VERIFICATION_BASE_URL");
+
+  if (config.recognitionMode === "openai" && isPlaceholderValue(config.openAIAPIKey)) {
+    throw new Error("OPENAI_API_KEY is required when BP_RECOGNITION_MODE=openai.");
+  }
+}
+
+export function isProductionLikeEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV === "production" || env.BPHEALTH_ENV === "staging" || env.BPHEALTH_ENV === "production";
+}
+
+function isPlaceholderSecret(value: string | undefined): boolean {
+  if (!value || isPlaceholderValue(value)) {
+    return true;
+  }
+
+  return value === "dev-only-change-me-access-token-secret" || value.length < 32;
+}
+
+function isPlaceholderValue(value: string | undefined): boolean {
+  if (!value) {
+    return true;
+  }
+
+  const normalized = value.toLowerCase();
+  return normalized.includes("dev-only")
+    || normalized.includes("change-me")
+    || normalized.includes("your_")
+    || normalized.includes("placeholder");
+}
+
+function assertNonLocalURL(value: string, name: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid URL for staging/production.`);
+  }
+
+  if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
+    throw new Error(`${name} must not point at a local database for staging/production.`);
+  }
+}
+
+function assertPublicHTTPSURL(value: string, name: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid URL for staging/production.`);
+  }
+
+  if (url.protocol !== "https:") {
+    throw new Error(`${name} must use HTTPS for staging/production.`);
+  }
+
+  if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
+    throw new Error(`${name} must not point at localhost for staging/production.`);
+  }
 }
