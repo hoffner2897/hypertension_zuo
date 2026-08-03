@@ -1,1 +1,2 @@
 "NSHealthShareUsageDescription" = "BPHealth reads age, sex, height, weight, steps, exercise, resting heart rate, and sleep from Apple Health to personalize health context and sync it to your BPHealth profile.";
+"NSHealthUpdateUsageDescription" = "BPHealth may save blood pressure readings that you have reviewed and explicitly confirmed to Apple Health so you can keep your health records together.";

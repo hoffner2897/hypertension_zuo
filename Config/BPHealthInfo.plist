@@ -22,19 +22,14 @@
 	<string>$(BPHEALTH_API_BASE_URL)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>BPHealth uses the camera to capture blood pressure monitor readings and meal photos for analysis.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>BPHealth reads age, sex, height, weight, steps, exercise, resting heart rate, and sleep from Apple Health to personalize health context and sync it to your BPHealth profile.</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>BPHealth connects to your local development server for sign in during testing.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>BPHealth may save blood pressure readings that you have reviewed and explicitly confirmed to Apple Health so you can keep your health records together.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -47,13 +42,6 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
