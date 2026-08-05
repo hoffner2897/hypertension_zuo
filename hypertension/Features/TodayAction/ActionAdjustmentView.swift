@@ -335,69 +335,111 @@ private struct AdjustmentEntryRow: View {
     let onAdjust: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            AdjustmentArtwork(assetName: entry.artworkAssetName, fallbackSystemImage: entry.systemImage)
-                .frame(width: 72, height: 72)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(entry.title)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-                    .lineLimit(1)
-
-                HStack(spacing: 5) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.36, green: 0.52, blue: 0.82))
-
-                    Text(entry.scheduleText)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(DSTheme.Color.textSecondary)
-                        .lineLimit(2)
-                }
-            }
-            .layoutPriority(1)
-
-            Spacer(minLength: 0)
-
-            if entry.hasAdjustableItems {
-                HStack(spacing: 8) {
-                    Text("可调整")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(DSTheme.Color.success)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color(red: 0.89, green: 0.98, blue: 0.91))
-                        .clipShape(Capsule())
-
-                    Button(action: onAdjust) {
-                        HStack(spacing: 5) {
-                            Text("调整")
-                            Image(systemName: "chevron.right")
-                        }
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(DSTheme.Color.primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .overlay {
-                            Capsule()
-                                .stroke(DSTheme.Color.primary.opacity(0.65), lineWidth: 1)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            } else {
-                Text("已完成")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(DSTheme.Color.textSecondary)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 6)
-                    .background(DSTheme.Color.border.opacity(0.55))
-                    .clipShape(Capsule())
-            }
+        ViewThatFits(in: .horizontal) {
+            regularLayout
+            compactLayout
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+    }
+
+    private var regularLayout: some View {
+        HStack(spacing: 10) {
+            artwork(size: 72)
+
+            informationBlock
+                .frame(minWidth: 104, maxWidth: .infinity, alignment: .leading)
+
+            actionControls
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(2)
+        }
+    }
+
+    private var compactLayout: some View {
+        HStack(alignment: .top, spacing: 10) {
+            artwork(size: 64)
+
+            VStack(alignment: .leading, spacing: 9) {
+                informationBlock
+
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+
+                    actionControls
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+        }
+    }
+
+    private func artwork(size: CGFloat) -> some View {
+        AdjustmentArtwork(assetName: entry.artworkAssetName, fallbackSystemImage: entry.systemImage)
+            .frame(width: size, height: size)
+    }
+
+    private var informationBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(entry.title)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Image(systemName: "clock")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.36, green: 0.52, blue: 0.82))
+
+                Text(entry.scheduleText)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionControls: some View {
+        if entry.hasAdjustableItems {
+            HStack(spacing: 8) {
+                Text("可调整")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(DSTheme.Color.success)
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color(red: 0.89, green: 0.98, blue: 0.91))
+                    .clipShape(Capsule())
+
+                Button(action: onAdjust) {
+                    HStack(spacing: 5) {
+                        Text("调整")
+                            .lineLimit(1)
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(DSTheme.Color.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .overlay {
+                        Capsule()
+                            .stroke(DSTheme.Color.primary.opacity(0.65), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        } else {
+            Text("已完成")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(DSTheme.Color.textSecondary)
+                .lineLimit(1)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6)
+                .background(DSTheme.Color.border.opacity(0.55))
+                .clipShape(Capsule())
+        }
     }
 }
 

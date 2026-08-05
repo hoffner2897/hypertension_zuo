@@ -1549,7 +1549,10 @@ private struct TodayTreeTimelineView: View {
                     TimeBubble(text: item.startTimeText, tint: item.timelineTimeTint)
                         .position(x: axisX, y: y)
 
-                    DesignActionCard(item: item)
+                    DesignActionCard(
+                        item: item,
+                        usesCompactHeader: cardWidth < 145
+                    )
                         .frame(width: cardWidth)
                         .position(x: cardX, y: y)
                         .onTapGesture {
@@ -1676,29 +1679,11 @@ private struct TimelineLaneHeader: View {
 
 private struct DesignActionCard: View {
     let item: TodayActionItem
+    let usesCompactHeader: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 6) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(item.title)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.72)
-
-                    Text(item.timelineSubtitle)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                }
-
-                Spacer(minLength: 0)
-
-                TimelineActionArtwork(item: item)
-                    .frame(width: item.type == .diet ? 58 : 54, height: item.type == .diet ? 54 : 58)
-            }
+            cardHeader
 
             statusPill
 
@@ -1733,6 +1718,60 @@ private struct DesignActionCard: View {
         .background(.white.opacity(0.93))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+    }
+
+    @ViewBuilder
+    private var cardHeader: some View {
+        if usesCompactHeader {
+            VStack(alignment: .leading, spacing: 4) {
+                titleText
+
+                HStack(alignment: .center, spacing: 4) {
+                    subtitleText
+
+                    Spacer(minLength: 2)
+
+                    TimelineActionArtwork(item: item)
+                        .frame(
+                            width: item.type == .diet ? 46 : 44,
+                            height: item.type == .diet ? 44 : 48
+                        )
+                }
+            }
+        } else {
+            HStack(alignment: .top, spacing: 6) {
+                VStack(alignment: .leading, spacing: 5) {
+                    titleText
+                    subtitleText
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: 0)
+
+                TimelineActionArtwork(item: item)
+                    .frame(
+                        width: item.type == .diet ? 58 : 54,
+                        height: item.type == .diet ? 54 : 58
+                    )
+            }
+        }
+    }
+
+    private var titleText: some View {
+        Text(item.title)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
+            .lineLimit(2)
+            .minimumScaleFactor(0.82)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var subtitleText: some View {
+        Text(item.timelineSubtitle)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
     }
 
     private var statusPill: some View {
