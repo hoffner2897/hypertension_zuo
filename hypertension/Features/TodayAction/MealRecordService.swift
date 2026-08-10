@@ -25,6 +25,11 @@ struct MealRecord: Decodable, Identifiable, Equatable {
     let mealDate: String
     let analysis: String
     let similarSuggestion: String
+    let recognition: String?
+    let dietaryStructureAnalysis: String?
+    let cookingMethodAnalysis: String?
+    let dietaryStructureSuggestion: String?
+    let cookingMethodSuggestion: String?
     let cardSummary: String
     let recordedAt: String
     let createdAt: String

@@ -125,19 +125,6 @@ struct BPCameraUploadMockView: View {
                 .buttonStyle(.plain)
 
                 Spacer()
-
-                VStack(spacing: 4) {
-                    Image("TodayHeaderAvatar")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 42, height: 42)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(.white, lineWidth: 2))
-
-                    Text("小宁")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(DSTheme.Color.textPrimary)
-                }
             }
 
             VStack(alignment: .leading, spacing: 8) {

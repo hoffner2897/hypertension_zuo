@@ -130,7 +130,7 @@ struct BPReadingNormalView: View {
             .padding(.bottom, -1)
 
             VStack(spacing: 14) {
-                Text("今天的读数")
+                Text("最近的读数")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color(red: 0.07, green: 0.65, blue: 0.28))
                     .padding(.horizontal, 18)

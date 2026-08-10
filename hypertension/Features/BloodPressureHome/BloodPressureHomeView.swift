@@ -42,10 +42,6 @@ struct BloodPressureHomeView: View {
         savedReadings.first
     }
 
-    private var todayReading: BloodPressureReading? {
-        savedReadings.first { Calendar.current.isDateInToday($0.measuredAt) }
-    }
-
     private var trendPoints: [BloodPressureTrendPoint] {
         viewModel.trendPoints(from: savedReadings)
     }
@@ -88,6 +84,8 @@ struct BloodPressureHomeView: View {
                         readingHeader
 
                         recentMeasurementCard
+
+                        interpretationCard
 
                         if let syncStatusMessage = viewModel.syncStatusMessage {
                             DSCard {
@@ -302,7 +300,7 @@ struct BloodPressureHomeView: View {
     private var recentMeasurementCard: some View {
         DSCard(padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("今天的读数")
+                Text("最近的读数")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
@@ -314,7 +312,7 @@ struct BloodPressureHomeView: View {
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        if let reading = todayReading {
+                        if let reading = latestReading {
                             Text("\(reading.systolic) / \(reading.diastolic)")
                                 .font(.system(size: 30, weight: .bold, design: .rounded))
                                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
@@ -331,7 +329,7 @@ struct BloodPressureHomeView: View {
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                             }
                         } else {
-                            Text("今天还没有读数")
+                            Text("还没有读数")
                                 .font(.title3.weight(.bold))
                                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -526,10 +524,17 @@ struct BloodPressureHomeView: View {
     private var trendCard: some View {
         DSCard(padding: 14) {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("最近 7 天趋势")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("最近 7 天趋势")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
+
+                        Text("每日取当日血压测量的平均值，呈现趋势分析")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(DSTheme.Color.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     Spacer()
 

@@ -4,10 +4,11 @@ import UIKit
 
 struct MealRecordSheet: View {
     let item: TodayActionItem
+    let userId: String
     let existingRecord: MealRecord?
     let onSaved: (MealRecord) -> Void
+    let onClose: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
     @State private var record: MealRecord?
     @State private var selectedImage: UIImage?
     @State private var selectedImageData: Data?
@@ -18,11 +19,20 @@ struct MealRecordSheet: View {
     @State private var errorMessage: String?
 
     private let service = MealRecordService()
+    private let photoStore = MealPhotoStore.shared
 
-    init(item: TodayActionItem, existingRecord: MealRecord?, onSaved: @escaping (MealRecord) -> Void) {
+    init(
+        item: TodayActionItem,
+        userId: String,
+        existingRecord: MealRecord?,
+        onSaved: @escaping (MealRecord) -> Void,
+        onClose: @escaping () -> Void
+    ) {
         self.item = item
+        self.userId = userId
         self.existingRecord = existingRecord
         self.onSaved = onSaved
+        self.onClose = onClose
         _record = State(initialValue: existingRecord)
     }
 
@@ -68,6 +78,9 @@ struct MealRecordSheet: View {
         .onChange(of: selectedPhotoItem) { _, item in
             Task { await loadPhoto(item) }
         }
+        .task(id: existingRecord?.updatedAt) {
+            loadLocallyStoredPhotoIfAvailable()
+        }
         .sheet(isPresented: $isShowingCamera) {
             MealCameraCaptureView { image in
                 setImage(image)
@@ -85,14 +98,17 @@ struct MealRecordSheet: View {
             Spacer()
 
             Button {
-                dismiss()
+                onClose()
             } label: {
                 Image(systemName: "xmark")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textPrimary)
                     .frame(width: 44, height: 44)
             }
+            .contentShape(Rectangle())
+            .zIndex(1)
             .accessibilityLabel("关闭")
+            .accessibilityIdentifier("meal.closeButton")
         }
     }
 
@@ -149,9 +165,59 @@ struct MealRecordSheet: View {
     @ViewBuilder
     private var resultSections: some View {
         if let record {
-            resultBox(title: "AI分析", text: record.analysis)
-            resultBox(title: "类似建议", text: record.similarSuggestion)
+            if let recognition = record.recognition,
+               let dietaryStructure = record.dietaryStructureAnalysis,
+               let cookingMethod = record.cookingMethodAnalysis,
+               let dietarySuggestion = record.dietaryStructureSuggestion,
+               let cookingSuggestion = record.cookingMethodSuggestion {
+                structuredResultBox(
+                    title: "AI分析",
+                    sections: [
+                        ("识别", recognition),
+                        ("饮食结构", dietaryStructure),
+                        ("烹饪方式", cookingMethod)
+                    ]
+                )
+                structuredResultBox(
+                    title: "类似建议",
+                    sections: [
+                        ("饮食结构", dietarySuggestion),
+                        ("烹饪方式", cookingSuggestion)
+                    ]
+                )
+            } else {
+                resultBox(title: "AI分析", text: record.analysis)
+                resultBox(title: "类似建议", text: record.similarSuggestion)
+            }
         }
+    }
+
+    private func structuredResultBox(title: String, sections: [(String, String)]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
+
+            ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(section.0)
+                        .font(.headline)
+                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
+                    Text(section.1)
+                        .font(.body)
+                        .foregroundStyle(DSTheme.Color.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if index < sections.count - 1 {
+                    Divider().overlay(DSTheme.Color.border.opacity(0.7))
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.88, green: 0.94, blue: 1.0))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func resultBox(title: String, text: String) -> some View {
@@ -249,10 +315,31 @@ struct MealRecordSheet: View {
             let savedRecord = try await service.analyze(imageData: selectedImageData, mealType: mealKind)
             record = savedRecord
             isReplacing = false
+            do {
+                try photoStore.save(
+                    selectedImageData,
+                    userId: userId,
+                    recordId: savedRecord.id,
+                    recordVersion: savedRecord.updatedAt
+                )
+            } catch {
+                errorMessage = "分析结果已保存，但照片未能保存在本机。"
+            }
             onSaved(savedRecord)
         } catch {
             errorMessage = mealAnalysisErrorMessage(error)
         }
+    }
+
+    private func loadLocallyStoredPhotoIfAvailable() {
+        guard selectedImage == nil, let existingRecord else { return }
+        guard let data = photoStore.data(
+            userId: userId,
+            recordId: existingRecord.id,
+            recordVersion: existingRecord.updatedAt
+        ), let image = UIImage(data: data) else { return }
+        selectedImageData = data
+        selectedImage = image
     }
 
     private func mealAnalysisErrorMessage(_ error: Error) -> String {

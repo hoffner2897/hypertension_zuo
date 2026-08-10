@@ -320,6 +320,91 @@ struct hypertensionTests {
         #expect(restored.first?.durationMinutes == 30)
     }
 
+    @Test @MainActor func bloodPressureActionsKeepBoundaryTimesOnTimeline() async throws {
+        let items = TodayActionItem.demoItems()
+        let morning = items.first { $0.title == "早晨血压测量" }
+        let evening = items.first { $0.title == "晚间血压测量" }
+
+        #expect(morning?.startTimeText == "07:00")
+        #expect(evening?.startTimeText == "21:30")
+    }
+
+    @Test @MainActor func exerciseTimeRangeUsesStartAndEndToDeriveDuration() {
+        #expect(ExerciseTimeRange.durationMinutes(from: "18:30", to: "19:30") == 60)
+        #expect(ExerciseTimeRange.durationMinutes(from: "18:30", to: "18:45") == 15)
+        #expect(ExerciseTimeRange.endTime(startTime: "18:30", durationMinutes: 60) == "19:30")
+        #expect(ExerciseTimeRange.endOptions(after: "18:30").contains("18:45"))
+    }
+
+    @Test @MainActor func timelineStacksSameLaneCardsAndSharesOneTimeNode() {
+        let date = Calendar.current.date(bySettingHour: 18, minute: 30, second: 0, of: Date())!
+        let first = TodayActionItem(
+            type: .walk,
+            title: "慢走",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 15,
+            sortOrder: 1
+        )
+        let second = TodayActionItem(
+            type: .custom,
+            title: "瑜伽",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 30,
+            sortOrder: 2
+        )
+        let meal = TodayActionItem(
+            type: .diet,
+            title: "晚餐建议",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 20,
+            sortOrder: 3
+        )
+
+        let layout = TimelinePositioner.layout(
+            items: [first, second, meal],
+            now: date.addingTimeInterval(-3_600)
+        )
+        let firstY = layout.itemY[first.id]!
+        let secondY = layout.itemY[second.id]!
+        let firstHeight = layout.itemHeight[first.id]!
+        let secondHeight = layout.itemHeight[second.id]!
+
+        #expect(layout.timeRows.count == 1)
+        #expect(abs(firstY - secondY) >= (firstHeight + secondHeight) / 2)
+        #expect(layout.itemY[meal.id] != nil)
+    }
+
+    @Test @MainActor func customExercisesUseTheSharedGenericArtwork() {
+        let date = Date()
+        let custom = TodayActionItem(
+            type: .custom,
+            title: "骑车",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 30,
+            sortOrder: 0
+        )
+        let legacyYoga = TodayActionItem(
+            type: .walk,
+            title: "瑜伽",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 30,
+            sortOrder: 1
+        )
+
+        #expect(custom.timelineArtworkAssetName == "ExerciseCustomGeneric")
+        #expect(legacyYoga.timelineArtworkAssetName == "ExerciseCustomGeneric")
+    }
+
     @MainActor
     private func makeAction(start: Date, status: TodayActionStatus) -> TodayActionItem {
         TodayActionItem(

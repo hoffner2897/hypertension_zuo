@@ -88,27 +88,22 @@ struct TodayActionView: View {
                         TodayActionDetailView(
                             item: item,
                             effectiveStatus: item.effectiveStatus(now: Date()),
-                            onComplete: { updateStatus(.completed, for: id) },
-                            onSkip: { updateStatus(.skipped, for: id) },
-                            onAdjust: { path.append(.adjust(id)) }
+                            onComplete: { updateStatus(.completed, for: id) }
                         )
-                    }
-                case .adjust(let id):
-                    if let item = item(with: id) {
-                        TodayActionAdjustView(item: item) { updatedItem in
-                            replaceItem(updatedItem)
-                            path.removeLast()
-                        }
                     }
                 }
             }
             .sheet(item: $activeMealItem) { item in
                 MealRecordSheet(
                     item: item,
+                    userId: userId,
                     existingRecord: mealRecord(for: item),
                     onSaved: { record in
                         mealRecords[record.mealType] = record
                         applyMealRecord(record)
+                    },
+                    onClose: {
+                        activeMealItem = nil
                     }
                 )
             }
@@ -213,10 +208,12 @@ struct TodayActionView: View {
                 copy.displayStatus = item.effectiveStatus(now: now)
                 return copy
             }
+            let layout = TimelinePositioner.layout(items: displayItems, now: now)
 
             TodayTreeTimelineView(
                 items: displayItems,
                 now: now,
+                layout: layout,
                 onSelect: { id in
                     guard let item = item(with: id) else { return }
                     if item.type == .diet {
@@ -230,12 +227,8 @@ struct TodayActionView: View {
                     }
                 }
             )
-            .frame(height: timelineHeight(for: displayItems.count))
+            .frame(height: layout.contentHeight)
         }
-    }
-
-    private func timelineHeight(for itemCount: Int) -> CGFloat {
-        max(920, CGFloat(itemCount + 1) * 178 + 140)
     }
 
     private func item(with id: UUID) -> TodayActionItem? {
@@ -403,8 +396,8 @@ struct ActionGenerateDemoView: View {
     @State private var contexts: Set<String> = ["饭后"]
     @State private var hasDiscomfort = false
     @State private var currentExerciseId = "public-indoor-slow-walk"
-    @State private var movementDuration = 15
     @State private var currentTime = "15:30"
+    @State private var currentEndTime = "15:45"
     @State private var customMovementName = ""
     @State private var preferenceStartTime = "18:30"
     @State private var preferenceEndTime = "19:30"
@@ -438,7 +431,7 @@ struct ActionGenerateDemoView: View {
             sceneTitle: scene,
             energyTitle: energy,
             contextTitles: contexts,
-            limit: 6
+            limit: 4
         )
     }
 
@@ -495,44 +488,18 @@ struct ActionGenerateDemoView: View {
                             }
                         }
 
-                        LazyVGrid(
-                            columns: [
-                                GridItem(.flexible(), spacing: DSTheme.Spacing.small),
-                                GridItem(.flexible(), spacing: DSTheme.Spacing.small)
-                            ],
-                            spacing: DSTheme.Spacing.small
-                        ) {
-                            ActionSetupCard(
-                                title: "场景选择",
-                                value: scene,
-                                systemImage: "mappin.circle.fill",
-                                illustration: "laptopcomputer",
-                                tint: DSTheme.Color.primary
-                            ) {
-                                activeSheet = .scene
-                            }
-
-                            ActionSetupCard(
-                                title: "状态选择",
-                                value: "\(energy) · \(contexts.sorted().joined(separator: "、"))",
-                                systemImage: "face.smiling.fill",
-                                illustration: "person.fill.checkmark",
-                                tint: Color(red: 0.15, green: 0.52, blue: 0.35)
-                            ) {
-                                activeSheet = .status
-                            }
-
-                            ActionSetupCard(
-                                title: "当前运动选择",
-                                value: isExerciseSafetyBlocked ? "请先休息并复测" : (selectedCurrentExercise?.name ?? "先选择再开始"),
-                                systemImage: "figure.walk.circle.fill",
-                                illustration: "figure.walk",
-                                tint: DSTheme.Color.primary
-                            ) {
-                                activeSheet = .currentMovement
-                            }
-
-                        }
+                        LowBarrierExerciseGenerationCard(
+                            scene: $scene,
+                            energy: $energy,
+                            contexts: $contexts,
+                            hasDiscomfort: $hasDiscomfort,
+                            exerciseId: $currentExerciseId,
+                            startTime: $currentTime,
+                            endTime: $currentEndTime,
+                            recommendations: recommendedExercises,
+                            isSafetyBlocked: isExerciseSafetyBlocked,
+                            onGenerate: generateCurrentMovement
+                        )
 
                         Button {
                             activeSheet = .preference
@@ -546,11 +513,11 @@ struct ActionGenerateDemoView: View {
                                     .clipShape(Circle())
 
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text("偏好运动设置")
+                                    Text("记录自定义运动")
                                         .font(.headline)
                                         .foregroundStyle(DSTheme.Color.textPrimary)
 
-                                    Text("可记录跑步、骑车或健身计划")
+                                    Text("填写运动名称和时间，加入今日行动")
                                         .font(.caption)
                                         .foregroundStyle(DSTheme.Color.textSecondary)
                                 }
@@ -580,9 +547,6 @@ struct ActionGenerateDemoView: View {
                         .background(DSTheme.Color.primarySoft.opacity(0.84))
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                        DSPrimaryButton("继续设置") {
-                            activeSheet = .scene
-                        }
                     }
                     .padding(DSTheme.Spacing.large)
                     .padding(.bottom, 170)
@@ -591,35 +555,6 @@ struct ActionGenerateDemoView: View {
             .navigationBarHidden(true)
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
-                case .scene:
-                    SceneSelectionSheet(scene: $scene) {
-                        ensureCurrentExerciseSelection()
-                        activeSheet = nil
-                    }
-                case .status:
-                    StatusSelectionSheet(
-                        energy: $energy,
-                        contexts: $contexts,
-                        hasDiscomfort: $hasDiscomfort
-                    ) {
-                        ensureCurrentExerciseSelection()
-                        activeSheet = nil
-                    }
-                case .currentMovement:
-                    CurrentMovementSheet(
-                        isSafetyBlocked: isExerciseSafetyBlocked,
-                        options: recommendedExercises,
-                        exerciseId: $currentExerciseId,
-                        duration: $movementDuration,
-                        time: $currentTime,
-                        onClose: {
-                            activeSheet = nil
-                        },
-                        onConfirm: {
-                            generateCurrentMovement()
-                            activeSheet = nil
-                        }
-                    )
                 case .preference:
                     PreferenceMovementSheet(
                         customMovementName: $customMovementName,
@@ -635,6 +570,10 @@ struct ActionGenerateDemoView: View {
                     }
                 }
             }
+            .onAppear(perform: ensureCurrentExerciseSelection)
+            .onChange(of: scene) { _, _ in ensureCurrentExerciseSelection() }
+            .onChange(of: energy) { _, _ in ensureCurrentExerciseSelection() }
+            .onChange(of: contexts) { _, _ in ensureCurrentExerciseSelection() }
         }
     }
 
@@ -657,7 +596,7 @@ struct ActionGenerateDemoView: View {
         let item = TodayActionItem.generatedMovement(
             title: generatedActionTitle,
             timeText: currentTime,
-            duration: movementDuration,
+            duration: ExerciseTimeRange.durationMinutes(from: currentTime, to: currentEndTime),
             order: 99,
             exercise: selectedCurrentExercise,
             scene: scene,
@@ -680,24 +619,20 @@ struct ActionGenerateDemoView: View {
 
     private func generatePreferenceMovement() {
         guard !isExerciseSafetyBlocked else { return }
-        let item = TodayActionItem.generatedMovement(
+        var item = TodayActionItem.generatedMovement(
             title: customMovementName.trimmingCharacters(in: .whitespacesAndNewlines),
             timeText: preferenceStartTime,
-            duration: Self.durationInMinutes(from: preferenceStartTime, to: preferenceEndTime),
+            duration: ExerciseTimeRange.durationMinutes(from: preferenceStartTime, to: preferenceEndTime),
             order: 100
         )
+        item.type = .custom
+        item.description = "保持轻量运动 \(item.durationMinutes) 分钟，不追求强度。"
+        item.reason = TodayActionType.custom.reason
         onGenerateAction(item)
-    }
-
-    private static func durationInMinutes(from startTime: String, to endTime: String) -> Int {
-        max(TimeSlot.minutes(for: endTime) - TimeSlot.minutes(for: startTime), 30)
     }
 }
 
 private enum ActionGenerationSheet: String, Identifiable {
-    case scene
-    case status
-    case currentMovement
     case preference
 
     var id: String {
@@ -778,6 +713,213 @@ private struct ActionOption: Identifiable {
     var id: String {
         title
     }
+}
+
+private struct LowBarrierExerciseGenerationCard: View {
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
+    @Binding var scene: String
+    @Binding var energy: String
+    @Binding var contexts: Set<String>
+    @Binding var hasDiscomfort: Bool
+    @Binding var exerciseId: String
+    @Binding var startTime: String
+    @Binding var endTime: String
+    let recommendations: [LowBarrierExercise]
+    let isSafetyBlocked: Bool
+    let onGenerate: () -> Void
+
+    var body: some View {
+        DSCard {
+            VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("生成低门槛运动", systemImage: "figure.walk.circle.fill")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
+
+                    Text("依次选择场景和当前状态，系统会即时更新推荐运动。")
+                        .font(.caption)
+                        .foregroundStyle(DSTheme.Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                stepHeader(number: 1, title: "选择场景")
+                LazyVGrid(columns: compactColumns, spacing: DSTheme.Spacing.small) {
+                    ForEach(Self.sceneOptions) { option in
+                        ActionChoiceTile(
+                            title: option.title,
+                            subtitle: option.subtitle,
+                            systemImage: option.systemImage,
+                            tint: option.tint,
+                            isSelected: scene == option.title
+                        ) {
+                            scene = option.title
+                        }
+                    }
+                }
+
+                stepHeader(number: 2, title: "选择当前状态")
+                Text("精力状态  [单选]")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+
+                HStack(spacing: DSTheme.Spacing.small) {
+                    ForEach(Self.energyOptions) { option in
+                        StatusChip(
+                            title: option.title,
+                            systemImage: option.systemImage,
+                            tint: option.tint,
+                            isSelected: energy == option.title
+                        ) {
+                            energy = option.title
+                        }
+                    }
+                }
+
+                Text("情景状态  [可多选]")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+
+                LazyVGrid(columns: statusColumns, spacing: DSTheme.Spacing.small) {
+                    ForEach(Self.contextOptions) { option in
+                        StatusChip(
+                            title: option.title,
+                            systemImage: option.systemImage,
+                            tint: option.tint,
+                            isSelected: contexts.contains(option.title)
+                        ) {
+                            toggleContext(option.title)
+                        }
+                    }
+                }
+
+                HStack(spacing: DSTheme.Spacing.small) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DSTheme.Color.warning)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("我有明显不适")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(DSTheme.Color.textPrimary)
+                        Text("选择后暂停生成运动，请先休息并复测。")
+                            .font(.caption2)
+                            .foregroundStyle(DSTheme.Color.textSecondary)
+                    }
+
+                    Spacer()
+                    Toggle("", isOn: $hasDiscomfort)
+                        .labelsHidden()
+                }
+                .padding(DSTheme.Spacing.small)
+                .background(DSTheme.Color.primarySoft.opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                stepHeader(number: 3, title: "选择推荐运动")
+                Text("系统已根据前两步更新以下 4 项推荐")
+                    .font(.caption)
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+
+                if isSafetyBlocked {
+                    Label("当前不生成运动：请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(DSTheme.Color.warning)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(DSTheme.Spacing.small)
+                        .background(DSTheme.Color.warning.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                } else {
+                    LazyVGrid(columns: compactColumns, spacing: DSTheme.Spacing.small) {
+                        ForEach(recommendations) { option in
+                            ActionChoiceTile(
+                                title: option.name,
+                                subtitle: option.type.rawValue,
+                                systemImage: option.systemImageName,
+                                assetImageName: option.assetImageName(for: exercisePresentationSex),
+                                tint: option.type == .aerobic ? DSTheme.Color.primary : Color(red: 0.38, green: 0.52, blue: 0.78),
+                                isSelected: exerciseId == option.id
+                            ) {
+                                exerciseId = option.id
+                            }
+                        }
+                    }
+                }
+
+                stepHeader(number: 4, title: "设置运动时间")
+                ExerciseTimeRangePicker(startTime: $startTime, endTime: $endTime)
+
+                DSPrimaryButton(
+                    isSafetyBlocked ? "请先休息并复测" : "生成今日运动",
+                    isDisabled: isSafetyBlocked || recommendations.isEmpty,
+                    action: onGenerate
+                )
+                .accessibilityIdentifier("generate-low-barrier-exercise")
+            }
+        }
+        .accessibilityIdentifier("low-barrier-exercise-generation")
+    }
+
+    private var compactColumns: [GridItem] {
+        [GridItem(.flexible()), GridItem(.flexible())]
+    }
+
+    private var statusColumns: [GridItem] {
+        [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+    }
+
+    private func stepHeader(number: Int, title: String) -> some View {
+        HStack(spacing: 8) {
+            Text("\(number)")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(DSTheme.Color.primary)
+                .clipShape(Circle())
+
+            Text(title)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(DSTheme.Color.textPrimary)
+        }
+    }
+
+    private func toggleContext(_ title: String) {
+        if title == ExerciseContext.noSpecialCondition.rawValue {
+            contexts = [ExerciseContext.noSpecialCondition.rawValue]
+            return
+        }
+
+        contexts.remove(ExerciseContext.noSpecialCondition.rawValue)
+        if contexts.contains(title) {
+            contexts.remove(title)
+        } else {
+            contexts.insert(title)
+        }
+
+        if contexts.isEmpty {
+            contexts = [ExerciseContext.noSpecialCondition.rawValue]
+        }
+    }
+
+    private static let sceneOptions = [
+        ActionOption(title: "私人室内", subtitle: "例如：家中", systemImage: "sofa.fill", tint: Color(red: 0.55, green: 0.62, blue: 0.83)),
+        ActionOption(title: "公共室内", subtitle: "例如：工位或教室", systemImage: "laptopcomputer", tint: DSTheme.Color.primary),
+        ActionOption(title: "公共室外", subtitle: "例如：商场或车站", systemImage: "building.2.fill", tint: Color(red: 0.50, green: 0.70, blue: 0.86)),
+        ActionOption(title: "私人/开放室外", subtitle: "例如：公园或广场", systemImage: "tree.fill", tint: Color(red: 0.20, green: 0.58, blue: 0.36))
+    ]
+
+    private static let energyOptions = [
+        ActionOption(title: "精力低", subtitle: "", systemImage: "face.dashed", tint: Color(red: 0.49, green: 0.60, blue: 0.78)),
+        ActionOption(title: "精力一般", subtitle: "", systemImage: "face.smiling", tint: DSTheme.Color.primary),
+        ActionOption(title: "精力较好", subtitle: "", systemImage: "face.smiling.fill", tint: DSTheme.Color.success)
+    ]
+
+    private static let contextOptions = [
+        ActionOption(title: "饭后", subtitle: "", systemImage: "takeoutbag.and.cup.and.straw.fill", tint: DSTheme.Color.primary),
+        ActionOption(title: "久坐后", subtitle: "", systemImage: "chair.fill", tint: Color(red: 0.40, green: 0.52, blue: 0.84)),
+        ActionOption(title: "压力后", subtitle: "", systemImage: "lightbulb.fill", tint: Color(red: 0.64, green: 0.55, blue: 0.17)),
+        ActionOption(title: "睡眠不足", subtitle: "", systemImage: "moon.fill", tint: Color(red: 0.33, green: 0.47, blue: 0.76)),
+        ActionOption(title: "刚活动后", subtitle: "", systemImage: "figure.run", tint: DSTheme.Color.primary),
+        ActionOption(title: "无特殊情况", subtitle: "", systemImage: "sun.max.fill", tint: Color(red: 0.90, green: 0.56, blue: 0.12))
+    ]
+
 }
 
 private struct ActionSetupCard: View {
@@ -1028,104 +1170,6 @@ private struct StatusSelectionSheet: View {
     }
 }
 
-private struct CurrentMovementSheet: View {
-    let isSafetyBlocked: Bool
-    let options: [LowBarrierExercise]
-    @Binding var exerciseId: String
-    @Binding var duration: Int
-    @Binding var time: String
-    let onClose: () -> Void
-    let onConfirm: () -> Void
-
-    var body: some View {
-        SheetContent {
-            ActionSheetHeader(title: "当前运动选择", subtitle: "根据已选择场景为您匹配当前运动", onClose: onClose)
-
-            if isSafetyBlocked {
-                Label("当前不生成运动：请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(DSTheme.Color.warning)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(DSTheme.Spacing.medium)
-                    .background(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-
-            SheetSectionTitle("为你推荐的 \(options.count) 项运动", systemImage: "figure.walk.circle.fill")
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSTheme.Spacing.small) {
-                ForEach(options) { option in
-                    ActionChoiceTile(
-                        title: option.name,
-                        subtitle: option.type.rawValue,
-                        systemImage: option.systemImageName,
-                        assetImageName: option.assetImageName,
-                        tint: option.type == .aerobic ? DSTheme.Color.primary : Color(red: 0.38, green: 0.52, blue: 0.78),
-                        isSelected: exerciseId == option.id
-                    ) {
-                        exerciseId = option.id
-                    }
-                }
-            }
-
-            SheetSectionTitle("选择运动时长", systemImage: "timer")
-            HStack(spacing: DSTheme.Spacing.small) {
-                ForEach([10, 15, 20, 30], id: \.self) { minutes in
-                    Button {
-                        duration = minutes
-                    } label: {
-                        Text("\(minutes) 分钟")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(duration == minutes ? .white : DSTheme.Color.textSecondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
-                            .background(duration == minutes ? DSTheme.Color.primary : DSTheme.Color.primarySoft.opacity(0.65))
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            SheetSectionTitle("预约开始时间", systemImage: "clock.fill")
-            Menu {
-                ForEach(Self.movementStartTimes, id: \.self) { value in
-                    Button(value) {
-                        time = value
-                    }
-                }
-            } label: {
-                HStack {
-                    Label(time, systemImage: "clock")
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                }
-                .font(.headline)
-                .foregroundStyle(DSTheme.Color.primary)
-                .padding(DSTheme.Spacing.medium)
-                .background(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-
-            DSPrimaryButton(
-                isSafetyBlocked ? "请先休息并复测" : "确认当前运动",
-                isDisabled: isSafetyBlocked,
-                action: onConfirm
-            )
-        }
-        .presentationDetents([.large])
-        .onAppear {
-            if !options.contains(where: { $0.id == exerciseId }) {
-                exerciseId = options.first?.id ?? ""
-            }
-        }
-    }
-
-    private static let movementStartTimes: [String] = {
-        (0..<(24 * 2)).map { slot in
-            String(format: "%02d:%02d", slot / 2, (slot % 2) * 30)
-        }
-    }()
-}
-
 private struct PreferenceMovementSheet: View {
     @Binding var customMovementName: String
     @Binding var startTime: String
@@ -1137,7 +1181,7 @@ private struct PreferenceMovementSheet: View {
     var body: some View {
         SheetContent {
             ActionSheetHeader(
-                title: "偏好运动设置（可选）",
+                title: "记录自定义运动",
                 subtitle: "填写运动名称和时间，保存后会加入今日行动",
                 onClose: onClose
             )
@@ -1160,28 +1204,7 @@ private struct PreferenceMovementSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
-            HStack(spacing: DSTheme.Spacing.small) {
-                TimeSelectionField(
-                    title: "开始时间",
-                    value: $startTime,
-                    options: TimeSlot.values.filter { $0 != TimeSlot.values.last }
-                ) { newStartTime in
-                    guard TimeSlot.minutes(for: endTime) <= TimeSlot.minutes(for: newStartTime),
-                          let nextTime = TimeSlot.next(after: newStartTime) else {
-                        return
-                    }
-
-                    endTime = nextTime
-                }
-
-                TimeSelectionField(
-                    title: "结束时间",
-                    value: $endTime,
-                    options: TimeSlot.values.filter {
-                        TimeSlot.minutes(for: $0) > TimeSlot.minutes(for: startTime)
-                    }
-                )
-            }
+            ExerciseTimeRangePicker(startTime: $startTime, endTime: $endTime)
 
             Label("保存后会按所选时间生成一张运动卡片，并显示在今日行动的时间轴中。", systemImage: "info.circle.fill")
                 .font(.caption)
@@ -1343,87 +1366,8 @@ private struct StatusChip: View {
     }
 }
 
-private struct TimeSelectionField: View {
-    let title: String
-    @Binding var value: String
-    let options: [String]
-    let onSelect: (String) -> Void
-
-    init(
-        title: String,
-        value: Binding<String>,
-        options: [String],
-        onSelect: @escaping (String) -> Void = { _ in }
-    ) {
-        self.title = title
-        self._value = value
-        self.options = options
-        self.onSelect = onSelect
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DSTheme.Color.textSecondary)
-
-            Menu {
-                ForEach(options, id: \.self) { option in
-                    Button(option) {
-                        value = option
-                        onSelect(option)
-                    }
-                }
-            } label: {
-                HStack {
-                    Text(value)
-                        .font(.headline)
-                        .foregroundStyle(DSTheme.Color.textPrimary)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(DSTheme.Color.primary)
-                }
-                .padding(DSTheme.Spacing.medium)
-                .background(.white)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(DSTheme.Color.border, lineWidth: 1)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            .buttonStyle(.plain)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-private enum TimeSlot {
-    static let values: [String] = {
-        (0..<(24 * 2)).map { slot in
-            String(format: "%02d:%02d", slot / 2, (slot % 2) * 30)
-        }
-    }()
-
-    static func minutes(for value: String) -> Int {
-        let parts = value.split(separator: ":").compactMap { Int($0) }
-        return (parts.first ?? 0) * 60 + (parts.dropFirst().first ?? 0)
-    }
-
-    static func next(after value: String) -> String? {
-        guard let index = values.firstIndex(of: value), values.indices.contains(index + 1) else {
-            return nil
-        }
-
-        return values[index + 1]
-    }
-}
-
 private enum TodayActionRoute: Hashable {
     case detail(UUID)
-    case adjust(UUID)
 }
 
 private struct TodaySummaryCard: View {
@@ -1467,38 +1411,21 @@ private struct TodaySummaryCard: View {
 private struct TodayTreeTimelineView: View {
     let items: [TodayActionItem]
     let now: Date
+    let layout: TimelineLayout
     let onSelect: (UUID) -> Void
-
-    private var range: TodayTimelineRange {
-        TodayTimelineRange(items: items, now: now)
-    }
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
             let axisX = size.width * 0.5
-            let topInset: CGFloat = 78
-            let bottomInset: CGFloat = 84
-            let usableHeight = max(size.height - topInset - bottomInset, 1)
             let lanePadding: CGFloat = 14
             let centerGutter = min(78, max(62, size.width * 0.2))
             let cardWidth = max((size.width - lanePadding * 2 - centerGutter) / 2, 104)
             let leftCardX = lanePadding + cardWidth / 2
             let rightCardX = size.width - lanePadding - cardWidth / 2
-            let sortedItems = items.sorted {
-                if $0.scheduledStartAt == $1.scheduledStartAt {
-                    return $0.sortOrder < $1.sortOrder
-                }
-
-                return $0.scheduledStartAt < $1.scheduledStartAt
-            }
-            let positions = TimelinePositioner.positions(
-                items: sortedItems,
-                now: now,
-                range: range,
-                topInset: topInset,
-                usableHeight: usableHeight,
-                minimumSpacing: 166
+            let axisHeight = max(
+                layout.contentHeight - TimelinePositioner.topInset - TimelinePositioner.bottomInset,
+                1
             )
 
             ZStack(alignment: .topLeading) {
@@ -1521,17 +1448,26 @@ private struct TodayTreeTimelineView: View {
                 VStack(spacing: 0) {
                     Rectangle()
                         .fill(Color.white.opacity(0.35))
-                        .frame(width: 5, height: usableHeight)
+                        .frame(width: 5, height: axisHeight)
                         .overlay {
                             Rectangle()
                                 .fill(DSTheme.Color.primary.opacity(0.28))
                                 .frame(width: 1.5)
                         }
                 }
-                .position(x: axisX, y: topInset + usableHeight / 2)
+                .position(x: axisX, y: TimelinePositioner.topInset + axisHeight / 2)
 
-                ForEach(sortedItems) { item in
-                    let y = positions.itemY[item.id] ?? topInset + usableHeight * range.progress(for: item.scheduledStartAt)
+                ForEach(layout.timeRows) { row in
+                    TimeBubble(
+                        text: TodayActionItem.timeFormatter.string(from: row.date),
+                        tint: row.tint
+                    )
+                    .position(x: axisX, y: row.y)
+                }
+
+                ForEach(items.sorted(by: TimelinePositioner.itemSort)) { item in
+                    let y = layout.itemY[item.id] ?? TimelinePositioner.topInset
+                    let cardHeight = layout.itemHeight[item.id] ?? TimelinePositioner.cardHeight(for: item)
                     let isMeal = item.type == .diet
                     let cardX = isMeal ? rightCardX : leftCardX
                     let cardEdgeX = isMeal ? cardX - cardWidth / 2 + 6 : cardX + cardWidth / 2 - 6
@@ -1546,15 +1482,15 @@ private struct TodayTreeTimelineView: View {
                     .frame(width: size.width, height: size.height, alignment: .topLeading)
                     .allowsHitTesting(false)
 
-                    TimeBubble(text: item.startTimeText, tint: item.timelineTimeTint)
-                        .position(x: axisX, y: y)
-
                     DesignActionCard(
                         item: item,
                         usesCompactHeader: cardWidth < 145
                     )
-                        .frame(width: cardWidth)
+                        .frame(width: cardWidth, height: cardHeight)
                         .position(x: cardX, y: y)
+                        .accessibilityIdentifier(accessibilityIdentifier(for: item, isMeal: isMeal))
+                        .accessibilityLabel(item.title)
+                        .accessibilityAddTraits(.isButton)
                         .onTapGesture {
                             onSelect(item.id)
                     }
@@ -1564,90 +1500,189 @@ private struct TodayTreeTimelineView: View {
                     timeText: TodayActionItem.timeFormatter.string(from: now),
                     tint: Color(red: 1.0, green: 0.55, blue: 0.14)
                 )
-                .position(x: axisX, y: positions.currentY)
+                .position(x: axisX, y: layout.currentY)
             }
         }
     }
+
+    private func accessibilityIdentifier(for item: TodayActionItem, isMeal: Bool) -> String {
+        if isMeal {
+            return "today.meal.\(MealKind(actionTitle: item.title)?.rawValue ?? "unknown")"
+        }
+        if item.type == .bpRecheck, item.title.contains("早晨") {
+            return "today.bp.morning"
+        }
+        if item.type == .bpRecheck, item.title.contains("晚间") {
+            return "today.bp.evening"
+        }
+        return "today.action.\(item.id.uuidString)"
+    }
 }
 
-private struct TimelinePositioner {
-    static func positions(
-        items: [TodayActionItem],
-        now: Date,
-        range: TodayTimelineRange,
-        topInset: CGFloat,
-        usableHeight: CGFloat,
-        minimumSpacing: CGFloat
-    ) -> (itemY: [UUID: CGFloat], currentY: CGFloat) {
-        var events = items.map { TimelinePositionEvent.item($0.id, $0.scheduledStartAt) }
-        events.append(.current(now))
-        events.sort { lhs, rhs in
-            if lhs.date == rhs.date {
-                return lhs.sortRank < rhs.sortRank
-            }
+struct TimelineLayout {
+    let itemY: [UUID: CGFloat]
+    let itemHeight: [UUID: CGFloat]
+    let timeRows: [TimelineTimeRow]
+    let currentY: CGFloat
+    let contentHeight: CGFloat
+}
 
-            return lhs.date < rhs.date
+struct TimelineTimeRow: Identifiable {
+    let id: Int
+    let date: Date
+    let y: CGFloat
+    let tint: Color
+}
+
+struct TimelinePositioner {
+    static let topInset: CGFloat = 78
+    static let bottomInset: CGFloat = 84
+    private static let sameLaneGap: CGFloat = 14
+    private static let currentRowHeight: CGFloat = 54
+    private static let minimumContentHeight: CGFloat = 760
+
+    static func layout(items: [TodayActionItem], now: Date) -> TimelineLayout {
+        let groupedItems = Dictionary(grouping: items) { minuteKey(for: $0.scheduledStartAt) }
+        var entries = groupedItems.map { key, group in
+            TimelineLayoutEntry.actions(
+                key: key,
+                date: group.map(\.scheduledStartAt).min() ?? Date(),
+                items: group.sorted(by: itemSort)
+            )
         }
-
-        let effectiveSpacing: CGFloat
-        if events.count > 1 {
-            effectiveSpacing = min(minimumSpacing, usableHeight / CGFloat(events.count - 1))
-        } else {
-            effectiveSpacing = 0
-        }
-
-        var resolvedY = events.enumerated().map { index, event in
-            let naturalY = topInset + usableHeight * range.progress(for: event.date)
-            let lowerBound = topInset + CGFloat(index) * effectiveSpacing
-            return max(naturalY, lowerBound)
-        }
-
-        if resolvedY.count > 1 {
-            for index in 1..<resolvedY.count {
-                resolvedY[index] = max(resolvedY[index], resolvedY[index - 1] + effectiveSpacing)
-            }
-
-            let lastIndex = resolvedY.count - 1
-            resolvedY[lastIndex] = min(resolvedY[lastIndex], topInset + usableHeight)
-
-            for index in stride(from: lastIndex - 1, through: 0, by: -1) {
-                let upperBound = topInset + usableHeight - CGFloat(lastIndex - index) * effectiveSpacing
-                resolvedY[index] = min(resolvedY[index], resolvedY[index + 1] - effectiveSpacing, upperBound)
-            }
-        }
-
-        let resolved = Dictionary(uniqueKeysWithValues: zip(events, resolvedY))
+        entries.append(.current(now))
+        entries.sort(by: entrySort)
 
         var itemY: [UUID: CGFloat] = [:]
-        var currentY = topInset + usableHeight * range.progress(for: now)
+        var itemHeight: [UUID: CGFloat] = [:]
+        var timeRows: [TimelineTimeRow] = []
+        var currentY = topInset + currentRowHeight / 2
+        var cursor = topInset
+        var previousDate: Date?
 
-        for (event, y) in resolved {
-            switch event {
-            case .item(let id, _):
-                itemY[id] = y
-            case .current:
-                currentY = y
+        for entry in entries {
+            if let previousDate {
+                cursor += chronologicalGap(from: previousDate, to: entry.date)
             }
+
+            switch entry {
+            case .actions(let key, let date, let groupItems):
+                let leftItems = groupItems.filter { $0.type != .diet }
+                let rightItems = groupItems.filter { $0.type == .diet }
+                let leftHeight = laneHeight(for: leftItems)
+                let rightHeight = laneHeight(for: rightItems)
+                let rowHeight = max(leftHeight, rightHeight, 48)
+
+                assign(leftItems, rowTop: cursor, rowHeight: rowHeight, itemY: &itemY, itemHeight: &itemHeight)
+                assign(rightItems, rowTop: cursor, rowHeight: rowHeight, itemY: &itemY, itemHeight: &itemHeight)
+
+                let tint = groupItems.allSatisfy { $0.displayStatus == .completed }
+                    ? DSTheme.Color.success
+                    : DSTheme.Color.primary
+                timeRows.append(
+                    TimelineTimeRow(
+                        id: key,
+                        date: date,
+                        y: cursor + rowHeight / 2,
+                        tint: tint
+                    )
+                )
+                cursor += rowHeight
+
+            case .current:
+                currentY = cursor + currentRowHeight / 2
+                cursor += currentRowHeight
+            }
+
+            previousDate = entry.date
         }
 
-        return (itemY, currentY)
+        return TimelineLayout(
+            itemY: itemY,
+            itemHeight: itemHeight,
+            timeRows: timeRows,
+            currentY: currentY,
+            contentHeight: max(cursor + bottomInset, minimumContentHeight)
+        )
+    }
+
+    static func cardHeight(for item: TodayActionItem) -> CGFloat {
+        switch item.type {
+        case .diet where item.displayStatus == .completed && item.adviceText != nil:
+            return 204
+        case .bpRecheck where item.bloodPressureText != nil:
+            return 158
+        case .bpRecheck:
+            return 142
+        case .rest, .hydration, .sleep, .custom:
+            return 154
+        case .walk, .diet:
+            return 142
+        }
+    }
+
+    static func itemSort(_ lhs: TodayActionItem, _ rhs: TodayActionItem) -> Bool {
+        if lhs.scheduledStartAt == rhs.scheduledStartAt {
+            return lhs.sortOrder < rhs.sortOrder
+        }
+        return lhs.scheduledStartAt < rhs.scheduledStartAt
+    }
+
+    private static func minuteKey(for date: Date) -> Int {
+        Int(date.timeIntervalSinceReferenceDate / 60)
+    }
+
+    private static func laneHeight(for items: [TodayActionItem]) -> CGFloat {
+        guard !items.isEmpty else { return 0 }
+        return items.reduce(CGFloat.zero) { $0 + cardHeight(for: $1) }
+            + CGFloat(max(items.count - 1, 0)) * sameLaneGap
+    }
+
+    private static func assign(
+        _ items: [TodayActionItem],
+        rowTop: CGFloat,
+        rowHeight: CGFloat,
+        itemY: inout [UUID: CGFloat],
+        itemHeight: inout [UUID: CGFloat]
+    ) {
+        let stackHeight = laneHeight(for: items)
+        var offset = rowTop + max((rowHeight - stackHeight) / 2, 0)
+
+        for item in items {
+            let height = cardHeight(for: item)
+            itemY[item.id] = offset + height / 2
+            itemHeight[item.id] = height
+            offset += height + sameLaneGap
+        }
+    }
+
+    private static func chronologicalGap(from earlier: Date, to later: Date) -> CGFloat {
+        let minutes = max(later.timeIntervalSince(earlier) / 60, 0)
+        return min(28, max(14, CGFloat(minutes) * 0.12))
+    }
+
+    private static func entrySort(_ lhs: TimelineLayoutEntry, _ rhs: TimelineLayoutEntry) -> Bool {
+        if minuteKey(for: lhs.date) == minuteKey(for: rhs.date) {
+            return lhs.sortRank < rhs.sortRank
+        }
+        return lhs.date < rhs.date
     }
 }
 
-private enum TimelinePositionEvent: Hashable {
-    case item(UUID, Date)
+private enum TimelineLayoutEntry {
+    case actions(key: Int, date: Date, items: [TodayActionItem])
     case current(Date)
 
     var date: Date {
         switch self {
-        case .item(_, let date), .current(let date):
+        case .actions(_, let date, _), .current(let date):
             return date
         }
     }
 
     var sortRank: Int {
         switch self {
-        case .item:
+        case .actions:
             return 0
         case .current:
             return 1
@@ -1713,9 +1748,10 @@ private struct DesignActionCard: View {
         .frame(
             maxWidth: .infinity,
             minHeight: item.type == .diet && item.displayStatus == .completed ? 158 : 116,
+            maxHeight: .infinity,
             alignment: .topLeading
         )
-        .background(.white.opacity(0.93))
+        .background(.white)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
     }
@@ -1724,10 +1760,9 @@ private struct DesignActionCard: View {
     private var cardHeader: some View {
         if usesCompactHeader {
             VStack(alignment: .leading, spacing: 4) {
-                titleText
-
-                HStack(alignment: .center, spacing: 4) {
-                    subtitleText
+                HStack(alignment: .top, spacing: 4) {
+                    titleText
+                        .layoutPriority(1)
 
                     Spacer(minLength: 2)
 
@@ -1737,12 +1772,18 @@ private struct DesignActionCard: View {
                             height: item.type == .diet ? 44 : 48
                         )
                 }
+
+                if item.type != .bpRecheck {
+                    subtitleText
+                }
             }
         } else {
             HStack(alignment: .top, spacing: 6) {
                 VStack(alignment: .leading, spacing: 5) {
                     titleText
-                    subtitleText
+                    if item.type != .bpRecheck {
+                        subtitleText
+                    }
                 }
                 .layoutPriority(1)
 
@@ -1770,8 +1811,9 @@ private struct DesignActionCard: View {
         Text(item.timelineSubtitle)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
+            .lineLimit(2)
+            .minimumScaleFactor(0.9)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var statusPill: some View {
@@ -1840,10 +1882,11 @@ private struct DesignActionCard: View {
 }
 
 private struct TimelineActionArtwork: View {
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     let item: TodayActionItem
 
     var body: some View {
-        if let assetName = item.timelineArtworkAssetName {
+        if let assetName = item.timelineArtworkAssetName(for: exercisePresentationSex) {
             Image(assetName)
                 .resizable()
                 .scaledToFit()
@@ -2011,6 +2054,7 @@ private struct TimelineBranch: Shape {
 }
 
 private struct ExerciseRecordSheet: View {
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     let item: TodayActionItem
     let onComplete: () -> Void
     let onClose: () -> Void
@@ -2021,24 +2065,19 @@ private struct ExerciseRecordSheet: View {
     }
 
     private var movementAdvice: String {
-        item.exerciseMovementAdvice ?? catalogExercise?.movementAdvice ?? item.description
+        catalogExercise?.movementAdvice ?? item.exerciseMovementAdvice ?? item.description
     }
 
     private var intensityAdvice: String {
-        item.exerciseIntensityAdvice ?? catalogExercise?.intensityAdvice ?? "保持自然呼吸；如有明显不适，请停止并休息。"
+        catalogExercise?.intensityAdvice ?? item.exerciseIntensityAdvice ?? "保持自然呼吸；如有明显不适，请停止并休息。"
     }
 
     private var movementSteps: [String] {
-        movementAdvice
-            .split(whereSeparator: \.isNewline)
-            .map(String.init)
-            .map {
-                $0.replacingOccurrences(
-                    of: #"^[①②③④⑤⑥]\s*"#,
-                    with: "",
-                    options: .regularExpression
-                )
-            }
+        catalogExercise?.movementAdviceSteps ?? adviceLines(from: movementAdvice)
+    }
+
+    private var intensityAdviceSteps: [String] {
+        catalogExercise?.intensityAdviceSteps ?? adviceLines(from: intensityAdvice)
     }
 
     var body: some View {
@@ -2082,7 +2121,7 @@ private struct ExerciseRecordSheet: View {
                     .foregroundStyle(item.status == .completed ? DSTheme.Color.success : DSTheme.Color.textSecondary)
 
                     advicePanel(
-                        title: "AI运动建议",
+                        title: "怎么做",
                         tint: Color(red: 0.88, green: 0.94, blue: 1.0)
                     ) {
                         VStack(alignment: .leading, spacing: 9) {
@@ -2097,11 +2136,18 @@ private struct ExerciseRecordSheet: View {
                     }
 
                     advicePanel(
-                        title: "AI强度建议",
+                        title: "强度建议",
                         tint: Color(red: 1.0, green: 0.94, blue: 0.78)
                     ) {
-                        Text(intensityAdvice)
-                            .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 9) {
+                            ForEach(Array(intensityAdviceSteps.enumerated()), id: \.offset) { _, step in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text("•")
+                                    Text(step)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
                     }
 
                     DSPrimaryButton(item.status == .completed ? "关闭" : "完成") {
@@ -2125,7 +2171,7 @@ private struct ExerciseRecordSheet: View {
 
     @ViewBuilder
     private var exerciseArtwork: some View {
-        if let assetName = catalogExercise?.assetImageName {
+        if let assetName = catalogExercise?.assetImageName(for: exercisePresentationSex) {
             Image(assetName)
                 .resizable()
                 .scaledToFit()
@@ -2142,6 +2188,14 @@ private struct ExerciseRecordSheet: View {
                     .accessibilityHidden(true)
             }
         }
+    }
+
+    private func adviceLines(from advice: String) -> [String] {
+        advice
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 
     private func advicePanel<Content: View>(
@@ -2169,8 +2223,6 @@ private struct TodayActionDetailView: View {
     let item: TodayActionItem
     let effectiveStatus: TodayActionStatus
     let onComplete: () -> Void
-    let onSkip: () -> Void
-    let onAdjust: () -> Void
 
     var body: some View {
         ZStack {
@@ -2198,7 +2250,7 @@ private struct TodayActionDetailView: View {
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                             }
 
-                            Text(item.description)
+                            Text(detailDescription)
                                 .font(.body)
                                 .foregroundStyle(DSTheme.Color.textPrimary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -2214,18 +2266,6 @@ private struct TodayActionDetailView: View {
                         DSPrimaryButton("标记完成", systemImage: "checkmark.circle.fill", isDisabled: item.status == .completed) {
                             onComplete()
                         }
-
-                        DSSecondaryButton(
-                            "调整行动",
-                            systemImage: "slider.horizontal.3",
-                            isDisabled: item.status == .completed
-                        ) {
-                            onAdjust()
-                        }
-
-                        DSSecondaryButton("跳过今天", systemImage: "forward.fill", isDisabled: item.status == .completed) {
-                            onSkip()
-                        }
                     }
                 }
                 .padding(DSTheme.Spacing.large)
@@ -2234,6 +2274,10 @@ private struct TodayActionDetailView: View {
         }
         .navigationTitle("行动详情")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var detailDescription: String {
+        item.description.replacingOccurrences(of: "保持轻松步行", with: "保持轻量运动")
     }
 }
 
@@ -2381,8 +2425,12 @@ struct TodayActionItem: Identifiable, Hashable {
         Self.timeFormatter.string(from: scheduledStartAt)
     }
 
+    var endTimeText: String {
+        Self.timeFormatter.string(from: scheduledEndAt)
+    }
+
     var timeRangeText: String {
-        "\(Self.timeFormatter.string(from: scheduledStartAt)) - \(Self.timeFormatter.string(from: scheduledEndAt))"
+        "\(startTimeText) - \(endTimeText)"
     }
 
     var timelineSubtitle: String {
@@ -2409,10 +2457,14 @@ struct TodayActionItem: Identifiable, Hashable {
         }
     }
 
-    var timelineArtworkAssetName: String? {
+    func timelineArtworkAssetName(for presentationSex: ExercisePresentationSex) -> String? {
         if let exerciseId,
-           let assetName = LowBarrierExerciseCatalog.exercise(id: exerciseId)?.assetImageName {
+           let assetName = LowBarrierExerciseCatalog.exercise(id: exerciseId)?.assetImageName(for: presentationSex) {
             return assetName
+        }
+
+        if type == .custom || isLegacyUserDefinedMovement {
+            return "ExerciseCustomGeneric"
         }
 
         if title.contains("早晨血压") {
@@ -2446,6 +2498,16 @@ struct TodayActionItem: Identifiable, Hashable {
         return nil
     }
 
+    var timelineArtworkAssetName: String? {
+        timelineArtworkAssetName(for: .female)
+    }
+
+    private var isLegacyUserDefinedMovement: Bool {
+        guard exerciseId == nil, type == .walk else { return false }
+        let knownWalkingTitles = ["慢走", "散步", "踏步", "快走"]
+        return !knownWalkingTitles.contains { title.contains($0) }
+    }
+
     var isCatalogExercise: Bool {
         guard let exerciseId else { return false }
         return LowBarrierExerciseCatalog.exercise(id: exerciseId) != nil
@@ -2469,7 +2531,7 @@ struct TodayActionItem: Identifiable, Hashable {
 
     static func demoItems() -> [TodayActionItem] {
         [
-            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0),
+            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 0, duration: 8, order: 0),
             make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1),
             make(.diet, title: "午餐建议", hour: 12, minute: 0, duration: 25, order: 2),
             make(.diet, title: "晚餐建议", hour: 18, minute: 30, duration: 25, order: 3),
@@ -2479,7 +2541,7 @@ struct TodayActionItem: Identifiable, Hashable {
 
     static func generatedDemoItems() -> [TodayActionItem] {
         [
-            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 45, duration: 8, order: 0),
+            make(.bpRecheck, title: "早晨血压测量", hour: 7, minute: 0, duration: 8, order: 0),
             make(.diet, title: "早餐建议", hour: 8, minute: 0, duration: 20, order: 1),
             make(.walk, title: "饭后散步", hour: 19, minute: 30, duration: 15, order: 2),
             make(.bpRecheck, title: "晚间血压测量", hour: 21, minute: 30, duration: 8, order: 3)
@@ -2650,7 +2712,7 @@ enum TodayActionType: String, CaseIterable, Identifiable, Hashable {
     func description(durationMinutes: Int) -> String {
         switch self {
         case .walk:
-            return "保持轻松步行 \(durationMinutes) 分钟，不追求强度。"
+            return "保持轻量运动 \(durationMinutes) 分钟，不追求强度。"
         case .diet:
             return "选择清淡、少盐、不过量的一餐，完成后点亮行动。"
         case .bpRecheck:

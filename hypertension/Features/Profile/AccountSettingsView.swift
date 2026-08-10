@@ -140,6 +140,11 @@ struct AccountSettingsView: View {
                     await healthViewModel.refresh()
                 }
             }
+            .onDisappear {
+                Task {
+                    await appState.refreshProfile()
+                }
+            }
         }
     }
 
@@ -176,7 +181,7 @@ struct AccountSettingsView: View {
                 VStack(alignment: .leading, spacing: DSTheme.Spacing.large) {
                     DSSectionHeader(
                         "删除账号",
-                        subtitle: "这会删除账号相关的服务器数据，并清空本地登录状态。",
+                        subtitle: "账号将永久停用，邮箱和显示名称会匿名化；已同意用于学术研究的健康与行为数据会以去标识形式保留，并清空本地登录状态。",
                         systemImage: "trash"
                     )
 
@@ -207,7 +212,7 @@ struct AccountSettingsView: View {
                                 Image(systemName: "trash.fill")
                             }
 
-                            Text("永久删除")
+                            Text("永久删除账号")
                                 .font(.headline)
                         }
                         .foregroundStyle(.white)

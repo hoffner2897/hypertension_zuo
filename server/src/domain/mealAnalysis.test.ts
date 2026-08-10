@@ -46,8 +46,11 @@ test("meal input rejects impossible dates, invalid time zones, date mismatches, 
 test("meal output is bounded text and prompt contains safety requirements", () => {
   const result = mealAnalysisResultSchema.parse({
     canAnalyze: true,
-    analysis: "照片中可见米饭、蔬菜和蛋白质食物。",
-    similarSuggestion: "下次可少放酱汁，并增加蔬菜。",
+    recognition: "照片中可见米饭、蔬菜和蛋白质食物。",
+    dietaryStructureAnalysis: "餐食包含碳水化合物、膳食纤维和蛋白质，搭配较完整。",
+    cookingMethodAnalysis: "照片看起来以清炒和蒸煮为主。",
+    dietaryStructureSuggestion: "下次可适量增加蔬菜，并选择较少加工的蛋白质。",
+    cookingMethodSuggestion: "下次可少放盐和酱汁，优先清蒸或少油烹调。",
     cardSummary: "搭配较丰富，下次可减少酱汁。"
   });
 
@@ -55,4 +58,6 @@ test("meal output is bounded text and prompt contains safety requirements", () =
   assert.match(mealAnalysisPrompt, /不得声称知道精确克数/);
   assert.match(mealAnalysisPrompt, /不诊断高血压/);
   assert.match(mealAnalysisPrompt, /照片不是食物/);
+  assert.match(mealAnalysisPrompt, /DASH/);
+  assert.match(mealAnalysisPrompt, /只用一句话/);
 });

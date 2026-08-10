@@ -14,10 +14,17 @@ Represents an account.
 - `email`: unique normalized email
 - `password_hash`: hashed password
 - `email_verified_at`: nullable timestamp
+- `deleted_at`: nullable timestamp; non-null means the account is permanently deactivated
 - `created_at`: timestamp
 - `updated_at`: timestamp
 
-Account deletion in the first version should hard-delete account-owned data so the same email can be used again later.
+Account deletion is an irreversible anonymized deactivation for consented academic research retention:
+
+- The original email, password credential, and display name are replaced or anonymized.
+- Refresh tokens are revoked and verification tokens are consumed.
+- `deleted_at` is set immediately; access-token authentication excludes deleted users.
+- Pseudonymous profile, blood-pressure, meal, exercise, and AI-usage records retain their existing `user_id` for research analysis.
+- The original email is released and can be registered again as a new account.
 
 ### email_verification_tokens
 Stores one-time email verification tokens.
@@ -97,6 +104,20 @@ Source values:
 - `health_import`
 
 The current iOS save path uses `manual` for manual entries and `camera_ocr` for recognized photo/camera readings.
+
+### meal_records
+Stores the text result of one AI-assisted meal record per user, local day, and meal type. The submitted photo is never stored by the backend.
+
+- `analysis`, `similar_suggestion`: legacy combined text retained for older app versions.
+- `recognition`: one-sentence identification of visible food.
+- `dietary_structure_analysis`: one-sentence assessment of food groups, visible portions, and pairing.
+- `cooking_method_analysis`: one-sentence assessment of the visible or inferable cooking method.
+- `dietary_structure_suggestion`: one-sentence improvement for a similar meal's structure.
+- `cooking_method_suggestion`: one-sentence improvement for cooking or seasoning.
+- `card_summary`: compact summary for the Today Action card.
+- `recorded_at`, `created_at`, `updated_at`: record timestamps.
+
+The five structured fields are nullable so historical rows remain readable. New analyses populate both structured fields and the two legacy combined fields. All text is supportive and framed around lower-sodium, DASH-style blood-pressure-friendly eating; it is not diagnostic.
 
 ## iOS Local Database
 
@@ -188,4 +209,5 @@ Use wording like "this reading", "may indicate", "recheck after a short rest", a
 - Do not log raw passwords, tokens, or unnecessary health details.
 - Store password hashes, never passwords.
 - Store refresh and verification tokens hashed.
-- Account deletion should revoke sessions and remove account-owned profile/readings.
+- Account deletion revokes sessions and removes direct account identifiers while retaining only consented, pseudonymous research records.
+- Meal photos are never written to the backend database. The iOS app may keep the compressed upload copy locally, excluded from device backup, and scoped by user/record/version.

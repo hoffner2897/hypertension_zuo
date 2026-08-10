@@ -45,6 +45,7 @@ model User {
   email           String    @unique
   passwordHash    String    @map("password_hash")
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -56,6 +57,7 @@ model User {
   exerciseActions         ExerciseAction[]
   aiDailyUsage            AIDailyUsage[]
 
+  @@index([deletedAt])
   @@map("users")
 }
 
@@ -137,16 +139,21 @@ model BloodPressureReading {
 }
 
 model MealRecord {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @map("user_id") @db.Uuid
-  mealType          MealType @map("meal_type")
-  mealDate          String   @map("meal_date") @db.VarChar(10)
-  analysis          String
-  similarSuggestion String   @map("similar_suggestion")
-  cardSummary       String   @map("card_summary")
-  recordedAt        DateTime @map("recorded_at") @db.Timestamptz(3)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                          String   @id @default(uuid()) @db.Uuid
+  userId                      String   @map("user_id") @db.Uuid
+  mealType                    MealType @map("meal_type")
+  mealDate                    String   @map("meal_date") @db.VarChar(10)
+  analysis                    String
+  similarSuggestion           String   @map("similar_suggestion")
+  recognition                 String?  @map("recognition")
+  dietaryStructureAnalysis    String?  @map("dietary_structure_analysis")
+  cookingMethodAnalysis       String?  @map("cooking_method_analysis")
+  dietaryStructureSuggestion  String?  @map("dietary_structure_suggestion")
+  cookingMethodSuggestion     String?  @map("cooking_method_suggestion")
+  cardSummary                 String   @map("card_summary")
+  recordedAt                  DateTime @map("recorded_at") @db.Timestamptz(3)
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

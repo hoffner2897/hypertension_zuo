@@ -32,8 +32,11 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
       assert.equal(image.base64, jpegBase64);
       return {
         canAnalyze: true,
-        analysis: `第${analysisCount}次分析：照片中可见主食、蔬菜和蛋白质食物。`,
-        similarSuggestion: "下次可少放酱汁，并增加蔬菜。",
+        recognition: `第${analysisCount}次识别：照片中可见主食、蔬菜和蛋白质食物。`,
+        dietaryStructureAnalysis: "餐食包含碳水化合物、膳食纤维和蛋白质，搭配较完整。",
+        cookingMethodAnalysis: "照片看起来以清炒和蒸煮为主。",
+        dietaryStructureSuggestion: "下次可适量增加蔬菜，并选择较少加工的蛋白质。",
+        cookingMethodSuggestion: "下次可少放盐和酱汁，优先清蒸或少油烹调。",
         cardSummary: `第${analysisCount}次：搭配较丰富，可减少酱汁。`
       };
     }
@@ -59,9 +62,12 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
   const server = app.listen(0, "127.0.0.1");
 
   let primaryAccessToken = "";
+  let primaryRefreshToken = "";
   let secondaryAccessToken = "";
   let primaryUserId = "";
   let secondaryUserId = "";
+  let concurrentUserId = "";
+  let reregisteredUserId = "";
 
   try {
     await waitForListening(server);
@@ -106,6 +112,7 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
     );
     const concurrentWinner = concurrentRegistrations.find((result) => result.response.status === 201);
     assert.ok(concurrentWinner);
+    concurrentUserId = concurrentWinner.body.user.id;
     const deleteConcurrentWinner = await fetch(`${baseURL}/auth/account`, {
       method: "DELETE",
       headers: authHeaders(concurrentWinner.body.accessToken),
@@ -140,6 +147,7 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
     assert.equal(refreshed.response.status, 200);
     assert.notEqual(refreshed.body.refreshToken, login.body.refreshToken);
     primaryAccessToken = refreshed.body.accessToken;
+    primaryRefreshToken = refreshed.body.refreshToken;
 
     const replayedRefresh = await requestJSON(baseURL, "/auth/refresh", {
       method: "POST",
@@ -439,7 +447,8 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
     assert.equal(updatedMeal.response.status, 200);
     assert.equal(updatedMeal.body.record.id, firstMealId);
     assert.equal(updatedMeal.body.record.createdAt, firstMealCreatedAt);
-    assert.match(updatedMeal.body.record.analysis, /第2次分析/);
+    assert.match(updatedMeal.body.record.recognition, /第2次识别/);
+    assert.match(updatedMeal.body.record.analysis, /饮食结构/);
 
     const dinnerMeal = await requestJSON(baseURL, "/meal-records/analyze", {
       method: "POST",
@@ -533,20 +542,62 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
     assert.equal(wrongDeletePassword.response.status, 403);
     assert.equal(wrongDeletePassword.body.code, "PASSWORD_CONFIRMATION_FAILED");
 
+    const retainedCountsBeforeDeletion = {
+      profiles: await prisma.userProfile.count({ where: { userId: primaryUserId } }),
+      readings: await prisma.bloodPressureReading.count({ where: { userId: primaryUserId } }),
+      meals: await prisma.mealRecord.count({ where: { userId: primaryUserId } }),
+      exercises: await prisma.exerciseAction.count({ where: { userId: primaryUserId } }),
+      aiUsage: await prisma.aIDailyUsage.count({ where: { userId: primaryUserId } })
+    };
+
     const deletePrimaryResponse = await fetch(`${baseURL}/auth/account`, {
       method: "DELETE",
       headers: authHeaders(primaryAccessToken),
       body: JSON.stringify({ password })
     });
     assert.equal(deletePrimaryResponse.status, 204);
-    assert.equal(await prisma.mealRecord.count({ where: { userId: primaryUserId } }), 0);
-    assert.equal(await prisma.exerciseAction.count({ where: { userId: primaryUserId } }), 0);
-    assert.equal(await prisma.aIDailyUsage.count({ where: { userId: primaryUserId } }), 0);
+    assert.deepEqual({
+      profiles: await prisma.userProfile.count({ where: { userId: primaryUserId } }),
+      readings: await prisma.bloodPressureReading.count({ where: { userId: primaryUserId } }),
+      meals: await prisma.mealRecord.count({ where: { userId: primaryUserId } }),
+      exercises: await prisma.exerciseAction.count({ where: { userId: primaryUserId } }),
+      aiUsage: await prisma.aIDailyUsage.count({ where: { userId: primaryUserId } })
+    }, retainedCountsBeforeDeletion);
+    const retainedUser = await prisma.user.findUniqueOrThrow({
+      where: { id: primaryUserId },
+      include: { profile: true }
+    });
+    assert.ok(retainedUser.deletedAt);
+    assert.notEqual(retainedUser.email, primaryEmail);
+    assert.match(retainedUser.email, /^deleted\+.+@accounts\.bphealth\.invalid$/);
+    assert.match(retainedUser.profile?.displayName ?? "", /^研究参与者-/);
 
     const deletedUserMe = await requestJSON(baseURL, "/auth/me", {
       headers: authHeaders(primaryAccessToken)
     });
     assert.equal(deletedUserMe.response.status, 401);
+
+    const deletedUserRefresh = await requestJSON(baseURL, "/auth/refresh", {
+      method: "POST",
+      body: { refreshToken: primaryRefreshToken }
+    });
+    assert.equal(deletedUserRefresh.response.status, 401);
+    assert.equal(deletedUserRefresh.body.code, "INVALID_REFRESH_TOKEN");
+
+    const deletedUserLogin = await requestJSON(baseURL, "/auth/login", {
+      method: "POST",
+      body: { email: primaryEmail, password }
+    });
+    assert.equal(deletedUserLogin.response.status, 401);
+    assert.equal(deletedUserLogin.body.code, "INVALID_CREDENTIALS");
+
+    const registrationAfterDeletion = await requestJSON(baseURL, "/auth/register", {
+      method: "POST",
+      body: { email: primaryEmail, password, deviceId: "e2e-reregistered-device" }
+    });
+    assert.equal(registrationAfterDeletion.response.status, 201);
+    reregisteredUserId = registrationAfterDeletion.body.user.id;
+    assert.notEqual(reregisteredUserId, primaryUserId);
 
     const deletedUserProtectedRequests = await Promise.all([
       requestJSON(baseURL, "/profile", { headers: authHeaders(primaryAccessToken) }),
@@ -572,16 +623,16 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
       body: JSON.stringify({ password })
     });
     assert.equal(deleteSecondaryResponse.status, 204);
-    assert.equal(await prisma.user.count({ where: { id: secondaryUserId } }), 0);
+    assert.equal(await prisma.user.count({ where: { id: secondaryUserId, deletedAt: { not: null } } }), 1);
   } finally {
     if (server.listening) {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => error ? reject(error) : resolve());
       });
     }
-    await prisma.user.deleteMany({
-      where: { email: { in: [primaryEmail, secondaryEmail, concurrentEmail] } }
-    });
+    const testUserIds = [primaryUserId, secondaryUserId, concurrentUserId, reregisteredUserId].filter(Boolean);
+    await prisma.user.deleteMany({ where: { id: { in: testUserIds } } });
+    await prisma.user.deleteMany({ where: { email: { in: [primaryEmail, secondaryEmail, concurrentEmail] } } });
     await prisma.$disconnect();
   }
 });

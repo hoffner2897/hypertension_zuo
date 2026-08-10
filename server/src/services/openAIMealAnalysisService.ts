@@ -30,11 +30,22 @@ const resultJSONSchema = {
   additionalProperties: false,
   properties: {
     canAnalyze: { type: "boolean" },
-    analysis: { type: "string", minLength: 1, maxLength: 220 },
-    similarSuggestion: { type: "string", minLength: 1, maxLength: 180 },
+    recognition: { type: "string", minLength: 1, maxLength: 90 },
+    dietaryStructureAnalysis: { type: "string", minLength: 1, maxLength: 180 },
+    cookingMethodAnalysis: { type: "string", minLength: 1, maxLength: 140 },
+    dietaryStructureSuggestion: { type: "string", minLength: 1, maxLength: 160 },
+    cookingMethodSuggestion: { type: "string", minLength: 1, maxLength: 140 },
     cardSummary: { type: "string", minLength: 1, maxLength: 90 }
   },
-  required: ["canAnalyze", "analysis", "similarSuggestion", "cardSummary"]
+  required: [
+    "canAnalyze",
+    "recognition",
+    "dietaryStructureAnalysis",
+    "cookingMethodAnalysis",
+    "dietaryStructureSuggestion",
+    "cookingMethodSuggestion",
+    "cardSummary"
+  ]
 };
 
 export class OpenAIMealAnalysisService implements MealAnalysisService {
@@ -141,19 +152,22 @@ function describeFetchError(error: unknown): string {
 }
 
 export const mealAnalysisPrompt = `
-你是 BPHealth 的餐食图片分析助手，服务对象是正在持续观察血压和生活习惯的成年人。
+你是 BPHealth 的餐食图片分析助手，服务对象是正在持续观察血压和生活习惯的成年人。所有分析和建议都应从支持血压管理的饮食角度出发，参考 DASH 饮食、少盐、少加工食品、蔬果与优质蛋白合理搭配等原则。
 
 输入包含一张用户本餐食物照片，以及餐次、记录时间、可用的基础资料和近期血压读数。请只根据照片中清晰可见的内容进行谨慎分析；资料只用于让建议更贴合，不得据此诊断疾病。
 
-输出一个判断字段和三个简体中文文字字段：
+输出一个判断字段和六个简体中文文字字段：
 - canAnalyze：照片清晰展示可分析的餐食时为 true；否则为 false。
-1. analysis：先客观概括照片中看得清的主要食物，再从食物种类、蔬菜、蛋白质、主食以及可能的盐/酱汁/加工食品角度给出支持性的分析。1至3句，最多220字。
-2. similarSuggestion：给出下次吃类似餐食时可执行的小调整，例如少放酱汁、增加蔬菜、选择较少加工的蛋白质或调整主食搭配。1至2句，最多180字。
-3. cardSummary：供今日行动小卡片展示，概括本餐最重要的一点和一个后续建议，最多90字。
+1. recognition（识别）：只用一句最精炼的话，说明照片中可见的餐食是什么，最多90字。
+2. dietaryStructureAnalysis（饮食结构）：只用一句话，说明可见食物分别属于哪些种类（例如碳水化合物、膳食纤维、蛋白质），并点评可见分量与搭配关系，最多180字。
+3. cookingMethodAnalysis（烹饪方式）：只用一句话，谨慎点评照片可判断的烹饪方式；无法判断时明确说“仅凭照片无法确认具体烹饪方式”，最多140字。
+4. dietaryStructureSuggestion（饮食结构）：只用一句话，说明下次如何优化目前的饮食结构，最多160字。
+5. cookingMethodSuggestion（烹饪方式）：只用一句话，说明下次如何优化烹饪方式或调味，最多140字。
+6. cardSummary：供今日行动小卡片展示，用一句话概括本餐最重要的一点和一个后续建议，最多90字。
 
 硬性规则：
 - 只能输出符合 JSON schema 的 JSON，不输出 Markdown。
-- 如果照片不是食物、过暗、严重模糊或无法识别，三个字段都明确说明“照片中的餐食无法清晰识别，请重新拍摄”，不得猜测。
+- 如果照片不是食物、过暗、严重模糊或无法识别，六个文字字段都明确说明“照片中的餐食无法清晰识别，请重新拍摄”，不得猜测。
 - 不得声称知道精确克数、热量、钠含量或营养素数值；照片不能证明的内容使用“可能”“看起来”“若含有”等表述。
 - 不诊断高血压或其他疾病，不评价用户是否患病，不提供药物、停药、治疗或处方建议。
 - 不使用恐吓、责备、绝对化语言；不要说某种单次餐食会直接导致某种疾病。

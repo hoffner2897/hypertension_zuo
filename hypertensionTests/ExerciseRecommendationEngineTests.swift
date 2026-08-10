@@ -13,8 +13,43 @@ struct ExerciseRecommendationEngineTests {
             #expect(exercises.allSatisfy { !$0.movementAdvice.isEmpty })
             #expect(exercises.allSatisfy { !$0.intensityAdvice.isEmpty })
             #expect(exercises.allSatisfy { $0.assetImageName != nil })
-            #expect(exercises.allSatisfy { $0.movementAdviceSteps.count == 3 })
+            #expect(exercises.allSatisfy { $0.movementAdviceSteps.count >= 3 })
+            #expect(exercises.allSatisfy { $0.intensityAdviceSteps.count == 3 })
         }
+
+        #expect(ExerciseInstructionCatalog.byExerciseID.count == 24)
+        #expect(
+            Set(ExerciseInstructionCatalog.byExerciseID.keys) ==
+                Set(LowBarrierExerciseCatalog.all.map(\.id))
+        )
+    }
+
+    @Test func exerciseArtworkUsesMaleOnlyForExplicitMaleProfile() throws {
+        let exercise = try #require(
+            LowBarrierExerciseCatalog.exercise(id: "private-indoor-march-in-place")
+        )
+
+        #expect(ExercisePresentationSex(profileSex: "male") == .male)
+        #expect(ExercisePresentationSex(profileSex: "female") == .female)
+        #expect(ExercisePresentationSex(profileSex: "other") == .female)
+        #expect(ExercisePresentationSex(profileSex: "prefer_not_to_say") == .female)
+        #expect(ExercisePresentationSex(profileSex: nil) == .female)
+        #expect(exercise.assetImageName(for: .male) == "ExerciseMarchInPlaceMale")
+        #expect(exercise.assetImageName(for: .female) == "ExerciseMarchInPlace")
+    }
+
+    @Test func catalogUsesReviewedHowToAndIntensityLabels() throws {
+        let exercise = try #require(
+            LowBarrierExerciseCatalog.exercise(id: "private-indoor-march-in-place")
+        )
+
+        #expect(exercise.movementAdviceSteps.first?.hasPrefix("步骤：") == true)
+        #expect(exercise.movementAdviceSteps.contains { $0.hasPrefix("时间：") })
+        #expect(exercise.movementAdviceSteps.contains { $0.hasPrefix("要点：") })
+        let intensityLabels = exercise.intensityAdviceSteps.compactMap {
+            $0.split(separator: "：", maxSplits: 1).first.map(String.init)
+        }
+        #expect(intensityLabels == ["合适", "过强", "调整方法"])
     }
 
     @Test func everyContextScoreUsesAnAllowedExplicitValue() {

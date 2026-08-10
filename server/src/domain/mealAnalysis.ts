@@ -35,8 +35,11 @@ export const listMealRecordsQuerySchema = z.object({
 
 export const mealAnalysisResultSchema = z.object({
   canAnalyze: z.boolean(),
-  analysis: z.string().trim().min(1).max(220),
-  similarSuggestion: z.string().trim().min(1).max(180),
+  recognition: z.string().trim().min(1).max(90),
+  dietaryStructureAnalysis: z.string().trim().min(1).max(180),
+  cookingMethodAnalysis: z.string().trim().min(1).max(140),
+  dietaryStructureSuggestion: z.string().trim().min(1).max(160),
+  cookingMethodSuggestion: z.string().trim().min(1).max(140),
   cardSummary: z.string().trim().min(1).max(90)
 });
 

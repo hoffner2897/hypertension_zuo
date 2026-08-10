@@ -65,8 +65,8 @@ function parseBearerToken(header: string | undefined): string {
 }
 
 async function findAuthUser(userId: string): Promise<{ id: string; email: string } | null> {
-  return prisma.user.findUnique({
-    where: { id: userId },
+  return prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
     select: { id: true, email: true }
   });
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import type { ServerConfig } from "../config.js";
@@ -96,7 +97,7 @@ export function createAuthRouter(config: ServerConfig, authUserLookup?: AuthUser
         include: { profile: true }
       });
 
-      if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
+      if (user?.deletedAt || !user || !(await verifyPassword(input.password, user.passwordHash))) {
         throw unauthorized("INVALID_CREDENTIALS", "Email or password is incorrect.");
       }
 
@@ -120,7 +121,7 @@ export function createAuthRouter(config: ServerConfig, authUserLookup?: AuthUser
         }
       });
 
-      if (!storedToken || storedToken.revokedAt || storedToken.expiresAt <= new Date()) {
+      if (!storedToken || storedToken.user.deletedAt || storedToken.revokedAt || storedToken.expiresAt <= new Date()) {
         throw unauthorized("INVALID_REFRESH_TOKEN", "Refresh token is invalid.");
       }
 
@@ -258,9 +259,33 @@ export function createAuthRouter(config: ServerConfig, authUserLookup?: AuthUser
         throw forbidden("PASSWORD_CONFIRMATION_FAILED", "Password confirmation failed.");
       }
 
-      await prisma.user.delete({
-        where: { id: user.id }
-      });
+      const now = new Date();
+      const anonymizedEmail = `deleted+${user.id}@accounts.bphealth.invalid`;
+      const anonymizedPasswordHash = await hashPassword(randomUUID());
+
+      await prisma.$transaction([
+        prisma.refreshToken.updateMany({
+          where: { userId: user.id, revokedAt: null },
+          data: { revokedAt: now }
+        }),
+        prisma.emailVerificationToken.updateMany({
+          where: { userId: user.id, consumedAt: null },
+          data: { consumedAt: now }
+        }),
+        prisma.userProfile.updateMany({
+          where: { userId: user.id },
+          data: { displayName: `研究参与者-${user.id.slice(0, 8)}` }
+        }),
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            email: anonymizedEmail,
+            passwordHash: anonymizedPasswordHash,
+            emailVerifiedAt: null,
+            deletedAt: now
+          }
+        })
+      ]);
 
       response.sendStatus(204);
     } catch (error) {

@@ -13,9 +13,11 @@ enum AppRouteState: Equatable {
 final class AppState: ObservableObject {
     @Published private(set) var routeState: AppRouteState = .checkingSession
     @Published private(set) var currentUser: AuthUser?
+    @Published private(set) var currentProfile: UserProfile?
     @Published var errorMessage: String?
 
     private let authService = AuthService()
+    private let profileService = ProfileService()
     private let refreshTokenKey = "bphealth.refreshToken"
     private let deviceIdKey = "bphealth.deviceId"
 
@@ -97,7 +99,21 @@ final class AppState: ObservableObject {
             emailVerified: currentUser.emailVerified,
             profileCompleted: true
         )
+        currentProfile = profile
         routeState = .mainApp
+    }
+
+    func refreshProfile() async {
+        guard currentUser?.profileCompleted == true else {
+            currentProfile = nil
+            return
+        }
+
+        do {
+            currentProfile = try await profileService.fetchProfile().profile
+        } catch {
+            // Keep the last available profile so presentation remains stable offline.
+        }
     }
 
     func logout() async {
@@ -146,6 +162,7 @@ final class AppState: ObservableObject {
             if let deletedUserId {
                 ActionHistoryStore.removeAll(userId: deletedUserId)
                 try? GRDBLocalReadingStore.shared.clear(userId: deletedUserId)
+                try? MealPhotoStore.shared.removeAll(userId: deletedUserId)
             }
             clearLocalSession()
             routeState = .signedOut
@@ -217,6 +234,7 @@ final class AppState: ObservableObject {
         APIClient.shared.accessToken = nil
         KeychainStore.delete(refreshTokenKey)
         currentUser = nil
+        currentProfile = nil
         errorMessage = nil
     }
 

@@ -115,8 +115,11 @@ export function createMealRecordRouter(
       }
 
       if (!result.canAnalyze) {
-        throw new ApiError(422, "MEAL_IMAGE_UNCLEAR", result.analysis);
+        throw new ApiError(422, "MEAL_IMAGE_UNCLEAR", result.recognition);
       }
+
+      const analysis = formatAnalysis(result);
+      const similarSuggestion = formatSuggestion(result);
 
       // The image is deliberately never included in this database write.
       const record = await prisma.mealRecord.upsert({
@@ -131,14 +134,24 @@ export function createMealRecordRouter(
           userId: request.auth.userId,
           mealType: input.mealType,
           mealDate: input.mealDate,
-          analysis: result.analysis,
-          similarSuggestion: result.similarSuggestion,
+          analysis,
+          similarSuggestion,
+          recognition: result.recognition,
+          dietaryStructureAnalysis: result.dietaryStructureAnalysis,
+          cookingMethodAnalysis: result.cookingMethodAnalysis,
+          dietaryStructureSuggestion: result.dietaryStructureSuggestion,
+          cookingMethodSuggestion: result.cookingMethodSuggestion,
           cardSummary: result.cardSummary,
           recordedAt: new Date(input.recordedAt)
         },
         update: {
-          analysis: result.analysis,
-          similarSuggestion: result.similarSuggestion,
+          analysis,
+          similarSuggestion,
+          recognition: result.recognition,
+          dietaryStructureAnalysis: result.dietaryStructureAnalysis,
+          cookingMethodAnalysis: result.cookingMethodAnalysis,
+          dietaryStructureSuggestion: result.dietaryStructureSuggestion,
+          cookingMethodSuggestion: result.cookingMethodSuggestion,
           cardSummary: result.cardSummary,
           recordedAt: new Date(input.recordedAt)
         }
@@ -159,6 +172,11 @@ function serializeMealRecord(record: {
   mealDate: string;
   analysis: string;
   similarSuggestion: string;
+  recognition: string | null;
+  dietaryStructureAnalysis: string | null;
+  cookingMethodAnalysis: string | null;
+  dietaryStructureSuggestion: string | null;
+  cookingMethodSuggestion: string | null;
   cardSummary: string;
   recordedAt: Date;
   createdAt: Date;
@@ -170,11 +188,38 @@ function serializeMealRecord(record: {
     mealDate: record.mealDate,
     analysis: record.analysis,
     similarSuggestion: record.similarSuggestion,
+    recognition: record.recognition,
+    dietaryStructureAnalysis: record.dietaryStructureAnalysis,
+    cookingMethodAnalysis: record.cookingMethodAnalysis,
+    dietaryStructureSuggestion: record.dietaryStructureSuggestion,
+    cookingMethodSuggestion: record.cookingMethodSuggestion,
     cardSummary: record.cardSummary,
     recordedAt: record.recordedAt.toISOString(),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString()
   };
+}
+
+function formatAnalysis(result: {
+  recognition: string;
+  dietaryStructureAnalysis: string;
+  cookingMethodAnalysis: string;
+}): string {
+  return [
+    `识别：${result.recognition}`,
+    `饮食结构：${result.dietaryStructureAnalysis}`,
+    `烹饪方式：${result.cookingMethodAnalysis}`
+  ].join("\n");
+}
+
+function formatSuggestion(result: {
+  dietaryStructureSuggestion: string;
+  cookingMethodSuggestion: string;
+}): string {
+  return [
+    `饮食结构：${result.dietaryStructureSuggestion}`,
+    `烹饪方式：${result.cookingMethodSuggestion}`
+  ].join("\n");
 }
 
 function decimalToNumber(value: unknown): number | null {

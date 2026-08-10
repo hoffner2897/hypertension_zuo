@@ -102,20 +102,25 @@ struct LowBarrierExercise: Identifiable, Equatable, Sendable {
     let catalogOrder: Int
 
     var movementAdviceSteps: [String] {
-        movementAdvice
-            .split(whereSeparator: \.isNewline)
-            .map(String.init)
-            .map {
-                $0.replacingOccurrences(
-                    of: #"^[①②③④⑤⑥]\s*"#,
-                    with: "",
-                    options: .regularExpression
-                )
-            }
+        adviceLines(from: movementAdvice)
     }
 
-    var aiMovementAdvice: String { movementAdvice }
-    var aiIntensityAdvice: String { intensityAdvice }
+    var intensityAdviceSteps: [String] {
+        adviceLines(from: intensityAdvice)
+    }
+
+    func assetImageName(for presentationSex: ExercisePresentationSex) -> String? {
+        guard let assetImageName else { return nil }
+        return presentationSex == .male ? "\(assetImageName)Male" : assetImageName
+    }
+
+    private func adviceLines(from advice: String) -> [String] {
+        advice
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
 }
 
 struct ExerciseRecommendation: Identifiable, Equatable, Sendable {
@@ -578,13 +583,14 @@ enum LowBarrierExerciseCatalog {
         scores: ExerciseContextScores,
         order: Int
     ) -> LowBarrierExercise {
-        LowBarrierExercise(
+        let reviewedCopy = ExerciseInstructionCatalog.byExerciseID[id]
+        return LowBarrierExercise(
             id: id,
             scene: scene,
             name: name,
             type: type,
-            movementAdvice: movementAdvice,
-            intensityAdvice: intensityAdvice,
+            movementAdvice: reviewedCopy?.howTo ?? movementAdvice,
+            intensityAdvice: reviewedCopy?.intensity ?? intensityAdvice,
             systemImageName: systemImageName,
             assetImageName: assetImageName,
             energyTier: energyTier,

@@ -40,7 +40,8 @@
 "管理登录状态和账号数据。" = "Manage login state and account data.";
 "已登录。血压读数会在后续同步到你的账号。" = "You are signed in. Blood pressure readings will sync to your account.";
 "删除账号" = "Delete account";
-"这会删除账号相关的服务器数据，并清空本地登录状态。" = "This deletes account-owned server data and clears local login state.";
+"账号将永久停用，邮箱和显示名称会匿名化；已同意用于学术研究的健康与行为数据会以去标识形式保留，并清空本地登录状态。" = "Your account will be permanently deactivated. Your email and display name will be anonymized; health and activity data you consented to share for academic research will be retained in de-identified form, and your local session will be cleared.";
+"永久删除账号" = "Permanently delete account";
 "输入密码确认" = "Enter password to confirm";
 "永久删除" = "Delete permanently";
 "取消" = "Cancel";

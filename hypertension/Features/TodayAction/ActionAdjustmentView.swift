@@ -331,6 +331,7 @@ private struct AdjustmentPageTitle: View {
 }
 
 private struct AdjustmentEntryRow: View {
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     let entry: ActionAdjustmentEntry
     let onAdjust: () -> Void
 
@@ -374,7 +375,10 @@ private struct AdjustmentEntryRow: View {
     }
 
     private func artwork(size: CGFloat) -> some View {
-        AdjustmentArtwork(assetName: entry.artworkAssetName, fallbackSystemImage: entry.systemImage)
+        AdjustmentArtwork(
+            assetName: entry.artworkAssetName(for: exercisePresentationSex),
+            fallbackSystemImage: entry.systemImage
+        )
             .frame(width: size, height: size)
     }
 
@@ -444,22 +448,26 @@ private struct AdjustmentEntryRow: View {
 }
 
 private struct AdjustmentArtwork: View {
-    let assetName: String
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
+    private let explicitAssetName: String?
+    private let item: TodayActionItem?
     let fallbackSystemImage: String
 
     init(assetName: String, fallbackSystemImage: String) {
-        self.assetName = assetName
+        self.explicitAssetName = assetName
+        self.item = nil
         self.fallbackSystemImage = fallbackSystemImage
     }
 
     init(item: TodayActionItem?, fallbackSystemImage: String) {
-        self.assetName = Self.assetName(for: item, fallbackSystemImage: fallbackSystemImage)
+        self.explicitAssetName = nil
+        self.item = item
         self.fallbackSystemImage = fallbackSystemImage
     }
 
     var body: some View {
         Group {
-            Image(assetName)
+            Image(resolvedAssetName)
                 .resizable()
                 .scaledToFit()
         }
@@ -473,12 +481,24 @@ private struct AdjustmentArtwork: View {
         .accessibilityHidden(true)
     }
 
-    private static func assetName(for item: TodayActionItem?, fallbackSystemImage: String) -> String {
+    private var resolvedAssetName: String {
+        explicitAssetName ?? Self.assetName(
+            for: item,
+            fallbackSystemImage: fallbackSystemImage,
+            presentationSex: exercisePresentationSex
+        )
+    }
+
+    private static func assetName(
+        for item: TodayActionItem?,
+        fallbackSystemImage: String,
+        presentationSex: ExercisePresentationSex
+    ) -> String {
         guard let item else {
             return "ActionAdjustWalk"
         }
 
-        if let assetName = item.timelineArtworkAssetName {
+        if let assetName = item.timelineArtworkAssetName(for: presentationSex) {
             return assetName
         }
 
@@ -494,7 +514,7 @@ private struct AdjustmentArtwork: View {
             return "ActionAdjustWalk"
         }
 
-        return item.timelineArtworkAssetName ?? "ActionAdjustWalk"
+        return item.timelineArtworkAssetName(for: presentationSex) ?? "ActionAdjustWalk"
     }
 }
 
@@ -590,7 +610,7 @@ private struct ActionAdjustmentEntry: Identifiable {
         items.contains { $0.status != .completed }
     }
 
-    var artworkAssetName: String {
+    func artworkAssetName(for presentationSex: ExercisePresentationSex) -> String {
         switch target {
         case .bloodPressure:
             return "ActionAdjustBloodPressure"
@@ -601,7 +621,7 @@ private struct ActionAdjustmentEntry: Identifiable {
                 return "ActionAdjustWalk"
             }
 
-            if let assetName = item.timelineArtworkAssetName {
+            if let assetName = item.timelineArtworkAssetName(for: presentationSex) {
                 return assetName
             }
 
@@ -617,7 +637,7 @@ private struct ActionAdjustmentEntry: Identifiable {
                 return "ActionAdjustDiet"
             }
 
-            return item.timelineArtworkAssetName ?? "ActionAdjustWalk"
+            return item.timelineArtworkAssetName(for: presentationSex) ?? "ActionAdjustWalk"
         }
     }
 
@@ -1444,17 +1464,21 @@ private enum MovementOption: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    var artworkAssetName: String? {
+    func artworkAssetName(for presentationSex: ExercisePresentationSex) -> String? {
+        let femaleAssetName: String?
         switch self {
         case .slowWalk:
-            "ExerciseSlowWalk"
+            femaleAssetName = "ExerciseSlowWalk"
         case .jogInPlace:
-            "ExerciseMarchInPlace"
+            femaleAssetName = "ExerciseMarchInPlace"
         case .calfRaise:
-            "ExerciseCalfRaise"
+            femaleAssetName = "ExerciseCalfRaise"
         case .wallPushUp:
-            "ExerciseWallPushUp"
+            femaleAssetName = "ExerciseWallPushUp"
         }
+
+        guard let femaleAssetName else { return nil }
+        return presentationSex == .male ? "\(femaleAssetName)Male" : femaleAssetName
     }
 
     var actionType: TodayActionType {
@@ -1475,13 +1499,11 @@ private struct MovementAdjustmentEditor: View {
 
     @State private var selectedReasons: Set<MovementAdjustmentReason>
     @State private var selectedTime: String
-    @State private var selectedDuration: Int
+    @State private var selectedEndTime: String
     @State private var selectedMovement: MovementOption
     @State private var customMovementName: String
 
-    private let durationOptions = [10, 15, 20, 30]
     private let reasonColumns = [
-        GridItem(.flexible(), spacing: DSTheme.Spacing.small),
         GridItem(.flexible(), spacing: DSTheme.Spacing.small),
         GridItem(.flexible(), spacing: DSTheme.Spacing.small)
     ]
@@ -1503,7 +1525,7 @@ private struct MovementAdjustmentEditor: View {
 
         var reasons: Set<MovementAdjustmentReason> = []
         var timeText = item.startTimeText
-        var duration = item.durationMinutes
+        var endTimeText = item.endTimeText
         var movement = MovementOption.matching(item.title) ?? .slowWalk
         var customName = ""
 
@@ -1534,11 +1556,18 @@ private struct MovementAdjustmentEditor: View {
                let proposedDate = AdjustmentClock.date(from: proposedTime, anchoredTo: item.scheduledStartAt) {
                 reasons.insert(.time)
                 timeText = TodayActionItem.timeFormatter.string(from: proposedDate)
+                endTimeText = ExerciseTimeRange.endTime(
+                    startTime: timeText,
+                    durationMinutes: item.durationMinutes
+                )
             }
 
             if let proposedDuration = suggestion.proposedDurationMinutes {
                 reasons.insert(.duration)
-                duration = max(5, proposedDuration)
+                endTimeText = ExerciseTimeRange.endTime(
+                    startTime: timeText,
+                    durationMinutes: max(5, proposedDuration)
+                )
             }
         }
 
@@ -1549,7 +1578,7 @@ private struct MovementAdjustmentEditor: View {
 
         self._selectedReasons = State(initialValue: usesDefaultEnergyAdjustment ? [.energy] : reasons)
         self._selectedTime = State(initialValue: timeText)
-        self._selectedDuration = State(initialValue: duration)
+        self._selectedEndTime = State(initialValue: endTimeText)
         self._selectedMovement = State(initialValue: movement)
         self._customMovementName = State(initialValue: customName)
     }
@@ -1583,7 +1612,21 @@ private struct MovementAdjustmentEditor: View {
     }
 
     private var adjustedDuration: Int {
-        selectedReasons.contains(.duration) ? selectedDuration : originalItem.durationMinutes
+        guard selectedReasons.contains(.time) || selectedReasons.contains(.duration) else {
+            return originalItem.durationMinutes
+        }
+        return ExerciseTimeRange.durationMinutes(
+            from: TodayActionItem.timeFormatter.string(from: adjustedStartDate),
+            to: selectedEndTime
+        )
+    }
+
+    private var adjustedEndDate: Date {
+        Calendar.current.date(
+            byAdding: .minute,
+            value: adjustedDuration,
+            to: adjustedStartDate
+        ) ?? adjustedStartDate
     }
 
     private var adjustedMovementName: String {
@@ -1660,12 +1703,8 @@ private struct MovementAdjustmentEditor: View {
                     if isLocked {
                         lockedNotice
                     } else {
-                        if selectedReasons.contains(.time) {
-                            startTimeCard
-                        }
-
-                        if selectedReasons.contains(.duration) {
-                            durationCard
+                        if selectedReasons.contains(.time) || selectedReasons.contains(.duration) {
+                            timeRangeCard
                         }
 
                         if showsMovementOptions {
@@ -1680,8 +1719,8 @@ private struct MovementAdjustmentEditor: View {
                     MovementAdjustmentSummary(
                         originalItem: originalItem,
                         startDate: adjustedStartDate,
-                        movementName: adjustedMovementName,
-                        durationMinutes: adjustedDuration
+                        endDate: adjustedEndDate,
+                        movementName: adjustedMovementName
                     )
                 }
                 .padding(.horizontal, DSTheme.Spacing.medium)
@@ -1702,7 +1741,7 @@ private struct MovementAdjustmentEditor: View {
         HStack(spacing: 18) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(red: 0.96, green: 0.985, blue: 1.0))
+                    .fill(Color.white)
 
                 AdjustmentArtwork(
                     item: originalItem,
@@ -1725,12 +1764,7 @@ private struct MovementAdjustmentEditor: View {
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                HStack(spacing: 12) {
-                    IconText(assetName: "ActionAdjustClock", text: originalItem.startTimeText)
-                    Divider()
-                        .frame(height: 18)
-                    IconText(assetName: "ActionAdjustReasonDuration", text: "\(originalItem.durationMinutes)分钟")
-                }
+                IconText(assetName: "ActionAdjustClock", text: originalItem.timeRangeText)
             }
 
             Spacer(minLength: 0)
@@ -1776,69 +1810,19 @@ private struct MovementAdjustmentEditor: View {
         }
     }
 
-    private var startTimeCard: some View {
+    private var timeRangeCard: some View {
         DSCard {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                Label("重新选择开始时间", systemImage: "clock.arrow.circlepath")
+                Label("重新选择运动时间", systemImage: "clock.arrow.circlepath")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                GroupedTimeMenuRow(
-                    title: "开始时间",
-                    systemImage: "clock",
-                    selectedTime: selectedTime,
-                    options: AdjustmentClock.options(including: originalItem.scheduledStartAt),
-                    isLocked: false
-                ) { selectedTime = $0 }
+                ExerciseTimeRangePicker(
+                    startTime: $selectedTime,
+                    endTime: $selectedEndTime
+                )
             }
         }
-    }
-
-    private var durationCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("选择本次运动时长")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                Text("请选择一个你希望的运动时长。")
-                    .font(.caption)
-                    .foregroundStyle(DSTheme.Color.textSecondary)
-            }
-
-            HStack(spacing: 10) {
-                ForEach(durationChoices, id: \.self) { minutes in
-                    Button {
-                        selectedDuration = minutes
-                    } label: {
-                        ZStack(alignment: .bottomTrailing) {
-                            Text("\(minutes)分钟")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(selectedDuration == minutes ? DSTheme.Color.primary : Color(red: 0.05, green: 0.14, blue: 0.46))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 46)
-                                .background(selectedDuration == minutes ? Color(red: 0.93, green: 0.97, blue: 1.0) : .white)
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(selectedDuration == minutes ? DSTheme.Color.primary : DSTheme.Color.border, lineWidth: 1.2)
-                                }
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                            if selectedDuration == minutes {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(DSTheme.Color.primary)
-                                    .background(Circle().fill(.white))
-                                    .offset(x: 5, y: 5)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .padding(12)
-        .actionAdjustmentCardStyle()
     }
 
     private var movementOptionsCard: some View {
@@ -1906,10 +1890,6 @@ private struct MovementAdjustmentEditor: View {
         }
     }
 
-    private var durationChoices: [Int] {
-        Array(Set(durationOptions + [originalItem.durationMinutes, selectedDuration])).sorted()
-    }
-
     private func toggle(_ reason: MovementAdjustmentReason) {
         guard !isReasonDisabled(reason) else {
             return
@@ -1930,11 +1910,7 @@ private struct MovementAdjustmentEditor: View {
         var updated = originalItem
         updated.scheduledStartAt = adjustedStartDate
         updated.durationMinutes = adjustedDuration
-        updated.scheduledEndAt = Calendar.current.date(
-            byAdding: .minute,
-            value: adjustedDuration,
-            to: adjustedStartDate
-        ) ?? adjustedStartDate
+        updated.scheduledEndAt = adjustedEndDate
         updated.title = adjustedMovementName
         updated.type = adjustedType
 
@@ -1993,13 +1969,14 @@ private struct AdjustmentReasonButton: View {
                     Text(reason.rawValue)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(isSelected ? DSTheme.Color.primary : Color(red: 0.05, green: 0.14, blue: 0.46))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.86)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 9)
-                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
@@ -2064,20 +2041,14 @@ private struct MovementOptionButton: View {
 }
 
 private struct MovementOptionArtwork: View {
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     let movement: MovementOption
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.97, green: 0.99, blue: 1.0),
-                    Color(red: 0.92, green: 0.96, blue: 1.0)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            Color.white
 
-            if let assetName = movement.artworkAssetName {
+            if let assetName = movement.artworkAssetName(for: exercisePresentationSex) {
                 Image(assetName)
                     .resizable()
                     .scaledToFit()
@@ -2100,8 +2071,8 @@ private struct MovementOptionArtwork: View {
 private struct MovementAdjustmentSummary: View {
     let originalItem: TodayActionItem
     let startDate: Date
+    let endDate: Date
     let movementName: String
-    let durationMinutes: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -2118,15 +2089,18 @@ private struct MovementAdjustmentSummary: View {
                 Divider()
                     .frame(height: 44)
 
-                summaryColumn(title: "运动种类", value: movementName)
+                summaryColumn(
+                    title: "结束时间",
+                    value: TodayActionItem.timeFormatter.string(from: endDate)
+                )
 
                 Divider()
                     .frame(height: 44)
 
-                summaryColumn(title: "运动时长", value: "\(durationMinutes)分钟")
+                summaryColumn(title: "运动种类", value: movementName)
             }
 
-            Text("原计划：\(originalItem.startTimeText)  |  \(originalItem.title)  |  \(originalItem.durationMinutes)分钟")
+            Text("原计划：\(originalItem.timeRangeText)  |  \(originalItem.title)")
                 .font(.caption)
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)
