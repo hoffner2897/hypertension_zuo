@@ -411,7 +411,7 @@
 				BPHEALTH_API_BASE_URL = "https://bphealth-api-staging.onrender.com";
 				CODE_SIGN_ENTITLEMENTS = hypertension/hypertension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = BF7RM7388U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -448,7 +448,7 @@
 				BPHEALTH_API_BASE_URL = "https://bphealth-api-staging.onrender.com";
 				CODE_SIGN_ENTITLEMENTS = hypertension/hypertension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = BF7RM7388U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;

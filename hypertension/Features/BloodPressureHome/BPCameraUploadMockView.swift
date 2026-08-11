@@ -83,6 +83,30 @@ struct BPCameraUploadMockView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(viewModel.isRecognizing)
+
+                        Button {
+                            onManualInput(BPReadingDraft(source: .manual))
+                        } label: {
+                            HStack(spacing: DSTheme.Spacing.small) {
+                                Image(systemName: "square.and.pencil")
+                                    .font(.headline.weight(.bold))
+
+                                Text("手动输入读数")
+                                    .font(.headline.weight(.bold))
+                            }
+                            .foregroundStyle(DSTheme.Color.primary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(.white)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                    .stroke(DSTheme.Color.primary, lineWidth: 1.1)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isRecognizing)
+                        .accessibilityIdentifier("manual-blood-pressure-from-camera")
                     }
                 }
                 .padding(.horizontal, DSTheme.Spacing.large)

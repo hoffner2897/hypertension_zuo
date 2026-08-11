@@ -554,6 +554,22 @@ enum LowBarrierExerciseCatalog {
         all.first { $0.id == id }
     }
 
+    static func adjustmentExercise(
+        named displayName: String,
+        preferredSceneTitle: String? = nil
+    ) -> LowBarrierExercise? {
+        let catalogName = displayName == "站姿提踵" ? "提踵" : displayName
+        let matches = all.filter { $0.name == catalogName }
+
+        if let preferredSceneTitle,
+           let preferredScene = ExerciseScene(title: preferredSceneTitle),
+           let sceneMatch = matches.first(where: { $0.scene == preferredScene }) {
+            return sceneMatch
+        }
+
+        return matches.first
+    }
+
     private static func scores(
         _ afterMeal: Int,
         _ afterSitting: Int,

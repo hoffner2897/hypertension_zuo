@@ -1645,10 +1645,14 @@ private struct MovementAdjustmentEditor: View {
     }
 
     private var adjustedCatalogExercise: LowBarrierExercise? {
-        guard !usesCustomMovement,
-              originalItem.exerciseId != nil,
-              originalItem.exerciseScene != nil,
-              originalItem.exerciseEnergy != nil else { return nil }
+        guard !usesCustomMovement else { return nil }
+
+        // When the user only changes the time, keep the original catalog
+        // exercise. A free-text custom exercise must remain custom.
+        guard showsMovementOptions else {
+            guard let originalExerciseID = originalItem.exerciseId else { return nil }
+            return LowBarrierExerciseCatalog.exercise(id: originalExerciseID)
+        }
 
         if adjustedMovementName == originalItem.title,
            let originalExerciseID = originalItem.exerciseId,
@@ -1656,17 +1660,10 @@ private struct MovementAdjustmentEditor: View {
             return originalExercise
         }
 
-        let catalogName = adjustedMovementName == MovementOption.calfRaise.rawValue
-            ? "提踵"
-            : adjustedMovementName
-        let matches = LowBarrierExerciseCatalog.all.filter { $0.name == catalogName }
-
-        if let originalSceneTitle = originalItem.exerciseScene,
-           let originalScene = ExerciseScene(title: originalSceneTitle) {
-            return matches.first(where: { $0.scene == originalScene })
-        }
-
-        return matches.first
+        return LowBarrierExerciseCatalog.adjustmentExercise(
+            named: adjustedMovementName,
+            preferredSceneTitle: originalItem.exerciseScene
+        )
     }
 
     private var customInputIsValid: Bool {
@@ -1913,6 +1910,7 @@ private struct MovementAdjustmentEditor: View {
             updated.type = .walk
             updated.exerciseId = catalogExercise.id
             updated.exerciseScene = catalogExercise.scene.rawValue
+            updated.exerciseEnergy = originalItem.exerciseEnergy ?? catalogExercise.energyTier.title
             updated.exerciseMovementAdvice = catalogExercise.movementAdvice
             updated.exerciseIntensityAdvice = catalogExercise.intensityAdvice
             updated.description = catalogExercise.movementAdvice

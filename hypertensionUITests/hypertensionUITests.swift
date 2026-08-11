@@ -165,10 +165,22 @@ final class hypertensionUITests: XCTestCase {
 
         let uploadButton = app.buttons["拍照上传读数"]
         XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
+
+        let manualButton = app.buttons["manual-blood-pressure-entry"]
+        XCTAssertTrue(manualButton.waitForExistence(timeout: 5))
+        manualButton.tap()
+
+        XCTAssertTrue(app.staticTexts["确认读数"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["收缩压"].exists)
+        XCTAssertTrue(app.staticTexts["舒张压"].exists)
+
+        app.buttons["bp-confirm-back"].tap()
+        XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
         uploadButton.tap()
 
         XCTAssertTrue(app.staticTexts["拍照上传"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["小宁"].exists)
+        XCTAssertTrue(app.buttons["manual-blood-pressure-from-camera"].exists)
     }
 
     @MainActor

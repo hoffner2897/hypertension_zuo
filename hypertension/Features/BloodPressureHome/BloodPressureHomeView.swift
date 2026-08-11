@@ -124,6 +124,29 @@ struct BloodPressureHomeView: View {
                         .buttonStyle(.plain)
 
                         Button {
+                            path.append(.confirmReading(manualReadingDraftForToday()))
+                        } label: {
+                            HStack(spacing: DSTheme.Spacing.small) {
+                                Image(systemName: "square.and.pencil")
+                                    .font(.headline.weight(.bold))
+
+                                Text("手动输入读数")
+                                    .font(.headline.weight(.bold))
+                            }
+                            .foregroundStyle(DSTheme.Color.primary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(.white)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                    .stroke(DSTheme.Color.primary, lineWidth: 1.2)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("manual-blood-pressure-entry")
+
+                        Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 showsAllHistory.toggle()
                             }
@@ -194,8 +217,8 @@ struct BloodPressureHomeView: View {
                         onRecognized: { draft in
                             path.append(.confirmReading(draftWithPreferredMeasurementDate(draft)))
                         },
-                        onManualInput: { draft in
-                            path.append(.confirmReading(draftWithPreferredMeasurementDate(draft)))
+                        onManualInput: { _ in
+                            path.append(.confirmReading(manualReadingDraftForToday()))
                         }
                     )
                 case .confirmReading(let draft):
@@ -704,6 +727,21 @@ struct BloodPressureHomeView: View {
         var updatedDraft = draft
         updatedDraft.measuredAt = preferredMeasurementDate
         return updatedDraft
+    }
+
+    private func manualReadingDraftForToday() -> BPReadingDraft {
+        var draft = BPReadingDraft(source: .manual)
+        let now = Date()
+
+        if let preferredMeasurementDate,
+           Calendar.current.isDateInToday(preferredMeasurementDate),
+           preferredMeasurementDate <= now {
+            draft.measuredAt = preferredMeasurementDate
+        } else {
+            draft.measuredAt = now
+        }
+
+        return draft
     }
 
     private static let historyDateFormatter: DateFormatter = {

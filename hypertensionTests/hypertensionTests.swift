@@ -422,6 +422,43 @@ struct hypertensionTests {
         #expect(adjustedYoga.isExerciseAction)
     }
 
+    @Test @MainActor func adjustedLowBarrierExerciseRebindsCatalogArtwork() {
+        let wallPushUp = LowBarrierExerciseCatalog.adjustmentExercise(
+            named: "靠墙俯卧撑",
+            preferredSceneTitle: nil
+        )
+        let calfRaise = LowBarrierExerciseCatalog.adjustmentExercise(
+            named: "站姿提踵",
+            preferredSceneTitle: "私人室内"
+        )
+
+        #expect(wallPushUp != nil)
+        #expect(wallPushUp?.name == "靠墙俯卧撑")
+        #expect(wallPushUp?.assetImageName == "ExerciseWallPushUp")
+        #expect(calfRaise != nil)
+        #expect(calfRaise?.name == "提踵")
+        #expect(calfRaise?.scene == .publicIndoor)
+        #expect(calfRaise?.assetImageName == "ExerciseCalfRaise")
+
+        if let wallPushUp {
+            let adjustedItem = TodayActionItem(
+                type: .walk,
+                title: wallPushUp.name,
+                description: wallPushUp.movementAdvice,
+                reason: "调整后的低门槛运动",
+                scheduledStartAt: Date(),
+                durationMinutes: 15,
+                sortOrder: 0,
+                exerciseId: wallPushUp.id,
+                exerciseScene: wallPushUp.scene.rawValue,
+                exerciseEnergy: wallPushUp.energyTier.title,
+                exerciseMovementAdvice: wallPushUp.movementAdvice,
+                exerciseIntensityAdvice: wallPushUp.intensityAdvice
+            )
+            #expect(adjustedItem.timelineArtworkAssetName == "ExerciseWallPushUp")
+        }
+    }
+
     @MainActor
     private func makeAction(start: Date, status: TodayActionStatus) -> TodayActionItem {
         TodayActionItem(

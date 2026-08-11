@@ -125,6 +125,7 @@ struct BPConfirmReadingView: View {
                         .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("bp-confirm-back")
 
                 Spacer()
 
