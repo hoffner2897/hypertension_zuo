@@ -52,6 +52,14 @@ struct ExerciseRecommendationEngineTests {
         #expect(intensityLabels == ["合适", "过强", "调整方法"])
     }
 
+    @Test func lowStepUpDoesNotReferenceAnUnavailableVideo() throws {
+        let instruction = try #require(
+            ExerciseInstructionCatalog.byExerciseID["private-open-outdoor-low-step-up"]
+        )
+
+        #expect(!instruction.howTo.contains("首次练习建议查看动作视频"))
+    }
+
     @Test func everyContextScoreUsesAnAllowedExplicitValue() {
         let scoredContexts = ExerciseContext.allCases.filter { $0 != .noSpecialCondition }
         let allowed = Set([-3, -1, 1, 3])

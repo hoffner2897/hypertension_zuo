@@ -74,7 +74,7 @@ final class hypertensionUITests: XCTestCase {
     }
 
     @MainActor
-    func testMealSheetCloseButtonWorksOnFirstOpenAndReopen() throws {
+    func testMealSheetCloseButtonWorksForBreakfastLunchAndDinner() throws {
         let app = XCUIApplication()
         app.launch()
 
@@ -82,19 +82,27 @@ final class hypertensionUITests: XCTestCase {
         XCTAssertTrue(debugPreviewButton.waitForExistence(timeout: 8))
         debugPreviewButton.tap()
 
-        let breakfastCard = app.buttons.matching(identifier: "today.meal.breakfast").firstMatch
-        XCTAssertTrue(breakfastCard.waitForExistence(timeout: 8))
-        breakfastCard.tap()
-
         let closeButton = app.buttons["meal.closeButton"]
-        XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
-        closeButton.tap()
-        XCTAssertFalse(closeButton.waitForExistence(timeout: 2))
+        for meal in ["breakfast", "lunch", "dinner"] {
+            let mealCard = app.buttons.matching(identifier: "today.meal.\(meal)").firstMatch
+            XCTAssertTrue(scrollUntilHittable(mealCard, in: app), "\(meal) card should be tappable")
+            mealCard.tap()
 
-        breakfastCard.tap()
-        XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
-        closeButton.tap()
-        XCTAssertFalse(closeButton.waitForExistence(timeout: 2))
+            XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(closeButton.isHittable)
+            closeButton.tap()
+            XCTAssertFalse(closeButton.waitForExistence(timeout: 2))
+        }
+    }
+
+    private func scrollUntilHittable(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        for _ in 0..<10 {
+            if element.exists && element.isHittable {
+                return true
+            }
+            app.swipeUp()
+        }
+        return element.exists && element.isHittable
     }
 
     @MainActor

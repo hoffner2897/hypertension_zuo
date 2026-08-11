@@ -9,6 +9,7 @@ struct MealRecordSheet: View {
     let onSaved: (MealRecord) -> Void
     let onClose: () -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @State private var record: MealRecord?
     @State private var selectedImage: UIImage?
     @State private var selectedImageData: Data?
@@ -98,14 +99,18 @@ struct MealRecordSheet: View {
             Spacer()
 
             Button {
+                dismiss()
                 onClose()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.title2.weight(.semibold))
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(DSTheme.Color.textPrimary)
                     .frame(width: 44, height: 44)
+                    .background(DSTheme.Color.primarySoft.opacity(0.7))
+                    .clipShape(Circle())
+                    .contentShape(Circle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
             .zIndex(1)
             .accessibilityLabel("关闭")
             .accessibilityIdentifier("meal.closeButton")
