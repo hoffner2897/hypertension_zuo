@@ -400,9 +400,26 @@ struct hypertensionTests {
             durationMinutes: 30,
             sortOrder: 1
         )
+        let adjustedYoga = TodayActionItem(
+            type: .walk,
+            title: "瑜伽",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 30,
+            sortOrder: 2,
+            exerciseId: "custom-adjusted",
+            exerciseScene: "公共室内",
+            exerciseEnergy: "精力一般",
+            exerciseMovementAdvice: "保持轻量运动",
+            exerciseIntensityAdvice: "保持自然呼吸"
+        )
 
         #expect(custom.timelineArtworkAssetName == "ExerciseCustomGeneric")
         #expect(legacyYoga.timelineArtworkAssetName == "ExerciseCustomGeneric")
+        #expect(adjustedYoga.timelineArtworkAssetName == "ExerciseCustomGeneric")
+        #expect(custom.isExerciseAction)
+        #expect(adjustedYoga.isExerciseAction)
     }
 
     @MainActor

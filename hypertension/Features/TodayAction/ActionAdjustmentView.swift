@@ -126,7 +126,7 @@ struct ActionAdjustDemoView: View {
                     .frame(width: 58, height: 58)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("血压")
+                    Text("最新血压")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DSTheme.Color.textSecondary)
 
@@ -1404,8 +1404,7 @@ private struct AdjustmentConfirmBar: View {
 }
 
 private enum MovementAdjustmentReason: String, CaseIterable, Identifiable, Hashable {
-    case time = "时间安排变化"
-    case duration = "想调整运动时长"
+    case time = "时间变化"
     case energy = "精力变化"
     case scene = "场景变化"
     case otherExercise = "想尝试其他运动"
@@ -1416,8 +1415,6 @@ private enum MovementAdjustmentReason: String, CaseIterable, Identifiable, Hasha
         switch self {
         case .time:
             "calendar.badge.clock"
-        case .duration:
-            "timer"
         case .energy:
             "battery.50percent"
         case .scene:
@@ -1431,8 +1428,6 @@ private enum MovementAdjustmentReason: String, CaseIterable, Identifiable, Hasha
         switch self {
         case .time:
             "ActionAdjustReasonTime"
-        case .duration:
-            "ActionAdjustReasonDuration"
         case .energy:
             "ActionAdjustReasonEnergy"
         case .scene:
@@ -1534,7 +1529,7 @@ private struct MovementAdjustmentEditor: View {
             case .reschedule:
                 reasons.insert(.time)
             case .shorten:
-                reasons.insert(.duration)
+                reasons.insert(.time)
             case .switchExercise:
                 if let proposedName = suggestion.proposedExerciseName,
                    let proposedMovement = MovementOption.matching(proposedName) {
@@ -1563,7 +1558,7 @@ private struct MovementAdjustmentEditor: View {
             }
 
             if let proposedDuration = suggestion.proposedDurationMinutes {
-                reasons.insert(.duration)
+                reasons.insert(.time)
                 endTimeText = ExerciseTimeRange.endTime(
                     startTime: timeText,
                     durationMinutes: max(5, proposedDuration)
@@ -1612,7 +1607,7 @@ private struct MovementAdjustmentEditor: View {
     }
 
     private var adjustedDuration: Int {
-        guard selectedReasons.contains(.time) || selectedReasons.contains(.duration) else {
+        guard selectedReasons.contains(.time) else {
             return originalItem.durationMinutes
         }
         return ExerciseTimeRange.durationMinutes(
@@ -1703,7 +1698,7 @@ private struct MovementAdjustmentEditor: View {
                     if isLocked {
                         lockedNotice
                     } else {
-                        if selectedReasons.contains(.time) || selectedReasons.contains(.duration) {
+                        if selectedReasons.contains(.time) {
                             timeRangeCard
                         }
 
@@ -1928,7 +1923,7 @@ private struct MovementAdjustmentEditor: View {
             updated.exerciseId = "custom-adjusted"
             updated.exerciseMovementAdvice = adjustedType.description(durationMinutes: adjustedDuration)
             updated.exerciseIntensityAdvice = "保持自然呼吸和舒适节奏；如有明显不适，请停止并休息。"
-            updated.type = .walk
+            updated.type = usesCustomMovement ? .custom : adjustedType
             updated.description = adjustedType.description(durationMinutes: adjustedDuration)
             updated.reason = adjustedType.reason
         } else {

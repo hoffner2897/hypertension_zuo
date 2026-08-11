@@ -125,7 +125,8 @@ struct MealRecordSheet: View {
             if let selectedImage {
                 Image(uiImage: selectedImage)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             } else if isShowingResult {
                 VStack(spacing: 12) {
@@ -157,6 +158,7 @@ struct MealRecordSheet: View {
                     .font(.headline)
             }
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 300)
         .clipped()
     }

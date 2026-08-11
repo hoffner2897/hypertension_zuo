@@ -106,7 +106,7 @@ final class hypertensionUITests: XCTestCase {
     }
 
     @MainActor
-    func testLowBarrierExerciseGenerationUsesOneProgressiveModule() throws {
+    func testLowBarrierExerciseGenerationUsesTwoStepFlow() throws {
         let app = XCUIApplication()
         app.launch()
 
@@ -128,18 +128,23 @@ final class hypertensionUITests: XCTestCase {
         app.staticTexts["精力低"].firstMatch.tap()
         app.staticTexts["久坐后"].firstMatch.tap()
 
-        let generateButton = app.buttons["生成今日运动"]
-        for _ in 0..<8 where !generateButton.exists {
+        XCTAssertFalse(app.staticTexts["推荐的低门槛运动"].exists)
+
+        let chooseButton = app.buttons["选择运动和时间"]
+        for _ in 0..<8 where !chooseButton.exists {
             app.swipeUp()
         }
 
-        XCTAssertTrue(app.staticTexts["选择推荐运动"].exists)
+        XCTAssertTrue(chooseButton.waitForExistence(timeout: 5))
+        chooseButton.tap()
+
+        XCTAssertTrue(app.staticTexts["推荐的低门槛运动"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["设置运动时间"].exists)
         XCTAssertTrue(app.staticTexts["开始时间"].exists)
         XCTAssertTrue(app.staticTexts["结束时间"].exists)
         XCTAssertFalse(app.staticTexts["运动时长"].exists)
         XCTAssertFalse(app.staticTexts["预约开始时间"].exists)
-        XCTAssertTrue(generateButton.exists)
+        XCTAssertTrue(app.buttons["生成今日运动"].exists)
     }
 
     @MainActor

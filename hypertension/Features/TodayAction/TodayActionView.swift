@@ -220,7 +220,7 @@ struct TodayActionView: View {
                         activeMealItem = item
                     } else if item.type == .bpRecheck {
                         onOpenBloodPressure(item.scheduledStartAt)
-                    } else if item.isCatalogExercise {
+                    } else if item.isExerciseAction {
                         activeExerciseItem = item
                     } else {
                         path.append(.detail(id))
@@ -456,7 +456,7 @@ struct ActionGenerateDemoView: View {
                         DSCard(padding: DSTheme.Spacing.small) {
                             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                                 HStack(spacing: 8) {
-                                    Label("今日血压状态", systemImage: "heart.circle.fill")
+                                    Label("今日最新血压", systemImage: "heart.circle.fill")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(DSTheme.Color.textSecondary)
 
@@ -493,12 +493,11 @@ struct ActionGenerateDemoView: View {
                             energy: $energy,
                             contexts: $contexts,
                             hasDiscomfort: $hasDiscomfort,
-                            exerciseId: $currentExerciseId,
-                            startTime: $currentTime,
-                            endTime: $currentEndTime,
-                            recommendations: recommendedExercises,
                             isSafetyBlocked: isExerciseSafetyBlocked,
-                            onGenerate: generateCurrentMovement
+                            onContinue: {
+                                ensureCurrentExerciseSelection()
+                                activeSheet = .lowBarrierExercise
+                            }
                         )
 
                         Button {
@@ -568,6 +567,22 @@ struct ActionGenerateDemoView: View {
                         generatePreferenceMovement()
                         activeSheet = nil
                     }
+                case .lowBarrierExercise:
+                    LowBarrierExerciseSelectionSheet(
+                        exerciseId: $currentExerciseId,
+                        startTime: $currentTime,
+                        endTime: $currentEndTime,
+                        recommendations: recommendedExercises,
+                        stateSummary: stateSummary,
+                        isSafetyBlocked: isExerciseSafetyBlocked,
+                        onClose: {
+                            activeSheet = nil
+                        },
+                        onGenerate: {
+                            generateCurrentMovement()
+                            activeSheet = nil
+                        }
+                    )
                 }
             }
             .onAppear(perform: ensureCurrentExerciseSelection)
@@ -579,7 +594,8 @@ struct ActionGenerateDemoView: View {
 
     private var stateSummary: String {
         let contextText = contexts.sorted().joined(separator: "、")
-        return contextText.isEmpty ? energy : "\(energy) · \(contextText)"
+        let statusText = contextText.isEmpty ? energy : "\(energy) · \(contextText)"
+        return "\(scene) · \(statusText)"
     }
 
     private var generatedActionTitle: String {
@@ -634,6 +650,7 @@ struct ActionGenerateDemoView: View {
 
 private enum ActionGenerationSheet: String, Identifiable {
     case preference
+    case lowBarrierExercise
 
     var id: String {
         rawValue
@@ -716,17 +733,12 @@ private struct ActionOption: Identifiable {
 }
 
 private struct LowBarrierExerciseGenerationCard: View {
-    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     @Binding var scene: String
     @Binding var energy: String
     @Binding var contexts: Set<String>
     @Binding var hasDiscomfort: Bool
-    @Binding var exerciseId: String
-    @Binding var startTime: String
-    @Binding var endTime: String
-    let recommendations: [LowBarrierExercise]
     let isSafetyBlocked: Bool
-    let onGenerate: () -> Void
+    let onContinue: () -> Void
 
     var body: some View {
         DSCard {
@@ -813,11 +825,6 @@ private struct LowBarrierExerciseGenerationCard: View {
                 .background(DSTheme.Color.primarySoft.opacity(0.5))
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
 
-                stepHeader(number: 3, title: "选择推荐运动")
-                Text("系统已根据前两步更新以下 4 项推荐")
-                    .font(.caption)
-                    .foregroundStyle(DSTheme.Color.textSecondary)
-
                 if isSafetyBlocked {
                     Label("当前不生成运动：请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
@@ -826,32 +833,14 @@ private struct LowBarrierExerciseGenerationCard: View {
                         .padding(DSTheme.Spacing.small)
                         .background(DSTheme.Color.warning.opacity(0.10))
                         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                } else {
-                    LazyVGrid(columns: compactColumns, spacing: DSTheme.Spacing.small) {
-                        ForEach(recommendations) { option in
-                            ActionChoiceTile(
-                                title: option.name,
-                                subtitle: option.type.rawValue,
-                                systemImage: option.systemImageName,
-                                assetImageName: option.assetImageName(for: exercisePresentationSex),
-                                tint: option.type == .aerobic ? DSTheme.Color.primary : Color(red: 0.38, green: 0.52, blue: 0.78),
-                                isSelected: exerciseId == option.id
-                            ) {
-                                exerciseId = option.id
-                            }
-                        }
-                    }
                 }
 
-                stepHeader(number: 4, title: "设置运动时间")
-                ExerciseTimeRangePicker(startTime: $startTime, endTime: $endTime)
-
                 DSPrimaryButton(
-                    isSafetyBlocked ? "请先休息并复测" : "生成今日运动",
-                    isDisabled: isSafetyBlocked || recommendations.isEmpty,
-                    action: onGenerate
+                    isSafetyBlocked ? "请先休息并复测" : "选择运动和时间",
+                    isDisabled: isSafetyBlocked,
+                    action: onContinue
                 )
-                .accessibilityIdentifier("generate-low-barrier-exercise")
+                .accessibilityIdentifier("choose-low-barrier-exercise-and-time")
             }
         }
         .accessibilityIdentifier("low-barrier-exercise-generation")
@@ -920,6 +909,109 @@ private struct LowBarrierExerciseGenerationCard: View {
         ActionOption(title: "无特殊情况", subtitle: "", systemImage: "sun.max.fill", tint: Color(red: 0.90, green: 0.56, blue: 0.12))
     ]
 
+}
+
+private struct LowBarrierExerciseSelectionSheet: View {
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
+    @Binding var exerciseId: String
+    @Binding var startTime: String
+    @Binding var endTime: String
+    let recommendations: [LowBarrierExercise]
+    let stateSummary: String
+    let isSafetyBlocked: Bool
+    let onClose: () -> Void
+    let onGenerate: () -> Void
+
+    private var columns: [GridItem] {
+        [GridItem(.flexible()), GridItem(.flexible())]
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
+                    HStack(alignment: .top, spacing: DSTheme.Spacing.small) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("选择运动和时间")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+
+                            Text(stateSummary)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(DSTheme.Color.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer()
+
+                        Button(action: onClose) {
+                            Image(systemName: "xmark")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(DSTheme.Color.textPrimary)
+                                .frame(width: 40, height: 40)
+                                .background(DSTheme.Color.primarySoft.opacity(0.7))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("关闭")
+                    }
+
+                    DSCard {
+                        VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
+                            Text("推荐的低门槛运动")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
+
+                            Text("系统已根据场景和当前状态更新以下 4 项推荐。")
+                                .font(.caption)
+                                .foregroundStyle(DSTheme.Color.textSecondary)
+
+                            LazyVGrid(columns: columns, spacing: DSTheme.Spacing.small) {
+                                ForEach(recommendations) { option in
+                                    ActionChoiceTile(
+                                        title: option.name,
+                                        subtitle: option.type.rawValue,
+                                        systemImage: option.systemImageName,
+                                        assetImageName: option.assetImageName(for: exercisePresentationSex),
+                                        tint: option.type == .aerobic
+                                            ? DSTheme.Color.primary
+                                            : Color(red: 0.38, green: 0.52, blue: 0.78),
+                                        isSelected: exerciseId == option.id
+                                    ) {
+                                        exerciseId = option.id
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    DSCard {
+                        VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
+                            Text("设置运动时间")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
+
+                            ExerciseTimeRangePicker(startTime: $startTime, endTime: $endTime)
+                        }
+                    }
+
+                    DSPrimaryButton(
+                        isSafetyBlocked ? "请先休息并复测" : "生成今日运动",
+                        isDisabled: isSafetyBlocked || recommendations.isEmpty,
+                        action: onGenerate
+                    )
+                    .accessibilityIdentifier("generate-low-barrier-exercise")
+                }
+                .padding(DSTheme.Spacing.large)
+                .padding(.bottom, 24)
+            }
+            .background(DSTheme.Color.appBackground.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .presentationCornerRadius(28)
+    }
 }
 
 private struct ActionSetupCard: View {
@@ -2176,6 +2268,11 @@ private struct ExerciseRecordSheet: View {
                 .resizable()
                 .scaledToFit()
                 .accessibilityHidden(true)
+        } else if let assetName = item.timelineArtworkAssetName(for: exercisePresentationSex) {
+            Image(assetName)
+                .resizable()
+                .scaledToFit()
+                .accessibilityHidden(true)
         } else {
             ZStack {
                 Circle()
@@ -2463,7 +2560,7 @@ struct TodayActionItem: Identifiable, Hashable {
             return assetName
         }
 
-        if type == .custom || isLegacyUserDefinedMovement {
+        if type == .custom || isUserDefinedMovement {
             return "ExerciseCustomGeneric"
         }
 
@@ -2502,10 +2599,15 @@ struct TodayActionItem: Identifiable, Hashable {
         timelineArtworkAssetName(for: .female)
     }
 
-    private var isLegacyUserDefinedMovement: Bool {
-        guard exerciseId == nil, type == .walk else { return false }
+    private var isUserDefinedMovement: Bool {
+        guard exerciseId == nil || exerciseId == "custom-adjusted" else { return false }
+        guard type == .walk || type == .custom else { return false }
         let knownWalkingTitles = ["慢走", "散步", "踏步", "快走"]
         return !knownWalkingTitles.contains { title.contains($0) }
+    }
+
+    var isExerciseAction: Bool {
+        type != .diet && type != .bpRecheck
     }
 
     var isCatalogExercise: Bool {

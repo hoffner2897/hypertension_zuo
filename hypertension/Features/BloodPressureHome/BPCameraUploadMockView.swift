@@ -145,7 +145,8 @@ struct BPCameraUploadMockView: View {
                 if let selectedImage = viewModel.selectedImage {
                     Image(uiImage: selectedImage)
                         .resizable()
-                        .scaledToFill()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     BPMonitorSamplePhoto()
                 }
@@ -164,6 +165,7 @@ struct BPCameraUploadMockView: View {
             .frame(maxWidth: .infinity)
             .aspectRatio(0.94, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipped()
 
             Text(viewModel.selectedImage == nil ? "保持画面清晰，避免反光" : "正在准备识别，请保持读数清晰")
                 .font(.subheadline.weight(.bold))
