@@ -568,6 +568,7 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
       include: { profile: true }
     });
     assert.ok(retainedUser.deletedAt);
+    assert.equal(retainedUser.researchEmail, primaryEmail);
     assert.notEqual(retainedUser.email, primaryEmail);
     assert.match(retainedUser.email, /^deleted\+.+@accounts\.bphealth\.invalid$/);
     assert.match(retainedUser.profile?.displayName ?? "", /^研究参与者-/);

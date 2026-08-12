@@ -43,6 +43,7 @@ enum ExerciseActionStatus {
 model User {
   id              String    @id @default(uuid()) @db.Uuid
   email           String    @unique
+  researchEmail   String?   @map("research_email")
   passwordHash    String    @map("password_hash")
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)

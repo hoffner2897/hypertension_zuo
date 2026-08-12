@@ -417,6 +417,7 @@ struct TodayActionView: View {
 struct ActionGenerateDemoView: View {
     let userId: String
     let onGenerateAction: (TodayActionItem) -> Void
+    let onSafetyBlock: () -> Void
     @Query private var savedReadings: [BloodPressureReading]
     @State private var activeSheet: ActionGenerationSheet?
     @State private var scene = "公共室内"
@@ -430,9 +431,14 @@ struct ActionGenerateDemoView: View {
     @State private var preferenceStartTime = "18:30"
     @State private var preferenceEndTime = "19:30"
 
-    init(userId: String, onGenerateAction: @escaping (TodayActionItem) -> Void) {
+    init(
+        userId: String,
+        onGenerateAction: @escaping (TodayActionItem) -> Void,
+        onSafetyBlock: @escaping () -> Void = {}
+    ) {
         self.userId = userId
         self.onGenerateAction = onGenerateAction
+        self.onSafetyBlock = onSafetyBlock
         self._savedReadings = Query(
             filter: #Predicate<BloodPressureReading> { reading in
                 reading.userId == userId
@@ -451,7 +457,7 @@ struct ActionGenerateDemoView: View {
     }
 
     private var isExerciseSafetyBlocked: Bool {
-        hasDiscomfort || bloodPressureState == .needsAttention
+        hasDiscomfort || bloodPressureState == .repeatReading || bloodPressureState == .needsAttention
     }
 
     private var recommendedExercises: [LowBarrierExercise] {
@@ -481,7 +487,10 @@ struct ActionGenerateDemoView: View {
                             subtitleFont: .subheadline.weight(.medium)
                         )
 
-                        DSCard(padding: DSTheme.Spacing.small) {
+                        DSCard(
+                            padding: DSTheme.Spacing.small,
+                            backgroundColor: Color(red: 1.0, green: 239.0 / 255.0, blue: 199.0 / 255.0)
+                        ) {
                             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                                 HStack(spacing: 8) {
                                     Label("今日最新血压", systemImage: "heart.circle.fill")
@@ -509,10 +518,6 @@ struct ActionGenerateDemoView: View {
                                         .foregroundStyle(DSTheme.Color.textSecondary)
                                 }
 
-                                Label(bloodPressureState.guidance, systemImage: "shield.checkered")
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(DSTheme.Color.textSecondary)
-                                    .lineLimit(2)
                             }
                         }
 
@@ -617,6 +622,16 @@ struct ActionGenerateDemoView: View {
             .onChange(of: scene) { _, _ in ensureCurrentExerciseSelection() }
             .onChange(of: energy) { _, _ in ensureCurrentExerciseSelection() }
             .onChange(of: contexts) { _, _ in ensureCurrentExerciseSelection() }
+            .onChange(of: isExerciseSafetyBlocked) { wasBlocked, isBlocked in
+                if !wasBlocked && isBlocked {
+                    onSafetyBlock()
+                }
+            }
+            .task(id: isExerciseSafetyBlocked) {
+                if isExerciseSafetyBlocked {
+                    onSafetyBlock()
+                }
+            }
         }
     }
 
@@ -754,6 +769,7 @@ private struct ActionOption: Identifiable {
     let subtitle: String
     let systemImage: String
     let tint: Color
+    var assetImageName: String? = nil
 
     var id: String {
         title
@@ -789,6 +805,7 @@ private struct LowBarrierExerciseGenerationCard: View {
                             title: option.title,
                             subtitle: option.subtitle,
                             systemImage: option.systemImage,
+                            assetImageName: option.assetImageName,
                             tint: option.tint,
                             isSelected: scene == option.title
                         ) {
@@ -916,10 +933,10 @@ private struct LowBarrierExerciseGenerationCard: View {
     }
 
     private static let sceneOptions = [
-        ActionOption(title: "私人室内", subtitle: "例如：家中", systemImage: "sofa.fill", tint: Color(red: 0.55, green: 0.62, blue: 0.83)),
-        ActionOption(title: "公共室内", subtitle: "例如：工位或教室", systemImage: "laptopcomputer", tint: DSTheme.Color.primary),
-        ActionOption(title: "公共室外", subtitle: "例如：商场或车站", systemImage: "building.2.fill", tint: Color(red: 0.50, green: 0.70, blue: 0.86)),
-        ActionOption(title: "私人/开放室外", subtitle: "例如：公园或广场", systemImage: "tree.fill", tint: Color(red: 0.20, green: 0.58, blue: 0.36))
+        ActionOption(title: "私人室内", subtitle: "例如：家中", systemImage: "sofa.fill", tint: Color(red: 0.55, green: 0.62, blue: 0.83), assetImageName: "ScenePrivateIndoor"),
+        ActionOption(title: "公共室内", subtitle: "例如：工位，教室", systemImage: "laptopcomputer", tint: DSTheme.Color.primary, assetImageName: "ScenePublicIndoor"),
+        ActionOption(title: "公共室外", subtitle: "例如：广场，车站", systemImage: "building.2.fill", tint: Color(red: 0.50, green: 0.70, blue: 0.86), assetImageName: "ScenePublicOutdoor"),
+        ActionOption(title: "私人/开放室外", subtitle: "例如：公园，庭院", systemImage: "tree.fill", tint: Color(red: 0.20, green: 0.58, blue: 0.36), assetImageName: "ScenePrivateOpenOutdoor")
     ]
 
     private static let energyOptions = [
@@ -1164,10 +1181,10 @@ private struct SceneSelectionSheet: View {
     let onConfirm: () -> Void
 
     private let options = [
-        ActionOption(title: "私人室内", subtitle: "例如：在家中进行", systemImage: "sofa.fill", tint: Color(red: 0.55, green: 0.62, blue: 0.83)),
-        ActionOption(title: "公共室内", subtitle: "例如：在工位或教室", systemImage: "laptopcomputer", tint: DSTheme.Color.primary),
-        ActionOption(title: "公共室外", subtitle: "例如：商场、车站、步行街", systemImage: "building.2.fill", tint: Color(red: 0.50, green: 0.70, blue: 0.86)),
-        ActionOption(title: "私人/开放室外", subtitle: "例如：公园、广场、景区", systemImage: "tree.fill", tint: Color(red: 0.20, green: 0.58, blue: 0.36))
+        ActionOption(title: "私人室内", subtitle: "例如：家中", systemImage: "sofa.fill", tint: Color(red: 0.55, green: 0.62, blue: 0.83), assetImageName: "ScenePrivateIndoor"),
+        ActionOption(title: "公共室内", subtitle: "例如：工位，教室", systemImage: "laptopcomputer", tint: DSTheme.Color.primary, assetImageName: "ScenePublicIndoor"),
+        ActionOption(title: "公共室外", subtitle: "例如：广场，车站", systemImage: "building.2.fill", tint: Color(red: 0.50, green: 0.70, blue: 0.86), assetImageName: "ScenePublicOutdoor"),
+        ActionOption(title: "私人/开放室外", subtitle: "例如：公园，庭院", systemImage: "tree.fill", tint: Color(red: 0.20, green: 0.58, blue: 0.36), assetImageName: "ScenePrivateOpenOutdoor")
     ]
 
     var body: some View {
@@ -1180,6 +1197,7 @@ private struct SceneSelectionSheet: View {
                         title: option.title,
                         subtitle: option.subtitle,
                         systemImage: option.systemImage,
+                        assetImageName: option.assetImageName,
                         tint: option.tint,
                         isSelected: scene == option.title
                     ) {
@@ -1609,7 +1627,7 @@ private struct TodayTreeTimelineView: View {
                         .frame(width: cardWidth, height: cardHeight)
                         .position(x: cardX, y: y)
                         .accessibilityIdentifier(accessibilityIdentifier(for: item, isMeal: isMeal))
-                        .accessibilityLabel(item.title)
+                        .accessibilityLabel(accessibilityLabel(for: item, isMeal: isMeal))
                         .accessibilityAddTraits(.isButton)
                         .onTapGesture {
                             onSelect(item.id)
@@ -1636,6 +1654,13 @@ private struct TodayTreeTimelineView: View {
             return "today.bp.evening"
         }
         return "today.action.\(item.id.uuidString)"
+    }
+
+    private func accessibilityLabel(for item: TodayActionItem, isMeal: Bool) -> String {
+        guard isMeal, let rule = MealTimingRule(actionTitle: item.title) else {
+            return item.title
+        }
+        return "\(item.title)，建议时段 \(rule.timeRange)，\(rule.message)"
     }
 }
 
@@ -1729,14 +1754,16 @@ struct TimelinePositioner {
     static func cardHeight(for item: TodayActionItem) -> CGFloat {
         switch item.type {
         case .diet where item.displayStatus == .completed && item.adviceText != nil:
-            return 204
+            return 312
+        case .diet:
+            return 232
         case .bpRecheck where item.bloodPressureText != nil:
             return 158
         case .bpRecheck:
             return 142
         case .rest, .hydration, .sleep, .custom:
             return 154
-        case .walk, .diet:
+        case .walk:
             return 142
         }
     }
@@ -1852,6 +1879,7 @@ private struct DesignActionCard: View {
                         .foregroundStyle(DSTheme.Color.primary)
                 }
             case .diet:
+                mealTimingRuleBox
                 if item.displayStatus == .completed, item.adviceText != nil {
                     adviceBox
                 }
@@ -1867,7 +1895,7 @@ private struct DesignActionCard: View {
         .padding(10)
         .frame(
             maxWidth: .infinity,
-            minHeight: item.type == .diet && item.displayStatus == .completed ? 158 : 116,
+            minHeight: item.type == .diet && item.displayStatus == .completed ? 288 : 116,
             maxHeight: .infinity,
             alignment: .topLeading
         )
@@ -1998,6 +2026,46 @@ private struct DesignActionCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(red: 0.88, green: 0.94, blue: 1.0).opacity(0.84))
         .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var mealTimingRuleBox: some View {
+        if let rule = MealTimingRule(actionTitle: item.title) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("建议时段 \(rule.timeRange)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color(red: 0.48, green: 0.30, blue: 0.04))
+
+                Text(rule.message)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color(red: 0.30, green: 0.23, blue: 0.10))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(red: 1.0, green: 239.0 / 255.0, blue: 199.0 / 255.0))
+            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+    }
+}
+
+struct MealTimingRule: Equatable {
+    let timeRange: String
+    let message: String
+
+    init?(actionTitle: String) {
+        if actionTitle.contains("早餐") {
+            timeRange = "07:00–09:00"
+            message = "晨间血压后即可进餐；餐后至少 1 小时再运动。"
+        } else if actionTitle.contains("午餐") {
+            timeRange = "12:00–14:00"
+            message = "餐后至少 1 小时再运动。"
+        } else if actionTitle.contains("晚餐") {
+            timeRange = "18:00–20:00"
+            message = "餐后至少 1 小时再运动；运动后至少 30 分钟再测睡前血压。"
+        } else {
+            return nil
+        }
     }
 }
 

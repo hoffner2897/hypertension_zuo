@@ -12,6 +12,7 @@ struct MainTabView: View {
     @State private var selectedTab: MainTab = .today
     @State private var todayActionItems = TodayActionItem.demoItems()
     @State private var preferredBloodPressureMeasuredAt: Date?
+    private let exerciseActionService = ExerciseActionService()
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -46,6 +47,9 @@ struct MainTabView: View {
                 onGenerateAction: { item in
                     upsertTodayAction(item)
                     selectedTab = .today
+                },
+                onSafetyBlock: {
+                    clearIncompleteExerciseActions()
                 }
             )
             .tabItem {
@@ -130,6 +134,36 @@ struct MainTabView: View {
         todayActionItems.sort { $0.scheduledStartAt < $1.scheduledStartAt }
         for index in todayActionItems.indices {
             todayActionItems[index].sortOrder = index
+        }
+    }
+
+    private func clearIncompleteExerciseActions() {
+        let removedItems = todayActionItems.filter {
+            $0.isExerciseAction && $0.status != .completed
+        }
+        guard !removedItems.isEmpty else { return }
+
+        for item in removedItems {
+            ExerciseTimerNotificationService.cancel(for: item.id)
+        }
+        todayActionItems = TodayActionSafetyPolicy.retainingResearchHistory(from: todayActionItems)
+        ActionHistoryStore.saveToday(
+            todayActionItems,
+            userId: appState.currentUser?.id ?? ""
+        )
+
+        Task {
+            for item in removedItems {
+                try? await exerciseActionService.delete(id: item.id)
+            }
+        }
+    }
+}
+
+enum TodayActionSafetyPolicy {
+    static func retainingResearchHistory(from items: [TodayActionItem]) -> [TodayActionItem] {
+        items.filter { item in
+            !item.isExerciseAction || item.status == .completed
         }
     }
 }

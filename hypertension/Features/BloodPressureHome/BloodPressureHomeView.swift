@@ -85,36 +85,11 @@ struct BloodPressureHomeView: View {
 
                         recentMeasurementCard
 
-                        interpretationCard
-
-                        if let syncStatusMessage = viewModel.syncStatusMessage {
-                            DSCard {
-                                HStack(spacing: DSTheme.Spacing.small) {
-                                    Image(systemName: "arrow.triangle.2.circlepath")
-                                        .foregroundStyle(DSTheme.Color.primary)
-
-                                    Text(syncStatusMessage)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(DSTheme.Color.textSecondary)
-                                }
-                            }
-                        }
-
-                        trendCard
-
                         Button {
                             path.append(.cameraUpload)
                         } label: {
-                            HStack(spacing: DSTheme.Spacing.small) {
-                                Image("BPReadingCameraIcon")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 24, height: 24)
-                                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-
-                                Text("拍照上传读数")
-                                    .font(.headline.weight(.bold))
-                            }
+                            Text("上传读数")
+                                .font(.headline.weight(.bold))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 54)
@@ -123,28 +98,9 @@ struct BloodPressureHomeView: View {
                         }
                         .buttonStyle(.plain)
 
-                        Button {
-                            path.append(.confirmReading(manualReadingDraftForToday()))
-                        } label: {
-                            HStack(spacing: DSTheme.Spacing.small) {
-                                Image(systemName: "square.and.pencil")
-                                    .font(.headline.weight(.bold))
+                        interpretationCard
 
-                                Text("手动输入读数")
-                                    .font(.headline.weight(.bold))
-                            }
-                            .foregroundStyle(DSTheme.Color.primary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .background(.white)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                    .stroke(DSTheme.Color.primary, lineWidth: 1.2)
-                            }
-                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("manual-blood-pressure-entry")
+                        trendCard
 
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -199,6 +155,19 @@ struct BloodPressureHomeView: View {
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(DSTheme.Color.warning)
                                         .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+
+                        if let syncStatusMessage = viewModel.syncStatusMessage {
+                            DSCard {
+                                HStack(spacing: DSTheme.Spacing.small) {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .foregroundStyle(DSTheme.Color.primary)
+
+                                    Text(syncStatusMessage)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(DSTheme.Color.textSecondary)
                                 }
                             }
                         }
@@ -328,10 +297,10 @@ struct BloodPressureHomeView: View {
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
                 HStack(spacing: 16) {
-                    Image("BPReadingMonitorHero")
+                    Image("ActionAdjustMonitorLarge")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 160, height: 150)
+                        .frame(width: 160, height: 130)
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -365,10 +334,6 @@ struct BloodPressureHomeView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                path.append(.cameraUpload)
             }
         }
     }

@@ -329,6 +329,73 @@ struct hypertensionTests {
         #expect(evening?.startTimeText == "21:30")
     }
 
+    @Test @MainActor func safetyBlockClearsOnlyIncompleteExercises() {
+        let date = Date()
+        let pendingExercise = TodayActionItem(
+            type: .walk,
+            title: "慢走",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 15,
+            status: .pending,
+            sortOrder: 0
+        )
+        let completedExercise = TodayActionItem(
+            type: .walk,
+            title: "原地踏步",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 15,
+            status: .completed,
+            completedAt: date,
+            sortOrder: 1
+        )
+        let meal = TodayActionItem(
+            type: .diet,
+            title: "午餐建议",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 1,
+            status: .pending,
+            sortOrder: 2
+        )
+        let reading = TodayActionItem(
+            type: .bpRecheck,
+            title: "晚间血压测量",
+            description: "测试",
+            reason: "测试",
+            scheduledStartAt: date,
+            durationMinutes: 1,
+            status: .pending,
+            sortOrder: 3
+        )
+
+        let retained = TodayActionSafetyPolicy.retainingResearchHistory(
+            from: [pendingExercise, completedExercise, meal, reading]
+        )
+
+        #expect(!retained.contains(where: { $0.id == pendingExercise.id }))
+        #expect(retained.contains(where: { $0.id == completedExercise.id }))
+        #expect(retained.contains(where: { $0.id == meal.id }))
+        #expect(retained.contains(where: { $0.id == reading.id }))
+    }
+
+    @Test func mealTimingRulesMatchTheConfirmedStudyProtocol() {
+        let breakfast = MealTimingRule(actionTitle: "早餐建议")
+        let lunch = MealTimingRule(actionTitle: "午餐建议")
+        let dinner = MealTimingRule(actionTitle: "晚餐建议")
+
+        #expect(breakfast?.timeRange == "07:00–09:00")
+        #expect(breakfast?.message == "晨间血压后即可进餐；餐后至少 1 小时再运动。")
+        #expect(lunch?.timeRange == "12:00–14:00")
+        #expect(lunch?.message == "餐后至少 1 小时再运动。")
+        #expect(dinner?.timeRange == "18:00–20:00")
+        #expect(dinner?.message == "餐后至少 1 小时再运动；运动后至少 30 分钟再测睡前血压。")
+    }
+
     @Test @MainActor func exerciseTimeRangeUsesStartAndEndToDeriveDuration() {
         #expect(ExerciseTimeRange.durationMinutes(from: "18:30", to: "19:30") == 60)
         #expect(ExerciseTimeRange.durationMinutes(from: "18:30", to: "18:45") == 15)

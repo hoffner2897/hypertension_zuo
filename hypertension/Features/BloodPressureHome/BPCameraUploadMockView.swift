@@ -69,7 +69,7 @@ struct BPCameraUploadMockView: View {
                         .disabled(viewModel.isRecognizing)
 
                         PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                            Text("从相册选择")
+                            Text("相册")
                                 .font(.headline.weight(.bold))
                                 .foregroundStyle(DSTheme.Color.primary)
                                 .frame(maxWidth: .infinity)
@@ -87,13 +87,8 @@ struct BPCameraUploadMockView: View {
                         Button {
                             onManualInput(BPReadingDraft(source: .manual))
                         } label: {
-                            HStack(spacing: DSTheme.Spacing.small) {
-                                Image(systemName: "square.and.pencil")
-                                    .font(.headline.weight(.bold))
-
-                                Text("手动输入读数")
-                                    .font(.headline.weight(.bold))
-                            }
+                            Text("手动输入")
+                                .font(.headline.weight(.bold))
                             .foregroundStyle(DSTheme.Color.primary)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
@@ -152,11 +147,11 @@ struct BPCameraUploadMockView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("拍照上传")
+                Text("上传读数")
                     .font(.system(size: 32, weight: .bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                Text("请将血压计屏幕放入取景框内。")
+                Text("可拍摄、选择相册或手动输入。")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
             }
@@ -209,7 +204,7 @@ struct BPCameraUploadMockView: View {
                     .tint(.white)
             }
 
-            Text(viewModel.isRecognizing ? "识别中..." : "拍摄血压计屏幕")
+            Text(viewModel.isRecognizing ? "识别中..." : "拍摄")
                 .font(.headline.weight(.bold))
         }
         .foregroundStyle(.white)

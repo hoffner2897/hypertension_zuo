@@ -279,6 +279,7 @@ export function createAuthRouter(config: ServerConfig, authUserLookup?: AuthUser
         prisma.user.update({
           where: { id: user.id },
           data: {
+            researchEmail: user.researchEmail ?? user.email,
             email: anonymizedEmail,
             passwordHash: anonymizedPasswordHash,
             emailVerifiedAt: null,

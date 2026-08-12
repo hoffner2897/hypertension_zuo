@@ -9,13 +9,14 @@ import SwiftUI
 
 struct DSCard<Content: View>: View {
     var padding: CGFloat = DSTheme.Spacing.medium
+    var backgroundColor: Color = DSTheme.Color.cardBackground
     @ViewBuilder let content: Content
 
     var body: some View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(DSTheme.Color.cardBackground)
+            .background(backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: DSTheme.Radius.large, style: .continuous))
             .shadow(color: DSTheme.cardShadow, radius: 14, x: 0, y: 8)
     }

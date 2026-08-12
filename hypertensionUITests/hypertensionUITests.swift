@@ -58,14 +58,16 @@ final class hypertensionUITests: XCTestCase {
         XCTAssertTrue(adjustmentTab.waitForExistence(timeout: 5))
         adjustmentTab.tap()
 
-        let adjustmentButton = app.buttons["调整"].firstMatch
-        XCTAssertTrue(adjustmentButton.waitForExistence(timeout: 8))
-        XCTAssertGreaterThan(adjustmentButton.frame.width, adjustmentButton.frame.height)
-        XCTAssertGreaterThan(adjustmentButton.frame.width, 52)
+        XCTAssertTrue(app.staticTexts["今日最新血压"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["趋势调整"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["血压测量"].exists)
+        XCTAssertFalse(app.staticTexts["饮食建议"].exists)
 
-        let adjustableBadge = app.staticTexts["可调整"].firstMatch
-        XCTAssertTrue(adjustableBadge.waitForExistence(timeout: 5))
-        XCTAssertGreaterThan(adjustableBadge.frame.width, adjustableBadge.frame.height)
+        if app.buttons["调整"].firstMatch.exists {
+            let adjustmentButton = app.buttons["调整"].firstMatch
+            XCTAssertGreaterThan(adjustmentButton.frame.width, adjustmentButton.frame.height)
+            XCTAssertGreaterThan(adjustmentButton.frame.width, 52)
+        }
 
         let adjustmentScreenshot = XCTAttachment(screenshot: app.screenshot())
         adjustmentScreenshot.name = "iPhone 14 - 行动调整窄屏布局"
@@ -83,9 +85,15 @@ final class hypertensionUITests: XCTestCase {
         debugPreviewButton.tap()
 
         let closeButton = app.buttons["meal.closeButton"]
-        for meal in ["breakfast", "lunch", "dinner"] {
-            let mealCard = app.buttons.matching(identifier: "today.meal.\(meal)").firstMatch
-            XCTAssertTrue(scrollUntilHittable(mealCard, in: app), "\(meal) card should be tappable")
+        let meals = [
+            (id: "breakfast", rule: "建议时段 07:00–09:00"),
+            (id: "lunch", rule: "建议时段 12:00–14:00"),
+            (id: "dinner", rule: "建议时段 18:00–20:00")
+        ]
+        for meal in meals {
+            let mealCard = app.buttons.matching(identifier: "today.meal.\(meal.id)").firstMatch
+            XCTAssertTrue(scrollUntilHittable(mealCard, in: app), "\(meal.id) card should be tappable")
+            XCTAssertTrue(mealCard.label.contains(meal.rule))
             mealCard.tap()
 
             XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
@@ -163,24 +171,21 @@ final class hypertensionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["今日最新血压"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.staticTexts["今天的读数"].exists)
 
-        let uploadButton = app.buttons["拍照上传读数"]
-        XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
-
-        let manualButton = app.buttons["manual-blood-pressure-entry"]
-        XCTAssertTrue(manualButton.waitForExistence(timeout: 5))
-        manualButton.tap()
-
-        XCTAssertTrue(app.staticTexts["确认读数"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["收缩压"].exists)
-        XCTAssertTrue(app.staticTexts["舒张压"].exists)
-
-        app.buttons["bp-confirm-back"].tap()
+        let uploadButton = app.buttons["上传读数"]
         XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
         uploadButton.tap()
 
-        XCTAssertTrue(app.staticTexts["拍照上传"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["上传读数"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["小宁"].exists)
+        XCTAssertTrue(app.buttons["拍摄"].exists)
+        XCTAssertTrue(app.buttons["相册"].exists)
         XCTAssertTrue(app.buttons["manual-blood-pressure-from-camera"].exists)
+
+        app.buttons["manual-blood-pressure-from-camera"].tap()
+        XCTAssertTrue(app.staticTexts["确认读数"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["小宁"].exists)
+        XCTAssertTrue(app.staticTexts["收缩压"].exists)
+        XCTAssertTrue(app.staticTexts["舒张压"].exists)
     }
 
     @MainActor

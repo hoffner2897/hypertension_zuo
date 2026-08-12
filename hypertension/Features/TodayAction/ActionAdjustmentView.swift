@@ -31,11 +31,15 @@ struct ActionAdjustDemoView: View {
     }
 
     private var entries: [ActionAdjustmentEntry] {
-        ActionAdjustmentEntry.makeEntries(from: items)
+        ActionAdjustmentEntry.makeEntries(from: adjustableItems)
+    }
+
+    private var adjustableItems: [TodayActionItem] {
+        items.filter(\.isExerciseAction)
     }
 
     private var suggestionRefreshKey: String {
-        items
+        adjustableItems
             .sorted { $0.id.uuidString < $1.id.uuidString }
             .map {
                 [
@@ -66,8 +70,8 @@ struct ActionAdjustDemoView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         header
                         todayStatusCard
-                        actionListCard
                         trendSuggestionsCard
+                        actionListCard
                     }
                     .padding(.horizontal, DSTheme.Spacing.medium)
                     .padding(.top, statusBarClearance)
@@ -93,7 +97,7 @@ struct ActionAdjustDemoView: View {
                 await refreshRemoteReadings()
             }
             .task(id: suggestionRefreshKey) {
-                await viewModel.refresh(items: items, userId: userId)
+                await viewModel.refresh(items: adjustableItems, userId: userId)
             }
         }
     }
@@ -106,7 +110,10 @@ struct ActionAdjustDemoView: View {
 
     private var todayStatusCard: some View {
         let state = ActionGenerationBloodPressureState(reading: latestReading)
-        return DSCard(padding: DSTheme.Spacing.small) {
+        return DSCard(
+            padding: DSTheme.Spacing.small,
+            backgroundColor: Color(red: 1.0, green: 239.0 / 255.0, blue: 199.0 / 255.0)
+        ) {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                 HStack(spacing: 8) {
                     Label("今日最新血压", systemImage: "heart.circle.fill")
@@ -123,8 +130,6 @@ struct ActionAdjustDemoView: View {
                         .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
                     Text("mmHg").font(.caption.weight(.bold)).foregroundStyle(DSTheme.Color.textSecondary)
                 }
-                Label(state.guidance, systemImage: "shield.checkered")
-                    .font(.caption2.weight(.medium)).foregroundStyle(DSTheme.Color.textSecondary).lineLimit(2)
             }
         }
     }
@@ -221,7 +226,7 @@ struct ActionAdjustDemoView: View {
     private func target(for suggestion: ActionTrendSuggestion) -> ActionAdjustmentTarget? {
         guard
             let targetID = suggestion.targetActionId,
-            let item = items.first(where: { $0.id == targetID }),
+            let item = adjustableItems.first(where: { $0.id == targetID }),
             item.status != .completed
         else {
             return nil
@@ -608,34 +613,10 @@ private struct ActionAdjustmentEntry: Identifiable {
     }
 
     static func makeEntries(from items: [TodayActionItem]) -> [ActionAdjustmentEntry] {
-        let sortedItems = items.sortedByStartTime()
+        let sortedItems = items.filter(\.isExerciseAction).sortedByStartTime()
         var entries: [ActionAdjustmentEntry] = []
 
-        let bloodPressureItems = sortedItems.filter { $0.type == .bpRecheck }
-        if !bloodPressureItems.isEmpty {
-            entries.append(
-                ActionAdjustmentEntry(
-                    target: .bloodPressure,
-                    title: "血压测量",
-                    items: bloodPressureItems,
-                    systemImage: "heart.text.square.fill"
-                )
-            )
-        }
-
-        let dietItems = sortedItems.filter { $0.type == .diet }
-        if !dietItems.isEmpty {
-            entries.append(
-                ActionAdjustmentEntry(
-                    target: .diet,
-                    title: "饮食建议",
-                    items: dietItems,
-                    systemImage: "fork.knife"
-                )
-            )
-        }
-
-        for item in sortedItems where item.type != .bpRecheck && item.type != .diet {
+        for item in sortedItems {
             entries.append(
                 ActionAdjustmentEntry(
                     target: .single(item.id),
