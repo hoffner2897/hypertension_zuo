@@ -3,6 +3,7 @@ import SwiftData
 
 struct TodayActionView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     @Binding var items: [TodayActionItem]
     let userId: String
     let onOpenBloodPressure: (Date?) -> Void
@@ -13,6 +14,7 @@ struct TodayActionView: View {
     @State private var isShowingAccountSettings = false
     @State private var mealRecords: [MealKind: MealRecord] = [:]
     @State private var headerDisplayName = "我的"
+    @State private var treeCompletionRate = 0.0
     @Query private var savedReadings: [BloodPressureReading]
     private let mealRecordService = MealRecordService()
     private let exerciseActionService = ExerciseActionService()
@@ -44,16 +46,12 @@ struct TodayActionView: View {
         max(items.count - completedCount, 0)
     }
 
-    private var completionRate: Double {
+    private var currentCompletionRate: Double {
         guard !items.isEmpty else {
             return 0
         }
 
         return Double(completedCount) / Double(items.count)
-    }
-
-    private var hasMissedItems: Bool {
-        items.contains { $0.effectiveStatus(now: Date()) == .missed }
     }
 
     private var readingRefreshKey: String {
@@ -66,7 +64,7 @@ struct TodayActionView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                TreeStageBackground(completionRate: completionRate, hasMissedItems: hasMissedItems)
+                TreeStageBackground(completionRate: treeCompletionRate)
                     .ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
@@ -110,8 +108,11 @@ struct TodayActionView: View {
             .sheet(item: $activeExerciseItem) { item in
                 ExerciseRecordSheet(
                     item: item,
-                    onComplete: {
-                        updateStatus(.completed, for: item.id)
+                    onUpdate: { update in
+                        applyExerciseTimerUpdate(update, to: item.id)
+                    },
+                    onDelete: {
+                        deleteExerciseAction(item.id)
                         activeExerciseItem = nil
                     },
                     onClose: {
@@ -129,6 +130,7 @@ struct TodayActionView: View {
                 await loadMealRecords()
                 await reconcileExerciseActions()
                 await loadHeaderProfile()
+                treeCompletionRate = TreeProgressStore.record(currentCompletionRate, userId: userId)
             }
             .onChange(of: isShowingAccountSettings) { wasShowing, isShowing in
                 if wasShowing && !isShowing {
@@ -147,6 +149,7 @@ struct TodayActionView: View {
                 Task {
                     await syncExerciseActions(updatedItems)
                 }
+                treeCompletionRate = TreeProgressStore.record(currentCompletionRate, userId: userId)
             }
         }
     }
@@ -161,7 +164,7 @@ struct TodayActionView: View {
                 isShowingAccountSettings = true
             } label: {
                 VStack(spacing: 4) {
-                    Image("TodayHeaderAvatar")
+                    Image(exercisePresentationSex.avatarAssetName)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 42, height: 42)
@@ -256,6 +259,31 @@ struct TodayActionView: View {
         var updatedItem = item
         updatedItem.clientUpdatedAt = Date()
         items[index] = updatedItem
+    }
+
+    private func applyExerciseTimerUpdate(_ update: ExerciseTimerUpdate, to id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        items[index].status = update.status
+        items[index].displayStatus = update.status
+        items[index].actualStartedAt = update.actualStartedAt
+        items[index].timerLastResumedAt = update.timerLastResumedAt
+        items[index].timerAccumulatedSeconds = update.timerAccumulatedSeconds
+        items[index].actualEndedAt = update.actualEndedAt
+        items[index].actualDurationSeconds = update.actualDurationSeconds
+        items[index].completionMode = update.completionMode
+        items[index].completedAt = update.status == .completed ? update.actualEndedAt : nil
+        items[index].clientUpdatedAt = Date()
+        activeExerciseItem = items[index]
+    }
+
+    private func deleteExerciseAction(_ id: UUID) {
+        guard let item = item(with: id), item.isExerciseAction else { return }
+        ExerciseTimerNotificationService.cancel(for: id)
+        items.removeAll { $0.id == id }
+        ActionHistoryStore.saveToday(items, userId: userId)
+        Task {
+            try? await exerciseActionService.delete(id: id)
+        }
     }
 
     private func mealRecord(for item: TodayActionItem) -> MealRecord? {
@@ -657,7 +685,7 @@ private enum ActionGenerationSheet: String, Identifiable {
     }
 }
 
-private enum ActionGenerationBloodPressureState: Equatable {
+enum ActionGenerationBloodPressureState: Equatable {
     case noReading
     case reassuring
     case watch
@@ -1627,11 +1655,11 @@ struct TimelineTimeRow: Identifiable {
 }
 
 struct TimelinePositioner {
-    static let topInset: CGFloat = 78
-    static let bottomInset: CGFloat = 84
-    private static let sameLaneGap: CGFloat = 14
-    private static let currentRowHeight: CGFloat = 54
-    private static let minimumContentHeight: CGFloat = 760
+    static let topInset: CGFloat = 62
+    static let bottomInset: CGFloat = 58
+    private static let sameLaneGap: CGFloat = 10
+    private static let currentRowHeight: CGFloat = 46
+    private static let minimumContentHeight: CGFloat = 640
 
     static func layout(items: [TodayActionItem], now: Date) -> TimelineLayout {
         let groupedItems = Dictionary(grouping: items) { minuteKey(for: $0.scheduledStartAt) }
@@ -1750,7 +1778,7 @@ struct TimelinePositioner {
 
     private static func chronologicalGap(from earlier: Date, to later: Date) -> CGFloat {
         let minutes = max(later.timeIntervalSince(earlier) / 60, 0)
-        return min(28, max(14, CGFloat(minutes) * 0.12))
+        return min(18, max(8, CGFloat(minutes) * 0.08))
     }
 
     private static func entrySort(_ lhs: TimelineLayoutEntry, _ rhs: TimelineLayoutEntry) -> Bool {
@@ -2071,7 +2099,6 @@ private struct CurrentTimeGlow: View {
 
 private struct TreeStageBackground: View {
     let completionRate: Double
-    var hasMissedItems = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -2095,17 +2122,6 @@ private struct TreeStageBackground: View {
     }
 
     private var assetName: String {
-        if hasMissedItems {
-            switch completionRate {
-            case ..<0.33:
-                return "TreeIncomplete0_33"
-            case ..<0.67:
-                return "TreeIncomplete33_67"
-            default:
-                return "TreeIncomplete67_100"
-            }
-        }
-
         switch completionRate {
         case ..<0.2:
             return "TreeGrowth0_20"
@@ -2148,107 +2164,63 @@ private struct TimelineBranch: Shape {
 private struct ExerciseRecordSheet: View {
     @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     let item: TodayActionItem
-    let onComplete: () -> Void
+    let onUpdate: (ExerciseTimerUpdate) -> Void
+    let onDelete: () -> Void
     let onClose: () -> Void
+
+    @State private var status: TodayActionStatus
+    @State private var actualStartedAt: Date?
+    @State private var timerLastResumedAt: Date?
+    @State private var timerAccumulatedSeconds: Int
+    @State private var actualEndedAt: Date?
+    @State private var actualDurationSeconds: Int?
+    @State private var completionMode: ExerciseCompletionMode?
+    @State private var isConfirmingEarlyEnd = false
+    @State private var isConfirmingDelete = false
+
+    init(
+        item: TodayActionItem,
+        onUpdate: @escaping (ExerciseTimerUpdate) -> Void,
+        onDelete: @escaping () -> Void,
+        onClose: @escaping () -> Void
+    ) {
+        self.item = item
+        self.onUpdate = onUpdate
+        self.onDelete = onDelete
+        self.onClose = onClose
+        _status = State(initialValue: item.status)
+        _actualStartedAt = State(initialValue: item.actualStartedAt)
+        _timerLastResumedAt = State(initialValue: item.timerLastResumedAt)
+        _timerAccumulatedSeconds = State(initialValue: item.timerAccumulatedSeconds)
+        _actualEndedAt = State(initialValue: item.actualEndedAt)
+        _actualDurationSeconds = State(initialValue: item.actualDurationSeconds)
+        _completionMode = State(initialValue: item.completionMode)
+    }
 
     private var catalogExercise: LowBarrierExercise? {
         guard let exerciseId = item.exerciseId else { return nil }
         return LowBarrierExerciseCatalog.exercise(id: exerciseId)
     }
 
-    private var movementAdvice: String {
-        catalogExercise?.movementAdvice ?? item.exerciseMovementAdvice ?? item.description
-    }
-
-    private var intensityAdvice: String {
-        catalogExercise?.intensityAdvice ?? item.exerciseIntensityAdvice ?? "保持自然呼吸；如有明显不适，请停止并休息。"
-    }
-
     private var movementSteps: [String] {
-        catalogExercise?.movementAdviceSteps ?? adviceLines(from: movementAdvice)
+        catalogExercise?.movementAdviceSteps ?? adviceLines(from: item.exerciseMovementAdvice ?? item.description)
     }
 
     private var intensityAdviceSteps: [String] {
-        catalogExercise?.intensityAdviceSteps ?? adviceLines(from: intensityAdvice)
+        catalogExercise?.intensityAdviceSteps ?? adviceLines(from: item.exerciseIntensityAdvice ?? "保持自然呼吸；如有明显不适，请停止并休息。")
     }
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.title)
-                                .font(.system(size: 30, weight: .bold))
-                                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                            Text("\(item.durationMinutes)分钟")
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(DSTheme.Color.textPrimary)
-                        }
-
-                        Spacer()
-
-                        Button(action: onClose) {
-                            Image(systemName: "xmark")
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(DSTheme.Color.textPrimary)
-                                .frame(width: 40, height: 40)
-                                .background(DSTheme.Color.primarySoft.opacity(0.7))
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("关闭")
-                    }
-
-                    exerciseArtwork
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 230)
-
-                    Label(
-                        item.status == .completed ? "已记录" : "完成后记录本次运动",
-                        systemImage: item.status == .completed ? "checkmark.circle.fill" : "circle"
-                    )
-                    .font(.headline)
-                    .foregroundStyle(item.status == .completed ? DSTheme.Color.success : DSTheme.Color.textSecondary)
-
-                    advicePanel(
-                        title: "怎么做",
-                        tint: Color(red: 0.88, green: 0.94, blue: 1.0)
-                    ) {
-                        VStack(alignment: .leading, spacing: 9) {
-                            ForEach(Array(movementSteps.enumerated()), id: \.offset) { _, step in
-                                HStack(alignment: .top, spacing: 8) {
-                                    Text("•")
-                                    Text(step)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                        }
-                    }
-
-                    advicePanel(
-                        title: "强度建议",
-                        tint: Color(red: 1.0, green: 0.94, blue: 0.78)
-                    ) {
-                        VStack(alignment: .leading, spacing: 9) {
-                            ForEach(Array(intensityAdviceSteps.enumerated()), id: \.offset) { _, step in
-                                HStack(alignment: .top, spacing: 8) {
-                                    Text("•")
-                                    Text(step)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                        }
-                    }
-
-                    DSPrimaryButton(item.status == .completed ? "关闭" : "完成") {
-                        if item.status == .completed {
-                            onClose()
-                        } else {
-                            onComplete()
-                        }
-                    }
+                    header
+                    exerciseArtwork.frame(maxWidth: .infinity).frame(height: 230)
+                    timerSection
+                    advicePanel(title: "怎么做", tint: Color(red: 0.88, green: 0.94, blue: 1.0), steps: movementSteps)
+                    advicePanel(title: "强度建议", tint: Color(red: 1.0, green: 0.94, blue: 0.78), steps: intensityAdviceSteps)
+                    actionButtons
+                    deleteButton
                 }
                 .padding(DSTheme.Spacing.large)
                 .padding(.bottom, 24)
@@ -2259,61 +2231,176 @@ private struct ExerciseRecordSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .presentationCornerRadius(28)
+        .alert("提前结束运动？", isPresented: $isConfirmingEarlyEnd) {
+            Button("取消", role: .cancel) {}
+            Button("提前结束") { finish(mode: .endedEarly) }
+        } message: {
+            Text("实际运动时长会被记录，便于后续趋势研究。")
+        }
+        .alert("删除今日行动？", isPresented: $isConfirmingDelete) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive, action: onDelete)
+        } message: {
+            Text("这个行动将从今天的时间轴移除；后台会保留匿名删除记录用于研究。")
+        }
     }
 
-    @ViewBuilder
-    private var exerciseArtwork: some View {
-        if let assetName = catalogExercise?.assetImageName(for: exercisePresentationSex) {
-            Image(assetName)
-                .resizable()
-                .scaledToFit()
-                .accessibilityHidden(true)
-        } else if let assetName = item.timelineArtworkAssetName(for: exercisePresentationSex) {
-            Image(assetName)
-                .resizable()
-                .scaledToFit()
-                .accessibilityHidden(true)
-        } else {
-            ZStack {
-                Circle()
-                    .fill(DSTheme.Color.primarySoft.opacity(0.9))
-                    .frame(width: 210, height: 210)
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title).font(.system(size: 30, weight: .bold)).foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+                Text("\(item.durationMinutes)分钟").font(.title3.weight(.semibold)).foregroundStyle(DSTheme.Color.textPrimary)
+            }
+            Spacer()
+            Button(action: onClose) {
+                Image(systemName: "xmark").font(.headline.weight(.bold)).foregroundStyle(DSTheme.Color.textPrimary)
+                    .frame(width: 40, height: 40).background(DSTheme.Color.primarySoft.opacity(0.7)).clipShape(Circle())
+            }.buttonStyle(.plain).accessibilityLabel("关闭")
+        }
+    }
 
-                Image(systemName: catalogExercise?.systemImageName ?? "figure.walk")
-                    .font(.system(size: 104, weight: .regular))
-                    .foregroundStyle(DSTheme.Color.primary)
-                    .accessibilityHidden(true)
+    private var timerSection: some View {
+        TimelineView(.periodic(from: Date(), by: 1)) { context in
+            let elapsed = elapsedSeconds(at: context.date)
+            let remaining = max(item.durationMinutes * 60 - elapsed, 0)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label(timerTitle(remaining: remaining), systemImage: timerIcon)
+                        .font(.headline).foregroundStyle(timerTint)
+                    Spacer()
+                    if status == .inProgress {
+                        Text(timeText(remaining > 0 ? remaining : elapsed - item.durationMinutes * 60, prefix: remaining > 0 ? "" : "+"))
+                            .font(.system(.title3, design: .monospaced).weight(.bold)).foregroundStyle(timerTint)
+                    }
+                }
+                if status == .inProgress && remaining == 0 {
+                    Text("计划时长已完成，请确认完成或继续运动。")
+                        .font(.subheadline).foregroundStyle(DSTheme.Color.textSecondary)
+                }
+            }
+            .padding(DSTheme.Spacing.medium).background(DSTheme.Color.primarySoft.opacity(0.55))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+    }
+
+    @ViewBuilder private var actionButtons: some View {
+        TimelineView(.periodic(from: Date(), by: 1)) { context in
+            let elapsed = elapsedSeconds(at: context.date)
+            let timedOut = elapsed >= item.durationMinutes * 60
+            switch status {
+            case .completed:
+                DSPrimaryButton("关闭", action: onClose)
+            case .inProgress:
+                VStack(spacing: 10) {
+                    if timedOut {
+                        DSPrimaryButton("完成本次运动", systemImage: "checkmark.circle.fill") { finish(mode: .timerCompleted) }
+                        DSSecondaryButton("继续运动", systemImage: "figure.run") { onClose() }
+                    } else if timerLastResumedAt == nil {
+                        DSPrimaryButton("继续计时", systemImage: "play.fill", action: resume)
+                    } else {
+                        DSPrimaryButton("暂停计时", systemImage: "pause.fill", action: pause)
+                    }
+                    Button("提前结束") { isConfirmingEarlyEnd = true }
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(DSTheme.Color.textSecondary)
+                }
+            case .pending, .missed, .skipped:
+                DSPrimaryButton("开始运动", systemImage: "play.fill", action: start)
             }
         }
     }
 
-    private func adviceLines(from advice: String) -> [String] {
-        advice
-            .split(whereSeparator: \.isNewline)
-            .map(String.init)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+    private var deleteButton: some View {
+        Button { isConfirmingDelete = true } label: {
+            Label("删除今日行动", systemImage: "trash")
+                .font(.headline).foregroundStyle(.red).frame(maxWidth: .infinity).frame(height: 52)
+                .overlay(RoundedRectangle(cornerRadius: 13).stroke(Color.red, lineWidth: 1.5))
+        }.buttonStyle(.plain)
     }
 
-    private func advicePanel<Content: View>(
-        title: String,
-        tint: Color,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+    private var timerIcon: String { status == .completed ? "checkmark.circle.fill" : status == .inProgress ? "timer" : "play.circle" }
+    private var timerTint: Color { status == .completed ? DSTheme.Color.success : DSTheme.Color.primary }
+    private func timerTitle(remaining: Int) -> String {
+        if status == .completed { return "已记录" }
+        if status == .inProgress { return remaining == 0 ? "时间已到" : timerLastResumedAt == nil ? "已暂停" : "运动计时中" }
+        return "尚未开始"
+    }
 
-            content()
-                .font(.body)
-                .foregroundStyle(DSTheme.Color.textPrimary)
+    private func elapsedSeconds(at date: Date) -> Int {
+        timerAccumulatedSeconds + (timerLastResumedAt.map { max(Int(date.timeIntervalSince($0)), 0) } ?? 0)
+    }
+
+    private func start() {
+        let now = Date(); status = .inProgress; actualStartedAt = now; timerLastResumedAt = now; timerAccumulatedSeconds = 0
+        actualEndedAt = nil; actualDurationSeconds = nil; completionMode = nil
+        publish(); Task { await ExerciseTimerNotificationService.schedule(for: item, remainingSeconds: item.durationMinutes * 60) }
+    }
+
+    private func pause() {
+        timerAccumulatedSeconds = elapsedSeconds(at: Date()); timerLastResumedAt = nil
+        ExerciseTimerNotificationService.cancel(for: item.id); publish()
+    }
+
+    private func resume() {
+        let remaining = max(item.durationMinutes * 60 - timerAccumulatedSeconds, 0)
+        timerLastResumedAt = Date(); publish()
+        if remaining > 0 { Task { await ExerciseTimerNotificationService.schedule(for: item, remainingSeconds: remaining) } }
+    }
+
+    private func finish(mode: ExerciseCompletionMode) {
+        let now = Date(); let elapsed = elapsedSeconds(at: now)
+        status = .completed; timerAccumulatedSeconds = elapsed; timerLastResumedAt = nil
+        actualEndedAt = now; actualDurationSeconds = elapsed; completionMode = mode
+        ExerciseTimerNotificationService.cancel(for: item.id); publish(); onClose()
+    }
+
+    private func publish() {
+        onUpdate(ExerciseTimerUpdate(status: status, actualStartedAt: actualStartedAt, timerLastResumedAt: timerLastResumedAt,
+            timerAccumulatedSeconds: timerAccumulatedSeconds, actualEndedAt: actualEndedAt,
+            actualDurationSeconds: actualDurationSeconds, completionMode: completionMode))
+    }
+
+    @ViewBuilder private var exerciseArtwork: some View {
+        if let assetName = catalogExercise?.assetImageName(for: exercisePresentationSex) ?? item.timelineArtworkAssetName(for: exercisePresentationSex) {
+            Image(assetName).resizable().scaledToFit().accessibilityHidden(true)
+        } else {
+            Image(systemName: "figure.walk").font(.system(size: 104)).foregroundStyle(DSTheme.Color.primary)
         }
-        .padding(DSTheme.Spacing.medium)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tint)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
+
+    private func adviceLines(from advice: String) -> [String] {
+        advice.split(whereSeparator: \.isNewline).map(String.init)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+    }
+
+    private func advicePanel(title: String, tint: Color, steps: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.title3.weight(.bold)).foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+            ForEach(Array(steps.enumerated()), id: \.offset) { _, step in
+                HStack(alignment: .top, spacing: 8) { Text("•"); Text(step).fixedSize(horizontal: false, vertical: true) }
+            }
+        }.padding(DSTheme.Spacing.medium).frame(maxWidth: .infinity, alignment: .leading)
+            .background(tint).clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func timeText(_ seconds: Int, prefix: String) -> String {
+        String(format: "%@%02d:%02d", prefix, seconds / 60, seconds % 60)
+    }
+}
+
+struct ExerciseTimerUpdate: Equatable {
+    let status: TodayActionStatus
+    let actualStartedAt: Date?
+    let timerLastResumedAt: Date?
+    let timerAccumulatedSeconds: Int
+    let actualEndedAt: Date?
+    let actualDurationSeconds: Int?
+    let completionMode: ExerciseCompletionMode?
+}
+
+enum ExerciseCompletionMode: String, Codable, Hashable {
+    case timerCompleted = "timer_completed"
+    case endedEarly = "ended_early"
+    case manualCompleted = "manual_completed"
 }
 
 private struct TodayActionDetailView: View {
@@ -2472,6 +2559,12 @@ struct TodayActionItem: Identifiable, Hashable {
     var exerciseContexts: [String]
     var exerciseMovementAdvice: String?
     var exerciseIntensityAdvice: String?
+    var actualStartedAt: Date?
+    var timerLastResumedAt: Date?
+    var timerAccumulatedSeconds: Int
+    var actualEndedAt: Date?
+    var actualDurationSeconds: Int?
+    var completionMode: ExerciseCompletionMode?
     var clientUpdatedAt: Date
 
     init(
@@ -2493,6 +2586,12 @@ struct TodayActionItem: Identifiable, Hashable {
         exerciseContexts: [String] = [],
         exerciseMovementAdvice: String? = nil,
         exerciseIntensityAdvice: String? = nil,
+        actualStartedAt: Date? = nil,
+        timerLastResumedAt: Date? = nil,
+        timerAccumulatedSeconds: Int = 0,
+        actualEndedAt: Date? = nil,
+        actualDurationSeconds: Int? = nil,
+        completionMode: ExerciseCompletionMode? = nil,
         clientUpdatedAt: Date = Date()
     ) {
         self.id = id
@@ -2515,6 +2614,12 @@ struct TodayActionItem: Identifiable, Hashable {
         self.exerciseContexts = exerciseContexts
         self.exerciseMovementAdvice = exerciseMovementAdvice
         self.exerciseIntensityAdvice = exerciseIntensityAdvice
+        self.actualStartedAt = actualStartedAt
+        self.timerLastResumedAt = timerLastResumedAt
+        self.timerAccumulatedSeconds = timerAccumulatedSeconds
+        self.actualEndedAt = actualEndedAt
+        self.actualDurationSeconds = actualDurationSeconds
+        self.completionMode = completionMode
         self.clientUpdatedAt = clientUpdatedAt
     }
 
@@ -2620,7 +2725,7 @@ struct TodayActionItem: Identifiable, Hashable {
             return status
         }
 
-        if now >= scheduledStartAt && now <= scheduledEndAt {
+        if status == .inProgress {
             return .inProgress
         }
 

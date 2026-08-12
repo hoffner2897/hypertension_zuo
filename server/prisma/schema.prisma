@@ -174,6 +174,13 @@ model ExerciseAction {
   durationMinutes  Int                  @map("duration_minutes")
   status           ExerciseActionStatus
   completedAt      DateTime?            @map("completed_at") @db.Timestamptz(3)
+  actualStartedAt  DateTime?            @map("actual_started_at") @db.Timestamptz(3)
+  timerLastResumedAt DateTime?          @map("timer_last_resumed_at") @db.Timestamptz(3)
+  timerAccumulatedSeconds Int           @default(0) @map("timer_accumulated_seconds")
+  actualEndedAt    DateTime?            @map("actual_ended_at") @db.Timestamptz(3)
+  actualDurationSeconds Int?            @map("actual_duration_seconds")
+  completionMode   String?              @map("completion_mode") @db.VarChar(40)
+  deletedAt        DateTime?            @map("deleted_at") @db.Timestamptz(3)
   movementAdvice   String               @map("movement_advice")
   intensityAdvice  String               @map("intensity_advice")
   localDay         String               @map("local_day") @db.VarChar(10)
@@ -184,6 +191,7 @@ model ExerciseAction {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, localDay, scheduledStartAt])
+  @@index([userId, deletedAt])
   @@map("exercise_actions")
 }
 

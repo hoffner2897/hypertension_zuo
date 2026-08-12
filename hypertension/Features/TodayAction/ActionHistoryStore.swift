@@ -15,6 +15,12 @@ struct StoredActionObservation: Codable, Hashable {
     let exerciseContexts: [String]?
     let exerciseMovementAdvice: String?
     let exerciseIntensityAdvice: String?
+    let actualStartedAt: Date?
+    let timerLastResumedAt: Date?
+    let timerAccumulatedSeconds: Int?
+    let actualEndedAt: Date?
+    let actualDurationSeconds: Int?
+    let completionMode: String?
     let clientUpdatedAt: Date?
 
     init(item: TodayActionItem, now: Date = Date()) {
@@ -32,6 +38,12 @@ struct StoredActionObservation: Codable, Hashable {
         exerciseContexts = item.exerciseContexts
         exerciseMovementAdvice = item.exerciseMovementAdvice
         exerciseIntensityAdvice = item.exerciseIntensityAdvice
+        actualStartedAt = item.actualStartedAt
+        timerLastResumedAt = item.timerLastResumedAt
+        timerAccumulatedSeconds = item.timerAccumulatedSeconds
+        actualEndedAt = item.actualEndedAt
+        actualDurationSeconds = item.actualDurationSeconds
+        completionMode = item.completionMode?.rawValue
         clientUpdatedAt = item.clientUpdatedAt
     }
 
@@ -92,6 +104,12 @@ enum ActionHistoryStore {
             restored.exerciseContexts = observation.exerciseContexts ?? []
             restored.exerciseMovementAdvice = observation.exerciseMovementAdvice
             restored.exerciseIntensityAdvice = observation.exerciseIntensityAdvice
+            restored.actualStartedAt = observation.actualStartedAt
+            restored.timerLastResumedAt = observation.timerLastResumedAt
+            restored.timerAccumulatedSeconds = observation.timerAccumulatedSeconds ?? 0
+            restored.actualEndedAt = observation.actualEndedAt
+            restored.actualDurationSeconds = observation.actualDurationSeconds
+            restored.completionMode = observation.completionMode.flatMap(ExerciseCompletionMode.init(rawValue:))
             restored.clientUpdatedAt = observation.clientUpdatedAt ?? restored.clientUpdatedAt
             return restored
         }
@@ -197,6 +215,12 @@ private extension TodayActionItem {
             exerciseContexts: observation.exerciseContexts ?? [],
             exerciseMovementAdvice: observation.exerciseMovementAdvice,
             exerciseIntensityAdvice: observation.exerciseIntensityAdvice,
+            actualStartedAt: observation.actualStartedAt,
+            timerLastResumedAt: observation.timerLastResumedAt,
+            timerAccumulatedSeconds: observation.timerAccumulatedSeconds ?? 0,
+            actualEndedAt: observation.actualEndedAt,
+            actualDurationSeconds: observation.actualDurationSeconds,
+            completionMode: observation.completionMode.flatMap(ExerciseCompletionMode.init(rawValue:)),
             clientUpdatedAt: observation.clientUpdatedAt ?? observation.scheduledStartAt
         )
     }

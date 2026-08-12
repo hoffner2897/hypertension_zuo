@@ -7,6 +7,10 @@ enum ExercisePresentationSex: Equatable, Sendable {
     init(profileSex: String?) {
         self = profileSex == "male" ? .male : .female
     }
+
+    var avatarAssetName: String {
+        self == .male ? "TodayHeaderAvatarMale" : "TodayHeaderAvatar"
+    }
 }
 
 private struct ExercisePresentationSexKey: EnvironmentKey {

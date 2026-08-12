@@ -33,6 +33,12 @@ const exerciseActionInputSchema = z.object({
   durationMinutes: z.number().int().min(1).max(180),
   status: actionStatusSchema,
   completedAt: z.string().datetime({ offset: true }).nullable(),
+  actualStartedAt: z.string().datetime({ offset: true }).nullable(),
+  timerLastResumedAt: z.string().datetime({ offset: true }).nullable(),
+  timerAccumulatedSeconds: z.number().int().min(0).max(86_400),
+  actualEndedAt: z.string().datetime({ offset: true }).nullable(),
+  actualDurationSeconds: z.number().int().min(0).max(86_400).nullable(),
+  completionMode: z.enum(["timer_completed", "ended_early", "manual_completed"]).nullable(),
   movementAdvice: nonEmptyLabel(1_500),
   intensityAdvice: nonEmptyLabel(1_500),
   localDay: localDaySchema,
@@ -67,6 +73,12 @@ export interface ExerciseActionWriteInput {
   durationMinutes: number;
   status: ExerciseActionStatusValue;
   completedAt: Date | null;
+  actualStartedAt: Date | null;
+  timerLastResumedAt: Date | null;
+  timerAccumulatedSeconds: number;
+  actualEndedAt: Date | null;
+  actualDurationSeconds: number | null;
+  completionMode: string | null;
   movementAdvice: string;
   intensityAdvice: string;
   localDay: string;
@@ -78,6 +90,7 @@ export interface ExerciseActionRecord extends ExerciseActionWriteInput {
   userId: string;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
 }
 
 export interface ExerciseActionRepository {
@@ -89,6 +102,7 @@ export interface ExerciseActionRepository {
     id: string,
     input: ExerciseActionWriteInput
   ): Promise<boolean>;
+  softDelete(userId: string, id: string, deletedAt: Date): Promise<boolean>;
 }
 
 export interface ExerciseActionRouterDependencies {
@@ -126,6 +140,9 @@ export function createExerciseActionRouter(
         ...body,
         scheduledStartAt: new Date(body.scheduledStartAt),
         completedAt: body.completedAt ? new Date(body.completedAt) : null,
+        actualStartedAt: body.actualStartedAt ? new Date(body.actualStartedAt) : null,
+        timerLastResumedAt: body.timerLastResumedAt ? new Date(body.timerLastResumedAt) : null,
+        actualEndedAt: body.actualEndedAt ? new Date(body.actualEndedAt) : null,
         clientUpdatedAt: new Date(body.clientUpdatedAt)
       });
 
@@ -133,6 +150,23 @@ export function createExerciseActionRouter(
         action: serializeExerciseAction(result.action),
         applied: result.applied
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id", async (request, response, next) => {
+    try {
+      const auth = authFromRequest(request);
+      const params = parseBody(exerciseActionIDParamsSchema, request.params);
+      const existing = await repository.findByID(params.id);
+      if (!existing) {
+        response.status(204).send();
+        return;
+      }
+      assertOwnership(existing, auth.userId);
+      await repository.softDelete(auth.userId, params.id, new Date());
+      response.status(204).send();
     } catch (error) {
       next(error);
     }
@@ -182,7 +216,7 @@ export async function putExerciseAction(
 export const prismaExerciseActionRepository: ExerciseActionRepository = {
   listByLocalDay(userId, localDay) {
     return prisma.exerciseAction.findMany({
-      where: { userId, localDay },
+      where: { userId, localDay, deletedAt: null },
       orderBy: [{ scheduledStartAt: "asc" }, { createdAt: "asc" }]
     });
   },
@@ -209,9 +243,18 @@ export const prismaExerciseActionRepository: ExerciseActionRepository = {
       where: {
         id,
         userId,
-        clientUpdatedAt: { lte: input.clientUpdatedAt }
+        clientUpdatedAt: { lte: input.clientUpdatedAt },
+        deletedAt: null
       },
       data: input
+    });
+    return result.count === 1;
+  },
+
+  async softDelete(userId, id, deletedAt) {
+    const result = await prisma.exerciseAction.updateMany({
+      where: { id, userId, deletedAt: null },
+      data: { deletedAt, timerLastResumedAt: null }
     });
     return result.count === 1;
   }
@@ -229,6 +272,12 @@ function serializeExerciseAction(action: ExerciseActionRecord) {
     durationMinutes: action.durationMinutes,
     status: action.status,
     completedAt: action.completedAt?.toISOString() ?? null,
+    actualStartedAt: action.actualStartedAt?.toISOString() ?? null,
+    timerLastResumedAt: action.timerLastResumedAt?.toISOString() ?? null,
+    timerAccumulatedSeconds: action.timerAccumulatedSeconds,
+    actualEndedAt: action.actualEndedAt?.toISOString() ?? null,
+    actualDurationSeconds: action.actualDurationSeconds,
+    completionMode: action.completionMode,
     movementAdvice: action.movementAdvice,
     intensityAdvice: action.intensityAdvice,
     localDay: action.localDay,

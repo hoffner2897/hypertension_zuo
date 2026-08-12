@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SyncedHealthDataView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     let onContinue: () -> Void
     var onResync: () -> Void = {}
     @StateObject private var viewModel = HealthKitSummaryViewModel()
@@ -92,7 +93,7 @@ struct SyncedHealthDataView: View {
                 Spacer()
 
                 VStack(spacing: 4) {
-                    Image("TodayHeaderAvatar")
+                    Image(exercisePresentationSex.avatarAssetName)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 42, height: 42)

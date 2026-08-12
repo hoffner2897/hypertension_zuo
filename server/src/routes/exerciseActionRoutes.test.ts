@@ -155,13 +155,42 @@ test("an exercise action UUID owned by another user cannot be overwritten or lis
   });
 });
 
+test("deleting today's exercise action soft-deletes it while retaining research fields", async () => {
+  const repository = new InMemoryExerciseActionRepository();
+  await withServer(repository, async (baseURL) => {
+    const token = accessToken(primaryUserID);
+    await putAction(baseURL, actionID, token, {
+      ...makeBody(),
+      status: "completed",
+      completedAt: "2026-07-22T09:10:00.000Z",
+      actualStartedAt: "2026-07-22T09:00:00.000Z",
+      actualEndedAt: "2026-07-22T09:10:00.000Z",
+      actualDurationSeconds: 600,
+      timerAccumulatedSeconds: 600,
+      completionMode: "timer_completed"
+    });
+
+    const deleted = await fetch(`${baseURL}/exercise-actions/${actionID}`, {
+      method: "DELETE",
+      headers: authHeaders(token)
+    });
+    assert.equal(deleted.status, 204);
+    const listed = await getActions(baseURL, token, "2026-07-22");
+    assert.deepEqual(listed.body.actions, []);
+    const retained = await repository.findByID(actionID);
+    assert.equal(retained?.actualDurationSeconds, 600);
+    assert.equal(retained?.completionMode, "timer_completed");
+    assert.ok(retained?.deletedAt instanceof Date);
+  });
+});
+
 class InMemoryExerciseActionRepository implements ExerciseActionRepository {
   private readonly records = new Map<string, ExerciseActionRecord>();
   private clock = Date.parse("2026-07-22T08:00:00.000Z");
 
   async listByLocalDay(userId: string, localDay: string): Promise<ExerciseActionRecord[]> {
     return Array.from(this.records.values())
-      .filter((record) => record.userId === userId && record.localDay === localDay)
+      .filter((record) => record.userId === userId && record.localDay === localDay && record.deletedAt === null)
       .sort((left, right) => left.scheduledStartAt.getTime() - right.scheduledStartAt.getTime())
       .map(cloneRecord);
   }
@@ -181,7 +210,8 @@ class InMemoryExerciseActionRepository implements ExerciseActionRepository {
       id,
       userId,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      deletedAt: null
     };
     this.records.set(id, record);
     return cloneRecord(record);
@@ -201,6 +231,15 @@ class InMemoryExerciseActionRepository implements ExerciseActionRepository {
       ...cloneInput(input),
       updatedAt: this.nextTimestamp()
     });
+    return true;
+  }
+
+  async softDelete(userId: string, id: string, deletedAt: Date): Promise<boolean> {
+    const current = this.records.get(id);
+    if (!current || current.userId !== userId || current.deletedAt !== null) {
+      return false;
+    }
+    this.records.set(id, { ...current, deletedAt: new Date(deletedAt), timerLastResumedAt: null });
     return true;
   }
 
@@ -252,6 +291,12 @@ function makeBody(): Record<string, unknown> {
     durationMinutes: 10,
     status: "pending",
     completedAt: null,
+    actualStartedAt: null,
+    timerLastResumedAt: null,
+    timerAccumulatedSeconds: 0,
+    actualEndedAt: null,
+    actualDurationSeconds: null,
+    completionMode: null,
     movementAdvice: "身体站直，双脚交替抬起。",
     intensityAdvice: "呼吸稍快，但仍能完整说话。",
     localDay: "2026-07-22",
@@ -289,6 +334,9 @@ function cloneInput(input: ExerciseActionWriteInput): ExerciseActionWriteInput {
     contexts: [...input.contexts],
     scheduledStartAt: new Date(input.scheduledStartAt),
     completedAt: input.completedAt ? new Date(input.completedAt) : null,
+    actualStartedAt: input.actualStartedAt ? new Date(input.actualStartedAt) : null,
+    timerLastResumedAt: input.timerLastResumedAt ? new Date(input.timerLastResumedAt) : null,
+    actualEndedAt: input.actualEndedAt ? new Date(input.actualEndedAt) : null,
     clientUpdatedAt: new Date(input.clientUpdatedAt)
   };
 }
@@ -299,6 +347,7 @@ function cloneRecord(record: ExerciseActionRecord): ExerciseActionRecord {
     id: record.id,
     userId: record.userId,
     createdAt: new Date(record.createdAt),
-    updatedAt: new Date(record.updatedAt)
+    updatedAt: new Date(record.updatedAt),
+    deletedAt: record.deletedAt ? new Date(record.deletedAt) : null
   };
 }

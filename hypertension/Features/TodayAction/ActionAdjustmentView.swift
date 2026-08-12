@@ -27,7 +27,7 @@ struct ActionAdjustDemoView: View {
     }
 
     private var latestReading: BloodPressureReading? {
-        savedReadings.first
+        savedReadings.first { Calendar.current.isDateInToday($0.measuredAt) }
     }
 
     private var entries: [ActionAdjustmentEntry] {
@@ -105,62 +105,28 @@ struct ActionAdjustDemoView: View {
     }
 
     private var todayStatusCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: "heart.text.square.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 21, height: 21)
-                    .background(DSTheme.Color.primary)
-                    .clipShape(Circle())
-
-                Text("今日状态")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-            }
-
-            HStack(spacing: 12) {
-                Image("ActionAdjustStatusHeart")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 58, height: 58)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("最新血压")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(DSTheme.Color.textSecondary)
-
-                    if let latestReading {
-                        HStack(alignment: .firstTextBaseline, spacing: 5) {
-                            Text("\(latestReading.systolic)/\(latestReading.diastolic)")
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                            Text("mmHg")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(DSTheme.Color.textSecondary)
-                        }
-
-                        Text(Self.measurementTimeFormatter.string(from: latestReading.measuredAt))
-                            .font(.caption2)
-                            .foregroundStyle(DSTheme.Color.textSecondary)
-                    } else {
-                        Text("暂无读数")
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                        Text("记录后会显示最新血压")
-                            .font(.caption2)
-                            .foregroundStyle(DSTheme.Color.textSecondary)
-                    }
+        let state = ActionGenerationBloodPressureState(reading: latestReading)
+        return DSCard(padding: DSTheme.Spacing.small) {
+            VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
+                HStack(spacing: 8) {
+                    Label("今日最新血压", systemImage: "heart.circle.fill")
+                        .font(.caption.weight(.semibold)).foregroundStyle(DSTheme.Color.textSecondary)
+                    Spacer()
+                    Label(state.title, systemImage: state.systemImage)
+                        .font(.caption2.weight(.bold)).foregroundStyle(state.tint)
+                        .padding(.horizontal, 9).padding(.vertical, 5)
+                        .background(state.tint.opacity(0.12)).clipShape(Capsule())
                 }
-
-                Spacer(minLength: 0)
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(latestReading.map { "\($0.systolic) / \($0.diastolic)" } ?? "-- / --")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
+                    Text("mmHg").font(.caption.weight(.bold)).foregroundStyle(DSTheme.Color.textSecondary)
+                }
+                Label(state.guidance, systemImage: "shield.checkered")
+                    .font(.caption2.weight(.medium)).foregroundStyle(DSTheme.Color.textSecondary).lineLimit(2)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .actionAdjustmentCardStyle()
     }
 
     private var actionListCard: some View {
@@ -1938,6 +1904,12 @@ private struct MovementAdjustmentEditor: View {
         updated.status = .pending
         updated.displayStatus = .pending
         updated.completedAt = nil
+        updated.actualStartedAt = nil
+        updated.timerLastResumedAt = nil
+        updated.timerAccumulatedSeconds = 0
+        updated.actualEndedAt = nil
+        updated.actualDurationSeconds = nil
+        updated.completionMode = nil
         return updated
     }
 }

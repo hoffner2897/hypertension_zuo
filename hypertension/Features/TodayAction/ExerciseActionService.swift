@@ -11,12 +11,37 @@ struct RemoteExerciseAction: Decodable, Equatable, Identifiable {
     let durationMinutes: Int
     let status: String
     let completedAt: String?
+    let actualStartedAt: String?
+    let timerLastResumedAt: String?
+    let timerAccumulatedSeconds: Int
+    let actualEndedAt: String?
+    let actualDurationSeconds: Int?
+    let completionMode: String?
     let movementAdvice: String
     let intensityAdvice: String
     let localDay: String
     let clientUpdatedAt: String
     let createdAt: String
     let updatedAt: String
+
+    init(
+        id: String, exerciseId: String, title: String, scene: String, energy: String,
+        contexts: [String], scheduledStartAt: String, durationMinutes: Int, status: String,
+        completedAt: String?, actualStartedAt: String? = nil, timerLastResumedAt: String? = nil,
+        timerAccumulatedSeconds: Int = 0, actualEndedAt: String? = nil,
+        actualDurationSeconds: Int? = nil, completionMode: String? = nil,
+        movementAdvice: String, intensityAdvice: String, localDay: String,
+        clientUpdatedAt: String, createdAt: String, updatedAt: String
+    ) {
+        self.id = id; self.exerciseId = exerciseId; self.title = title; self.scene = scene
+        self.energy = energy; self.contexts = contexts; self.scheduledStartAt = scheduledStartAt
+        self.durationMinutes = durationMinutes; self.status = status; self.completedAt = completedAt
+        self.actualStartedAt = actualStartedAt; self.timerLastResumedAt = timerLastResumedAt
+        self.timerAccumulatedSeconds = timerAccumulatedSeconds; self.actualEndedAt = actualEndedAt
+        self.actualDurationSeconds = actualDurationSeconds; self.completionMode = completionMode
+        self.movementAdvice = movementAdvice; self.intensityAdvice = intensityAdvice; self.localDay = localDay
+        self.clientUpdatedAt = clientUpdatedAt; self.createdAt = createdAt; self.updatedAt = updatedAt
+    }
 }
 
 struct ExerciseActionSyncInput: Encodable, Equatable {
@@ -29,6 +54,12 @@ struct ExerciseActionSyncInput: Encodable, Equatable {
     let durationMinutes: Int
     let status: String
     let completedAt: String?
+    let actualStartedAt: String?
+    let timerLastResumedAt: String?
+    let timerAccumulatedSeconds: Int
+    let actualEndedAt: String?
+    let actualDurationSeconds: Int?
+    let completionMode: String?
     let movementAdvice: String
     let intensityAdvice: String
     let localDay: String
@@ -59,6 +90,14 @@ struct ExerciseActionService {
         try await apiClient.put(
             "/exercise-actions/\(id.uuidString.lowercased())",
             body: input,
+            requiresAuth: true
+        )
+    }
+
+    func delete(id: UUID) async throws {
+        try await apiClient.delete(
+            "/exercise-actions/\(id.uuidString.lowercased())",
+            body: EmptyExerciseActionDeleteRequest(),
             requiresAuth: true
         )
     }
@@ -117,6 +156,12 @@ extension ExerciseActionSyncInput {
             durationMinutes: item.durationMinutes,
             status: item.status.actionHistoryAPIValue,
             completedAt: item.completedAt.map { ExerciseActionService.isoString(for: $0) },
+            actualStartedAt: item.actualStartedAt.map { ExerciseActionService.isoString(for: $0) },
+            timerLastResumedAt: item.timerLastResumedAt.map { ExerciseActionService.isoString(for: $0) },
+            timerAccumulatedSeconds: item.timerAccumulatedSeconds,
+            actualEndedAt: item.actualEndedAt.map { ExerciseActionService.isoString(for: $0) },
+            actualDurationSeconds: item.actualDurationSeconds,
+            completionMode: item.completionMode?.rawValue,
             movementAdvice: movementAdvice,
             intensityAdvice: intensityAdvice,
             localDay: ExerciseActionService.dayString(for: item.scheduledStartAt),
@@ -151,7 +196,15 @@ extension TodayActionItem {
             exerciseContexts: action.contexts,
             exerciseMovementAdvice: action.movementAdvice,
             exerciseIntensityAdvice: action.intensityAdvice,
+            actualStartedAt: action.actualStartedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) },
+            timerLastResumedAt: action.timerLastResumedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) },
+            timerAccumulatedSeconds: action.timerAccumulatedSeconds,
+            actualEndedAt: action.actualEndedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) },
+            actualDurationSeconds: action.actualDurationSeconds,
+            completionMode: action.completionMode.flatMap(ExerciseCompletionMode.init(rawValue:)),
             clientUpdatedAt: clientUpdatedAt
         )
     }
 }
+
+private struct EmptyExerciseActionDeleteRequest: Encodable {}

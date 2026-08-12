@@ -9,6 +9,7 @@ import SwiftUI
 
 struct BPReadingNormalView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     let draft: BPReadingDraft
 
     private var systolicText: String {
@@ -86,7 +87,7 @@ struct BPReadingNormalView: View {
                 Spacer()
 
                 VStack(spacing: 4) {
-                    Image("TodayHeaderAvatar")
+                    Image(exercisePresentationSex.avatarAssetName)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 42, height: 42)
@@ -130,7 +131,7 @@ struct BPReadingNormalView: View {
             .padding(.bottom, -1)
 
             VStack(spacing: 14) {
-                Text("最近的读数")
+                Text("今日最新血压")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color(red: 0.07, green: 0.65, blue: 0.28))
                     .padding(.horizontal, 18)

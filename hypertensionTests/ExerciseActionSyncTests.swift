@@ -93,4 +93,33 @@ struct ExerciseActionSyncTests {
         #expect(restored.exerciseIntensityAdvice == exercise.intensityAdvice)
         #expect(abs(restored.clientUpdatedAt.timeIntervalSince(clientUpdatedAt)) < 0.001)
     }
+
+    @Test @MainActor func timerResearchFieldsSurviveLocalAndRemoteRoundTrips() throws {
+        let userId = "exercise-timer-\(UUID().uuidString)"
+        defer { ActionHistoryStore.removeAll(userId: userId) }
+        let startedAt = Date().addingTimeInterval(-620)
+        let endedAt = startedAt.addingTimeInterval(615)
+        let exercise = try #require(LowBarrierExerciseCatalog.exercise(id: "public-indoor-slow-walk"))
+        var item = TodayActionItem.generatedMovement(
+            title: "慢走", timeText: TodayActionItem.timeFormatter.string(from: startedAt), duration: 10, order: 8,
+            exercise: exercise, scene: exercise.scene.rawValue, energy: ExerciseEnergyTier.medium.title
+        )
+        item.status = .completed
+        item.completedAt = endedAt
+        item.actualStartedAt = startedAt
+        item.actualEndedAt = endedAt
+        item.timerAccumulatedSeconds = 615
+        item.actualDurationSeconds = 615
+        item.completionMode = .timerCompleted
+
+        ActionHistoryStore.saveToday([item], userId: userId)
+        let restored = try #require(ActionHistoryStore.restoreToday([], userId: userId).first)
+        #expect(restored.actualDurationSeconds == 615)
+        #expect(restored.completionMode == .timerCompleted)
+
+        if let input = ExerciseActionSyncInput(item: item) {
+            #expect(input.actualDurationSeconds == 615)
+            #expect(input.completionMode == "timer_completed")
+        }
+    }
 }

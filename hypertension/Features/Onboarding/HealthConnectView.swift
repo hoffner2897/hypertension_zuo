@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct HealthConnectView: View {
+    @Environment(\.exercisePresentationSex) private var exercisePresentationSex
     let onConnect: () -> Void
     let onSkip: () -> Void
     @StateObject private var viewModel = HealthKitSummaryViewModel()
@@ -142,7 +143,7 @@ struct HealthConnectView: View {
                 Spacer()
 
                 VStack(spacing: 4) {
-                    Image("TodayHeaderAvatar")
+                    Image(exercisePresentationSex.avatarAssetName)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 42, height: 42)

@@ -323,7 +323,7 @@ struct BloodPressureHomeView: View {
     private var recentMeasurementCard: some View {
         DSCard(padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("最近的读数")
+                Text("今日最新血压")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
@@ -561,7 +561,7 @@ struct BloodPressureHomeView: View {
 
                     Spacer()
 
-                    HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 5) {
                         TrendLegendItem(title: "收缩压 (mmHg)", imageName: "BPReadingChartSystolicGlyph")
                         TrendLegendItem(title: "舒张压 (mmHg)", imageName: "BPReadingChartDiastolicGlyph")
                     }

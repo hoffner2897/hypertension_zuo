@@ -160,7 +160,7 @@ final class hypertensionUITests: XCTestCase {
         XCTAssertTrue(bloodPressureTab.waitForExistence(timeout: 5))
         bloodPressureTab.tap()
 
-        XCTAssertTrue(app.staticTexts["最近的读数"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["今日最新血压"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.staticTexts["今天的读数"].exists)
 
         let uploadButton = app.buttons["拍照上传读数"]
