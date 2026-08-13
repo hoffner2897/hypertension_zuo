@@ -396,6 +396,11 @@ struct hypertensionTests {
         #expect(dinner?.message == "餐后至少 1 小时再运动；运动后至少 30 分钟再测睡前血压。")
     }
 
+    @Test func actionGenerationIsBlockedOnlyWhenTheUserReportsDiscomfort() {
+        #expect(!ActionGenerationSafetyPolicy.isBlocked(hasDiscomfort: false))
+        #expect(ActionGenerationSafetyPolicy.isBlocked(hasDiscomfort: true))
+    }
+
     @Test @MainActor func exerciseTimeRangeUsesStartAndEndToDeriveDuration() {
         #expect(ExerciseTimeRange.durationMinutes(from: "18:30", to: "19:30") == 60)
         #expect(ExerciseTimeRange.durationMinutes(from: "18:30", to: "18:45") == 15)

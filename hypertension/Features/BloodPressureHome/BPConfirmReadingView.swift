@@ -234,7 +234,7 @@ private struct BPConfirmNumberRow: View {
     let placeholder: String
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 10) {
             Image(imageName)
                 .resizable()
                 .scaledToFit()
@@ -244,15 +244,20 @@ private struct BPConfirmNumberRow: View {
             Text(title)
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(minWidth: 58, alignment: .leading)
+                .layoutPriority(2)
 
-            Spacer(minLength: 10)
+            Spacer(minLength: 0)
 
             TextField(placeholder, text: $text)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .font(.system(size: 22, weight: .medium, design: .rounded))
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
-                .frame(width: 74)
+                .frame(width: 68)
 
             Text(unit)
                 .font(.caption.weight(.medium))

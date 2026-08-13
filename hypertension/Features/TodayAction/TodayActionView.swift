@@ -457,7 +457,7 @@ struct ActionGenerateDemoView: View {
     }
 
     private var isExerciseSafetyBlocked: Bool {
-        hasDiscomfort || bloodPressureState == .repeatReading || bloodPressureState == .needsAttention
+        ActionGenerationSafetyPolicy.isBlocked(hasDiscomfort: hasDiscomfort)
     }
 
     private var recommendedExercises: [LowBarrierExercise] {
@@ -697,6 +697,12 @@ private enum ActionGenerationSheet: String, Identifiable {
 
     var id: String {
         rawValue
+    }
+}
+
+enum ActionGenerationSafetyPolicy {
+    static func isBlocked(hasDiscomfort: Bool) -> Bool {
+        hasDiscomfort
     }
 }
 
@@ -1921,7 +1927,7 @@ private struct DesignActionCard: View {
                         )
                 }
 
-                if item.type != .bpRecheck {
+                if item.type != .bpRecheck && item.type != .diet {
                     subtitleText
                 }
             }
@@ -1929,7 +1935,7 @@ private struct DesignActionCard: View {
             HStack(alignment: .top, spacing: 6) {
                 VStack(alignment: .leading, spacing: 5) {
                     titleText
-                    if item.type != .bpRecheck {
+                    if item.type != .bpRecheck && item.type != .diet {
                         subtitleText
                     }
                 }
