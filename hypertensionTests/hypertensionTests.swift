@@ -60,6 +60,42 @@ struct hypertensionTests {
     }
     #endif
 
+    @Test @MainActor func actionGenerationOnlyRequestsRoutineRepeatAtGradeTwoBoundary() {
+        let monitored = BloodPressureReading(
+            userId: "bp-threshold-test",
+            systolic: 159,
+            diastolic: 99,
+            measuredAt: Date(),
+            source: .manual
+        )
+        let systolicBoundary = BloodPressureReading(
+            userId: "bp-threshold-test",
+            systolic: 160,
+            diastolic: 99,
+            measuredAt: Date(),
+            source: .manual
+        )
+        let diastolicBoundary = BloodPressureReading(
+            userId: "bp-threshold-test",
+            systolic: 150,
+            diastolic: 100,
+            measuredAt: Date(),
+            source: .manual
+        )
+        let urgent = BloodPressureReading(
+            userId: "bp-threshold-test",
+            systolic: 180,
+            diastolic: 120,
+            measuredAt: Date(),
+            source: .manual
+        )
+
+        #expect(ActionGenerationBloodPressureState(reading: monitored) == .watch)
+        #expect(ActionGenerationBloodPressureState(reading: systolicBoundary) == .repeatReading)
+        #expect(ActionGenerationBloodPressureState(reading: diastolicBoundary) == .repeatReading)
+        #expect(ActionGenerationBloodPressureState(reading: urgent) == .needsAttention)
+    }
+
     @Test @MainActor func healthAuthorizationResolverDistinguishesRequestedPartialAndCompleteData() {
         #expect(
             HealthKitAuthorizationResolver.resolve(

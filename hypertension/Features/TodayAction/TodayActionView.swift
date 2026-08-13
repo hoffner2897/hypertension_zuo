@@ -733,7 +733,7 @@ enum ActionGenerationBloodPressureState: Equatable {
 
         if reading.systolic >= 180 || reading.diastolic >= 120 {
             self = .needsAttention
-        } else if reading.systolic >= 135 || reading.diastolic >= 85 {
+        } else if reading.systolic >= 160 || reading.diastolic >= 100 {
             self = .repeatReading
         } else if reading.systolic >= 120 || reading.diastolic >= 80 || reading.systolic < 90 || reading.diastolic < 60 {
             self = .watch
@@ -746,7 +746,7 @@ enum ActionGenerationBloodPressureState: Equatable {
         switch self {
         case .noReading: "今日暂无读数"
         case .reassuring: "读数较稳定"
-        case .watch: "建议观察"
+        case .watch: "继续监测"
         case .repeatReading: "建议复测"
         case .needsAttention: "需要重视"
         }
@@ -776,7 +776,9 @@ enum ActionGenerationBloodPressureState: Equatable {
             "尚无今日读数；运动建议仅依据你填写的当前状态。"
         case .needsAttention:
             "请先安静休息并复测；如伴明显不适，请及时寻求医疗帮助。"
-        case .reassuring, .watch, .repeatReading:
+        case .reassuring, .watch:
+            "按原计划每日监测；如有头晕、胸闷、心慌或明显不适，请先休息并复测。"
+        case .repeatReading:
             "如有头晕、胸闷、心慌或明显不适，请先休息并复测。"
         }
     }

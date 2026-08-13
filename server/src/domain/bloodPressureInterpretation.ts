@@ -144,15 +144,24 @@ export function makeRuleBasedInterpretation(input: BPInterpretationInput): BPBas
 
 export function normalizeInterpretationResult(value: unknown, base: BPBaseInterpretation): BPInterpretationResult {
   if (!isRecord(value)) return stripInternalFields(base);
+  const modelNextSteps = cleanLines(value.nextSteps, base.nextSteps);
   return {
     category: base.category,
     severity: base.severity,
     bloodPressureSituation: cleanLines(value.bloodPressureSituation, base.bloodPressureSituation),
     reasons: cleanLines(value.reasons, base.reasons),
-    nextSteps: cleanLines(value.nextSteps, base.nextSteps),
+    nextSteps: enforceRepeatAdvicePolicy(modelNextSteps, base),
     safetyNote: cleanString(value.safetyNote, base.safetyNote),
     disclaimer: cleanString(value.disclaimer, base.disclaimer)
   };
+}
+
+function enforceRepeatAdvicePolicy(lines: string[], base: BPBaseInterpretation): string[] {
+  const canRecommendRepeat = base.severity === "repeat" || base.severity === "urgent" || base.category === "low";
+  if (canRecommendRepeat) return lines;
+  const withoutRepeat = lines.filter((line) => !line.includes("复测"));
+  if (withoutRepeat.length > 0) return withoutRepeat;
+  return base.nextSteps;
 }
 
 export function stripInternalFields(base: BPBaseInterpretation): BPInterpretationResult {
@@ -260,29 +269,34 @@ function makeNextSteps(input: BPInterpretationInput, category: BPInterpretationC
     "观察：留意头晕、乏力或晕厥，并继续记录。",
     "就医：如不适持续、加重或发生晕厥，请及时联系医生。"
   ];
-  const sevenDayHigh = trends.find((item) => item.days === 7)?.currentAverage;
+  const sevenDay = trends.find((item) => item.days === 7);
+  const sevenDayHigh = sevenDay?.currentAverage;
   const threeDayHigh = trends.find((item) => item.days === 3)?.currentAverage;
-  const currentHigh = category === "high_home";
-  const lines = [currentHigh ? "现在：安静休息 5 分钟后规范复测一次。" : "现在：继续按固定时间和姿势记录血压。"];
+  const currentNeedsRepeat = isGradeTwoOrHigher(input.systolicBp, input.diastolicBp);
+  const lines = [currentNeedsRepeat
+    ? "现在：安静休息 5 分钟后规范复测一次。"
+    : "现在：按原计划每日监测，继续用固定时间和姿势记录血压。"];
   lines.push(threeDayHigh && isHomeHigh(threeDayHigh) ? "观察：近3日均值偏高，继续记录并观察7日均值。" : "观察：结合接下来几天的每日均值判断变化。");
-  if (sevenDayHigh && isHomeHigh(sevenDayHigh)) lines.push("就医：近7日均值偏高，可带完整记录联系医生讨论。");
+  if (sevenDayHigh && (sevenDay?.currentObservedDays ?? 0) >= 3 && isHomeHigh(sevenDayHigh)) {
+    lines.push("就医：连续多日的家庭血压均值偏高，可带完整记录联系医生讨论。");
+  }
   return lines;
 }
 
 function makeSeverity(category: BPInterpretationCategory, trends: BPPeriodComparison[], symptoms: string[], input: BPInterpretationInput): BPInterpretationSeverity {
   if (category === "urgent" || symptoms.length > 0) return "urgent";
-  const seven = trends.find((item) => item.days === 7)?.currentAverage;
-  if ((seven && isHomeHigh(seven)) || hasMedicalContext(input)) return "follow_up";
-  if (category === "high_home") return "repeat";
-  if (category === "borderline" || category === "low") return "watch";
+  if (isGradeTwoOrHigher(input.systolicBp, input.diastolicBp)) return "repeat";
+  const seven = trends.find((item) => item.days === 7);
+  if (seven?.currentAverage && seven.currentObservedDays >= 3 && isHomeHigh(seven.currentAverage)) return "follow_up";
+  if (category === "high_home" || category === "borderline" || category === "low") return "watch";
   return "reassuring";
 }
 
-function hasMedicalContext(input: BPInterpretationInput): boolean {
-  return Boolean(input.medicalContext && Object.values(input.medicalContext).some(Boolean));
-}
-
 function isHomeHigh(value: { systolic: number; diastolic: number }): boolean { return value.systolic >= 135 || value.diastolic >= 85; }
+
+function isGradeTwoOrHigher(systolic: number, diastolic: number): boolean {
+  return systolic >= 160 || diastolic >= 100;
+}
 
 function rangeAverages(values: Map<string, { systolic: number; diastolic: number }>, anchor: string, from: number, to: number) {
   const selected: Array<{ systolic: number; diastolic: number }> = [];

@@ -214,12 +214,15 @@ enum BPInterpretationRuleFallback {
                 disclaimer: disclaimer
             )
         case .highHome:
+            let needsRepeat = reading.systolic >= 160 || reading.diastolic >= 100
             return BPInterpretation(
                 category: category,
-                severity: .repeat,
+                severity: needsRepeat ? .repeat : .watch,
                 bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，超过家庭血压参考阈值 135/85 mmHg。"],
-                reasons: ["家庭血压超过 135/85 mmHg 时，建议复测并观察平均值。"],
-                nextSteps: ["安静坐位休息 5 分钟后规范复测。", "连续几天记录并观察家庭平均值。"],
+                reasons: ["家庭血压需结合每日监测和一段时间内的平均值观察。"],
+                nextSteps: needsRepeat
+                    ? ["安静坐位休息 5 分钟后规范复测。", "连续几天记录并观察家庭平均值。"]
+                    : ["按原计划每日监测，保持相同时间和姿势记录。", "连续几天记录并观察家庭平均值。"],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
