@@ -417,7 +417,33 @@ Response:
 
 ### POST /action-adjustments/trend-suggestions
 
-Requires an access token. This endpoint does not persist action data. The app sends its in-memory current actions and any optional recent action observations.
+Requires an access token. This endpoint generates wording from the request payload; the separate research snapshot endpoint below persists the Today Action state and changes.
+
+## Today Action research history
+
+The iOS client syncs the complete current-day Today Action tree after launch, foreground activation, and every local item change:
+
+```http
+POST /research-actions/sync
+Authorization: Bearer <access token>
+Content-Type: application/json
+```
+
+The server stores two complementary datasets:
+
+- `daily_action_snapshots`: one latest full tree per participant and local day, including planned time, status, completion, BP text, meal-analysis text and exercise selection metadata.
+- `action_events`: append-only per-card changes (`created`, `updated`, `rescheduled`, `status_changed`, `deleted`) with before/after JSON.
+
+Photographs and image bytes are not accepted by this endpoint. Requests are limited to 40 cards and bounded text fields. Older out-of-order snapshots do not overwrite newer state.
+
+An authenticated participant can retrieve their own final daily snapshots for diagnostics:
+
+```http
+GET /research-actions/days?from=2026-08-01&to=2026-08-14
+Authorization: Bearer <access token>
+```
+
+Researchers should query/export the PostgreSQL tables using a separately controlled database account rather than exposing cross-participant data through the app API.
 
 Request:
 

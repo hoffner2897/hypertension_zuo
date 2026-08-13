@@ -17,12 +17,17 @@ import {
   createExerciseActionRouter,
   type ExerciseActionRepository
 } from "./routes/exerciseActionRoutes.js";
+import {
+  createResearchActionRouter,
+  type ResearchActionRepository
+} from "./routes/researchActionRoutes.js";
 
 export interface AppDependencies {
   mealAnalysisService?: MealAnalysisService | null;
   authUserLookup?: AuthUserLookup;
   recognitionService?: BPRecognitionService;
   exerciseActionRepository?: ExerciseActionRepository;
+  researchActionRepository?: ResearchActionRepository;
 }
 
 export function createApp(config: ServerConfig, dependencies: AppDependencies = {}): express.Express {
@@ -45,12 +50,17 @@ export function createApp(config: ServerConfig, dependencies: AppDependencies = 
     authUserLookup: dependencies.authUserLookup,
     repository: dependencies.exerciseActionRepository
   }));
+  app.use("/research-actions", createResearchActionRouter(config, {
+    authUserLookup: dependencies.authUserLookup,
+    repository: dependencies.researchActionRepository
+  }));
 
   app.get("/health", (_request, response) => {
     response.json({
       ok: true,
       service: "bphealth-server",
-      recognitionMode: config.recognitionMode
+      recognitionMode: config.recognitionMode,
+      researchActionHistory: true
     });
   });
 

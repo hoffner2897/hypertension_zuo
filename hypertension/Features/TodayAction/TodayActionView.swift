@@ -18,6 +18,7 @@ struct TodayActionView: View {
     @Query private var savedReadings: [BloodPressureReading]
     private let mealRecordService = MealRecordService()
     private let exerciseActionService = ExerciseActionService()
+    private let researchActionSyncService = ResearchActionSyncService()
     private let profileService = ProfileService()
     private let statusBarClearance: CGFloat = 54
 
@@ -129,6 +130,7 @@ struct TodayActionView: View {
                 ActionHistoryStore.saveToday(items, userId: userId)
                 await loadMealRecords()
                 await reconcileExerciseActions()
+                await syncResearchSnapshot(items)
                 await loadHeaderProfile()
                 treeCompletionRate = TreeProgressStore.record(currentCompletionRate, userId: userId)
             }
@@ -142,16 +144,26 @@ struct TodayActionView: View {
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
-                Task { await reconcileExerciseActions() }
+                Task {
+                    await reconcileExerciseActions()
+                    await syncResearchSnapshot(items)
+                }
             }
             .onChange(of: items) { _, updatedItems in
                 ActionHistoryStore.saveToday(updatedItems, userId: userId)
                 Task {
                     await syncExerciseActions(updatedItems)
+                    await syncResearchSnapshot(updatedItems)
                 }
                 treeCompletionRate = TreeProgressStore.record(currentCompletionRate, userId: userId)
             }
         }
+    }
+
+    /// Research sync is deliberately best-effort: the local tree remains the source for UI/offline use,
+    /// and the next item change or foreground activation retries the complete current-day snapshot.
+    private func syncResearchSnapshot(_ currentItems: [TodayActionItem]) async {
+        try? await researchActionSyncService.sync(items: currentItems)
     }
 
     private var header: some View {

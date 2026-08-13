@@ -56,6 +56,8 @@ model User {
   bloodPressureReadings   BloodPressureReading[]
   mealRecords             MealRecord[]
   exerciseActions         ExerciseAction[]
+  dailyActionSnapshots    DailyActionSnapshot[]
+  actionEvents            ActionEvent[]
   aiDailyUsage            AIDailyUsage[]
 
   @@index([deletedAt])
@@ -194,6 +196,49 @@ model ExerciseAction {
   @@index([userId, localDay, scheduledStartAt])
   @@index([userId, deletedAt])
   @@map("exercise_actions")
+}
+
+/// The latest complete representation of one user's Today Action tree for a local day.
+/// Images are intentionally excluded; the JSON contains text, timing, status and exercise metadata only.
+model DailyActionSnapshot {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  localDay       String   @map("local_day") @db.VarChar(10)
+  timeZone       String   @map("time_zone") @db.VarChar(64)
+  version        Int      @default(1)
+  items          Json
+  totalCount     Int      @map("total_count")
+  completedCount Int      @map("completed_count")
+  capturedAt     DateTime @map("captured_at") @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, localDay])
+  @@index([localDay, updatedAt])
+  @@map("daily_action_snapshots")
+}
+
+/// Append-only audit trail derived whenever the iOS client syncs a changed Today Action tree.
+/// beforeState/afterState preserve what changed without retaining meal or BP photographs.
+model ActionEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  localDay        String    @map("local_day") @db.VarChar(10)
+  itemId          String?   @map("item_id") @db.Uuid
+  eventType        String    @map("event_type") @db.VarChar(40)
+  snapshotVersion Int       @map("snapshot_version")
+  beforeState     Json?     @map("before_state")
+  afterState      Json?     @map("after_state")
+  occurredAt      DateTime  @map("occurred_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, localDay, occurredAt])
+  @@index([userId, itemId, occurredAt])
+  @@map("action_events")
 }
 
 model AIDailyUsage {

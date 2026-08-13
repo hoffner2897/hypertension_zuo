@@ -526,6 +526,36 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
       !/最近|经常|完成率|趋势/.test(suggestion.message)
     )));
 
+    const researchActionId = randomUUID();
+    const initialResearchSync = await requestJSON(baseURL, "/research-actions/sync", {
+      method: "POST",
+      headers: authHeaders(primaryAccessToken),
+      body: researchSnapshotPayload(researchActionId, "pending", "2026-07-21T15:00:00.000Z")
+    });
+    assert.equal(initialResearchSync.response.status, 200, JSON.stringify(initialResearchSync.body));
+    assert.equal(initialResearchSync.body.applied, true);
+    assert.equal(initialResearchSync.body.eventCount, 1);
+
+    const completedResearchSync = await requestJSON(baseURL, "/research-actions/sync", {
+      method: "POST",
+      headers: authHeaders(primaryAccessToken),
+      body: researchSnapshotPayload(researchActionId, "completed", "2026-07-21T15:15:00.000Z")
+    });
+    assert.equal(completedResearchSync.response.status, 200);
+    assert.equal(completedResearchSync.body.version, 2);
+    assert.equal(completedResearchSync.body.eventCount, 1);
+
+    const researchDays = await requestJSON(
+      baseURL,
+      "/research-actions/days?from=2026-07-21&to=2026-07-21",
+      { headers: authHeaders(primaryAccessToken) }
+    );
+    assert.equal(researchDays.response.status, 200);
+    assert.equal(researchDays.body.snapshots.length, 1);
+    assert.equal(researchDays.body.snapshots[0].completedCount, 1);
+    assert.equal(researchDays.body.snapshots[0].items[0].status, "completed");
+    assert.equal(await prisma.actionEvent.count({ where: { userId: primaryUserId } }), 2);
+
     const invalidActionSuggestions = await requestJSON(baseURL, "/action-adjustments/trend-suggestions", {
       method: "POST",
       headers: authHeaders(primaryAccessToken),
@@ -547,7 +577,9 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
       readings: await prisma.bloodPressureReading.count({ where: { userId: primaryUserId } }),
       meals: await prisma.mealRecord.count({ where: { userId: primaryUserId } }),
       exercises: await prisma.exerciseAction.count({ where: { userId: primaryUserId } }),
-      aiUsage: await prisma.aIDailyUsage.count({ where: { userId: primaryUserId } })
+      aiUsage: await prisma.aIDailyUsage.count({ where: { userId: primaryUserId } }),
+      actionSnapshots: await prisma.dailyActionSnapshot.count({ where: { userId: primaryUserId } }),
+      actionEvents: await prisma.actionEvent.count({ where: { userId: primaryUserId } })
     };
 
     const deletePrimaryResponse = await fetch(`${baseURL}/auth/account`, {
@@ -561,7 +593,9 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
       readings: await prisma.bloodPressureReading.count({ where: { userId: primaryUserId } }),
       meals: await prisma.mealRecord.count({ where: { userId: primaryUserId } }),
       exercises: await prisma.exerciseAction.count({ where: { userId: primaryUserId } }),
-      aiUsage: await prisma.aIDailyUsage.count({ where: { userId: primaryUserId } })
+      aiUsage: await prisma.aIDailyUsage.count({ where: { userId: primaryUserId } }),
+      actionSnapshots: await prisma.dailyActionSnapshot.count({ where: { userId: primaryUserId } }),
+      actionEvents: await prisma.actionEvent.count({ where: { userId: primaryUserId } })
     }, retainedCountsBeforeDeletion);
     const retainedUser = await prisma.user.findUniqueOrThrow({
       where: { id: primaryUserId },
@@ -718,10 +752,56 @@ function exerciseActionPayload(title: string, clientUpdatedAt: string) {
     durationMinutes: 10,
     status: "pending",
     completedAt: null,
+    actualStartedAt: null,
+    timerLastResumedAt: null,
+    timerAccumulatedSeconds: 0,
+    actualEndedAt: null,
+    actualDurationSeconds: null,
+    completionMode: null,
     movementAdvice: "身体站直，双脚交替抬起。",
     intensityAdvice: "呼吸稍快，但仍能完整说话。",
     localDay: "2026-07-21",
     clientUpdatedAt
+  };
+}
+
+function researchSnapshotPayload(
+  itemId: string,
+  status: "pending" | "completed",
+  capturedAt: string
+) {
+  const completed = status === "completed";
+  return {
+    localDay: "2026-07-21",
+    timeZone: "Europe/London",
+    capturedAt,
+    items: [{
+      id: itemId,
+      type: "walk",
+      title: "原地踏步",
+      description: "完成今天的低门槛运动。",
+      reason: "久坐后轻量活动。",
+      scheduledStartAt: "2026-07-21T15:00:00.000Z",
+      scheduledEndAt: "2026-07-21T15:10:00.000Z",
+      durationMinutes: 10,
+      status,
+      effectiveStatus: status,
+      completedAt: completed ? "2026-07-21T15:10:00.000Z" : null,
+      sortOrder: 0,
+      bloodPressureText: null,
+      adviceText: null,
+      exerciseId: "indoor-in-place-march",
+      exerciseScene: "私人室内",
+      exerciseEnergy: "精力一般",
+      exerciseContexts: ["久坐后"],
+      exerciseMovementAdvice: "身体站直，双脚交替抬起。",
+      exerciseIntensityAdvice: "呼吸稍快，但仍能完整说话。",
+      actualStartedAt: completed ? "2026-07-21T15:00:00.000Z" : null,
+      actualEndedAt: completed ? "2026-07-21T15:10:00.000Z" : null,
+      actualDurationSeconds: completed ? 600 : null,
+      completionMode: completed ? "timer_completed" : null,
+      clientUpdatedAt: capturedAt
+    }]
   };
 }
 
