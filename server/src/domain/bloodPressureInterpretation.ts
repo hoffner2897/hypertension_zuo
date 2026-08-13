@@ -31,7 +31,26 @@ export interface BPMeasurementContextInput {
   armAtHeartLevel?: boolean;
 }
 
+export interface BPLifestyleContextInput {
+  recentMeals?: Array<{
+    mealDate: string;
+    mealType: string;
+    recognition?: string | null;
+    dietaryStructure?: string | null;
+    cookingMethod?: string | null;
+  }>;
+  recentExercises?: Array<{
+    localDay: string;
+    title: string;
+    status: string;
+    durationMinutes: number;
+    actualDurationMinutes?: number | null;
+  }>;
+  healthDataSyncedAt?: string | null;
+}
+
 export interface BPInterpretationInput extends BPInterpretationReadingInput {
+  timeZone?: string;
   age?: number | null;
   sex?: string | null;
   heightCm?: number | null;
@@ -44,110 +63,93 @@ export interface BPInterpretationInput extends BPInterpretationReadingInput {
   symptoms?: string[];
   medicalContext?: BPMedicalContextInput;
   measurementContext?: BPMeasurementContextInput;
+  lifestyleContext?: BPLifestyleContextInput;
 }
 
-export interface BPHistorySummary {
-  averageSystolic: number | null;
-  averageDiastolic: number | null;
-  readingCount: number;
-  daysCovered: number | null;
-  averageHomeHigh: boolean;
-  pattern: "none" | "single" | "one_off" | "consistent_high" | "variable" | "improving" | "worsening" | "mostly_normal";
-  elevationDriver: "systolic" | "diastolic" | "both" | "none";
+export interface BPPeriodComparison {
+  days: 3 | 7;
+  currentAverage: { systolic: number; diastolic: number } | null;
+  previousAverage: { systolic: number; diastolic: number } | null;
+  currentObservedDays: number;
+  previousObservedDays: number;
 }
 
 export interface BPInterpretationResult {
   category: BPInterpretationCategory;
   severity: BPInterpretationSeverity;
-  title: string;
-  summary: string;
+  bloodPressureSituation: string[];
   reasons: string[];
-  personalContextNotes: string[];
-  measurementQualityNotes: string[];
   nextSteps: string[];
   safetyNote: string;
   disclaimer: string;
 }
 
 export interface BPBaseInterpretation extends BPInterpretationResult {
-  historySummary: BPHistorySummary;
-  bmi: number | null;
+  trendComparisons: BPPeriodComparison[];
+  officeClassification: string;
   safetySymptoms: string[];
 }
 
 const urgentSymptoms = new Set([
-  "chest_pain",
-  "shortness_of_breath",
-  "severe_headache",
-  "confusion",
-  "weakness_numbness",
-  "vision_changes",
-  "fainting"
+  "chest_pain", "shortness_of_breath", "severe_headache", "confusion",
+  "weakness_numbness", "vision_changes", "fainting"
 ]);
 
-export function makeRuleBasedInterpretation(input: BPInterpretationInput): BPBaseInterpretation {
-  const systolic = input.systolicBp;
-  const diastolic = input.diastolicBp;
+export const bpInterpretationDisclaimer = "血压解读用于记录和观察趋势，不构成诊断，也不能替代医生建议或用药调整。";
 
-  if (!Number.isFinite(systolic) || !Number.isFinite(diastolic) || systolic <= diastolic) {
+export function makeRuleBasedInterpretation(input: BPInterpretationInput): BPBaseInterpretation {
+  if (!isValidReading(input)) {
     return {
       category: "insufficient_data",
       severity: "watch",
-      title: "还需要完整读数",
-      summary: "请先确认收缩压和舒张压读数，再查看解释。",
-      reasons: ["当前读数不完整或格式不符合常见血压读数。"],
-      personalContextNotes: [],
-      measurementQualityNotes: ["请确认读数来自同一次测量，并检查单位为 mmHg。"],
-      nextSteps: ["重新输入或重新识别本次读数。"],
-      safetyNote: "如出现胸痛、气短、剧烈头痛、视物异常、肢体无力或意识异常，请立即寻求急诊帮助。",
-      disclaimer: disclaimerText,
-      historySummary: emptyHistorySummary(),
-      bmi: null,
+      bloodPressureSituation: ["本次读数不完整，请确认收缩压、舒张压和单位。"],
+      reasons: ["原因：当前数值无法形成有效的血压解读。"],
+      nextSteps: ["现在：请重新输入或重新识别同一次测量的完整读数。"],
+      safetyNote: defaultSafetyNote,
+      disclaimer: bpInterpretationDisclaimer,
+      trendComparisons: [],
+      officeClassification: "无法分级",
       safetySymptoms: []
     };
   }
 
-  const category = classifyBp(systolic, diastolic);
-  const historySummary = summarizeHistory(input.recentBpReadings ?? [], input);
-  const bmi = calculateBmi(input.heightCm, input.weightKg);
-  const safetySymptoms = (input.symptoms ?? []).filter((symptom) => urgentSymptoms.has(symptom));
-  const personalContextNotes = makePersonalContextNotes(input, bmi);
-  const measurementQualityNotes = makeMeasurementQualityNotes(category, input.measurementContext);
-  const reasons = makeReasons(input, category, historySummary);
-  const nextSteps = makeNextSteps(input, category, historySummary, safetySymptoms);
-  const severity = makeSeverity(input, category, historySummary, safetySymptoms);
+  const category = classifyBp(input.systolicBp, input.diastolicBp);
+  const safetySymptoms = (input.symptoms ?? []).filter((value) => urgentSymptoms.has(value));
+  const trendComparisons = makeTrendComparisons(input);
+  const officeClassification = classifyOffice(input.systolicBp, input.diastolicBp);
+  const situation = [makeCurrentSituationLine(input, category, officeClassification)];
+
+  for (const comparison of trendComparisons) {
+    const line = comparisonLine(comparison);
+    if (line) situation.push(line);
+  }
+
+  const reasons = makeReasons(input).slice(0, 3);
+  const nextSteps = makeNextSteps(input, category, trendComparisons, safetySymptoms).slice(0, 3);
+  const severity = makeSeverity(category, trendComparisons, safetySymptoms, input);
 
   return {
     category,
     severity,
-    title: titleForCategory(category),
-    summary: summaryForCategory(category, historySummary),
+    bloodPressureSituation: situation.slice(0, 3),
     reasons,
-    personalContextNotes,
-    measurementQualityNotes,
     nextSteps,
-    safetyNote: safetyNoteFor(category, safetySymptoms),
-    disclaimer: disclaimerText,
-    historySummary,
-    bmi,
+    safetyNote: category === "urgent" || safetySymptoms.length > 0 ? urgentSafetyNote : defaultSafetyNote,
+    disclaimer: bpInterpretationDisclaimer,
+    trendComparisons,
+    officeClassification,
     safetySymptoms
   };
 }
 
 export function normalizeInterpretationResult(value: unknown, base: BPBaseInterpretation): BPInterpretationResult {
-  if (!isRecord(value)) {
-    return stripInternalFields(base);
-  }
-
+  if (!isRecord(value)) return stripInternalFields(base);
   return {
     category: base.category,
     severity: base.severity,
-    title: cleanString(value.title, base.title),
-    summary: cleanString(value.summary, base.summary),
-    reasons: cleanStringArray(value.reasons, base.reasons),
-    personalContextNotes: cleanStringArray(value.personalContextNotes, base.personalContextNotes),
-    measurementQualityNotes: cleanStringArray(value.measurementQualityNotes, base.measurementQualityNotes),
-    nextSteps: cleanStringArray(value.nextSteps, base.nextSteps),
+    bloodPressureSituation: cleanLines(value.bloodPressureSituation, base.bloodPressureSituation),
+    reasons: cleanLines(value.reasons, base.reasons),
+    nextSteps: cleanLines(value.nextSteps, base.nextSteps),
     safetyNote: cleanString(value.safetyNote, base.safetyNote),
     disclaimer: cleanString(value.disclaimer, base.disclaimer)
   };
@@ -157,405 +159,175 @@ export function stripInternalFields(base: BPBaseInterpretation): BPInterpretatio
   return {
     category: base.category,
     severity: base.severity,
-    title: base.title,
-    summary: base.summary,
+    bloodPressureSituation: base.bloodPressureSituation,
     reasons: base.reasons,
-    personalContextNotes: base.personalContextNotes,
-    measurementQualityNotes: base.measurementQualityNotes,
     nextSteps: base.nextSteps,
     safetyNote: base.safetyNote,
     disclaimer: base.disclaimer
   };
 }
 
+function isValidReading(input: BPInterpretationReadingInput): boolean {
+  return Number.isFinite(input.systolicBp) && Number.isFinite(input.diastolicBp) &&
+    input.systolicBp > input.diastolicBp && input.systolicBp >= 40 && input.diastolicBp >= 30;
+}
+
 function classifyBp(systolic: number, diastolic: number): BPInterpretationCategory {
-  if (systolic >= 180 || diastolic >= 120) {
-    return "urgent";
-  }
-
-  if (systolic >= 135 || diastolic >= 85) {
-    return "high_home";
-  }
-
-  if (systolic >= 120 || diastolic >= 80) {
-    return "borderline";
-  }
-
-  if (systolic < 90 || diastolic < 60) {
-    return "low";
-  }
-
+  if (systolic >= 180 || diastolic >= 120) return "urgent";
+  if (systolic < 90 || diastolic < 60) return "low";
+  if (systolic >= 135 || diastolic >= 85) return "high_home";
+  if (systolic >= 120 || diastolic >= 80) return "borderline";
   return "normal";
 }
 
-function summarizeHistory(readings: BPRecentReadingInput[], current: BPInterpretationReadingInput): BPHistorySummary {
-  const usable = [...readings, current]
-    .filter((reading) => Number.isFinite(reading.systolicBp) && Number.isFinite(reading.diastolicBp))
-    .slice(0, 30);
-
-  if (usable.length === 0) {
-    return emptyHistorySummary();
-  }
-
-  const averageSystolic = round(usable.reduce((sum, reading) => sum + reading.systolicBp, 0) / usable.length, 0);
-  const averageDiastolic = round(usable.reduce((sum, reading) => sum + reading.diastolicBp, 0) / usable.length, 0);
-  const averageHomeHigh = averageSystolic >= 135 || averageDiastolic >= 85;
-  const elevationDriver = makeElevationDriver(averageSystolic, averageDiastolic);
-  const daysCovered = countDaysCovered(usable);
-  const pattern = makeHistoryPattern(usable, averageHomeHigh);
-
-  return {
-    averageSystolic,
-    averageDiastolic,
-    readingCount: usable.length,
-    daysCovered,
-    averageHomeHigh,
-    pattern,
-    elevationDriver
-  };
+function classifyOffice(systolic: number, diastolic: number): string {
+  if (systolic >= 180 || diastolic >= 110) return "三级高血压范围";
+  if (systolic >= 160 || diastolic >= 100) return "二级高血压范围";
+  if (systolic >= 140 || diastolic >= 90) return "一级高血压范围";
+  if (systolic >= 120 || diastolic >= 80) return "正常高值范围";
+  return "正常范围";
 }
 
-function makeHistoryPattern(readings: BPRecentReadingInput[], averageHomeHigh: boolean): BPHistorySummary["pattern"] {
-  if (readings.length <= 1) {
-    return "single";
-  }
-
-  const highCount = readings.filter((reading) => reading.systolicBp >= 135 || reading.diastolicBp >= 85).length;
-  const systolicValues = readings.map((reading) => reading.systolicBp);
-  const diastolicValues = readings.map((reading) => reading.diastolicBp);
-  const variable = range(systolicValues) >= 25 || range(diastolicValues) >= 15;
-  const ordered = readings
-    .filter((reading) => reading.measurementTime)
-    .sort((left, right) => new Date(left.measurementTime ?? "").getTime() - new Date(right.measurementTime ?? "").getTime());
-
-  if (ordered.length >= 4) {
-    const midpoint = Math.floor(ordered.length / 2);
-    const early = averagePair(ordered.slice(0, midpoint));
-    const late = averagePair(ordered.slice(midpoint));
-    if (late.systolic <= early.systolic - 5 && late.diastolic <= early.diastolic - 3) {
-      return "improving";
-    }
-    if (late.systolic >= early.systolic + 5 || late.diastolic >= early.diastolic + 3) {
-      return "worsening";
-    }
-  }
-
-  if (variable) {
-    return "variable";
-  }
-
-  if (averageHomeHigh && highCount >= Math.ceil(readings.length * 0.6)) {
-    return "consistent_high";
-  }
-
-  if (highCount === 1) {
-    return "one_off";
-  }
-
-  return "mostly_normal";
+function makeCurrentSituationLine(input: BPInterpretationInput, category: BPInterpretationCategory, office: string): string {
+  const value = `${input.systolicBp}/${input.diastolicBp} mmHg`;
+  if (category === "low") return `本次：${value}，低于常见参考范围；如果同样数值在诊室测量，对照为${office}。`;
+  if (category === "urgent") return `本次：${value}，达到家庭高血压参考线；如果同样数值在诊室测量，对照为${office}。`;
+  if (category === "high_home") return `本次：${value}，达到家庭高血压参考线；如果同样数值在诊室测量，对照为${office}。`;
+  return `本次：${value}，未达到家庭高血压参考线；如果同样数值在诊室测量，对照为${office}。`;
 }
 
-function makeSeverity(
-  input: BPInterpretationInput,
-  category: BPInterpretationCategory,
-  history: BPHistorySummary,
-  safetySymptoms: string[]
-): BPInterpretationSeverity {
-  if (category === "urgent" || safetySymptoms.length > 0) {
-    return "urgent";
+function makeTrendComparisons(input: BPInterpretationInput): BPPeriodComparison[] {
+  const readings = deduplicateReadings([...(input.recentBpReadings ?? []), input]);
+  const timeZone = validTimeZone(input.timeZone) ? input.timeZone! : "UTC";
+  const anchorDay = localDay(input.measurementTime, timeZone);
+  const daily = new Map<string, Array<{ systolic: number; diastolic: number }>>();
+  for (const reading of readings) {
+    if (!reading.measurementTime || !Number.isFinite(reading.systolicBp) || !Number.isFinite(reading.diastolicBp)) continue;
+    const day = localDay(reading.measurementTime, timeZone);
+    const bucket = daily.get(day) ?? [];
+    bucket.push({ systolic: reading.systolicBp, diastolic: reading.diastolicBp });
+    daily.set(day, bucket);
   }
+  const dailyAverages = new Map([...daily].map(([day, values]) => [day, average(values)]));
+  return ([3, 7] as const).map((days) => {
+    const current = rangeAverages(dailyAverages, anchorDay, 0, days - 1);
+    const previous = rangeAverages(dailyAverages, anchorDay, days, days * 2 - 1);
+    return { days, currentAverage: current.average, previousAverage: previous.average,
+      currentObservedDays: current.count, previousObservedDays: previous.count };
+  });
+}
 
-  if (category === "high_home") {
-    return hasMedicalFollowUpContext(input) || history.averageHomeHigh ? "follow_up" : "repeat";
+function comparisonLine(comparison: BPPeriodComparison): string | null {
+  const current = comparison.currentAverage;
+  if (!current) return null;
+  const prefix = `${comparison.days}日：近${comparison.days}日每日均值 ${current.systolic}/${current.diastolic} mmHg`;
+  const previous = comparison.previousAverage;
+  if (!previous) return `${prefix}，继续记录以观察变化。`;
+  const sys = current.systolic - previous.systolic;
+  const dia = current.diastolic - previous.diastolic;
+  return `${prefix}，比前${comparison.days}日${describePressureDelta("收缩压", sys)}，${describePressureDelta("舒张压", dia)}。`;
+}
+
+function describePressureDelta(label: string, delta: number): string {
+  if (delta === 0) return `${label}持平`;
+  return `${label}${delta > 0 ? "高" : "低"}${Math.abs(delta)} mmHg`;
+}
+
+function makeReasons(input: BPInterpretationInput): string[] {
+  const lines: string[] = [];
+  const meal = input.lifestyleContext?.recentMeals?.find((item) => item.dietaryStructure || item.cookingMethod);
+  if (meal) lines.push(`饮食：${shortText(meal.dietaryStructure ?? meal.cookingMethod ?? "近期已有餐食记录。")}`);
+  const exercises = input.lifestyleContext?.recentExercises ?? [];
+  if (exercises.length > 0) {
+    const completed = exercises.filter((item) => item.status === "completed").length;
+    lines.push(`运动：近7日记录 ${exercises.length} 次，完成 ${completed} 次，可结合读数继续观察。`);
   }
+  if (input.averageSleepHoursLast7Days != null) lines.push(`睡眠：最近同步值约 ${round(input.averageSleepHoursLast7Days, 1)} 小时，可作为读数背景。`);
+  else if (input.todaySteps != null) lines.push(`活动：最近同步步数为 ${input.todaySteps} 步，可作为读数背景。`);
+  else if (input.bpMonitorPulse != null && input.bpMonitorPulse >= 100) lines.push("背景：本次脉搏较快，活动、紧张或测量条件可能影响读数。");
+  if (lines.length === 0) lines.push("原因：本次变化可能与休息、情绪或测量条件有关，需结合后续读数观察。");
+  return lines;
+}
 
-  if (category === "borderline" || category === "low") {
-    return hasMedicalFollowUpContext(input) ? "follow_up" : "watch";
-  }
+function makeNextSteps(input: BPInterpretationInput, category: BPInterpretationCategory, trends: BPPeriodComparison[], symptoms: string[]): string[] {
+  if (category === "urgent" || symptoms.length > 0) return [
+    "现在：停止活动并安静休息，按规范立即复测。",
+    "观察：如读数仍处于很高范围，尽快联系医疗服务。",
+    "就医：如伴胸痛、气短、严重头痛、视物或意识异常，请立即寻求急诊帮助。"
+  ];
+  if (category === "low") return [
+    "现在：先坐下休息、避免突然起身，并按相同条件复测。",
+    "观察：留意头晕、乏力或晕厥，并继续记录。",
+    "就医：如不适持续、加重或发生晕厥，请及时联系医生。"
+  ];
+  const sevenDayHigh = trends.find((item) => item.days === 7)?.currentAverage;
+  const threeDayHigh = trends.find((item) => item.days === 3)?.currentAverage;
+  const currentHigh = category === "high_home";
+  const lines = [currentHigh ? "现在：安静休息 5 分钟后规范复测一次。" : "现在：继续按固定时间和姿势记录血压。"];
+  lines.push(threeDayHigh && isHomeHigh(threeDayHigh) ? "观察：近3日均值偏高，继续记录并观察7日均值。" : "观察：结合接下来几天的每日均值判断变化。");
+  if (sevenDayHigh && isHomeHigh(sevenDayHigh)) lines.push("就医：近7日均值偏高，可带完整记录联系医生讨论。");
+  return lines;
+}
 
+function makeSeverity(category: BPInterpretationCategory, trends: BPPeriodComparison[], symptoms: string[], input: BPInterpretationInput): BPInterpretationSeverity {
+  if (category === "urgent" || symptoms.length > 0) return "urgent";
+  const seven = trends.find((item) => item.days === 7)?.currentAverage;
+  if ((seven && isHomeHigh(seven)) || hasMedicalContext(input)) return "follow_up";
+  if (category === "high_home") return "repeat";
+  if (category === "borderline" || category === "low") return "watch";
   return "reassuring";
 }
 
-function makeReasons(input: BPInterpretationInput, category: BPInterpretationCategory, history: BPHistorySummary): string[] {
-  const reasons: string[] = [];
-
-  if (category === "urgent") {
-    reasons.push("本次读数达到需要高度重视的范围。");
-  } else if (category === "high_home") {
-    reasons.push("家庭血压场景下，单次读数达到或超过 135/85 mmHg 时需要复测和观察平均值。");
-  } else if (category === "borderline") {
-    reasons.push("本次读数接近偏高范围，可能受休息、压力、睡眠或测量条件影响。");
-  } else if (category === "low") {
-    reasons.push("本次读数低于常见参考范围，建议结合自身感受观察。");
-  } else {
-    reasons.push("本次家庭血压读数在常见正常范围内。");
-  }
-
-  if (history.readingCount > 1 && history.averageSystolic !== null && history.averageDiastolic !== null) {
-    reasons.push(`近 ${history.readingCount} 次平均约为 ${history.averageSystolic}/${history.averageDiastolic} mmHg。`);
-  }
-
-  if (history.pattern === "consistent_high") {
-    reasons.push("近期多次读数平均仍偏高，单次读数之外的趋势也值得关注。");
-  } else if (history.pattern === "one_off") {
-    reasons.push("目前更像单次偏高，需要规范复测后再判断趋势。");
-  } else if (history.pattern === "variable") {
-    reasons.push("近期读数波动较大，测量条件可能影响结果。");
-  } else if (history.pattern === "improving") {
-    reasons.push("近期读数有改善迹象，仍建议继续记录。");
-  } else if (history.pattern === "worsening") {
-    reasons.push("近期读数有上升迹象，建议更密切观察。");
-  }
-
-  if (input.bpMonitorPulse && input.bpMonitorPulse >= 100) {
-    reasons.push("本次脉搏偏快，可能与活动、紧张、咖啡因、睡眠或身体不适有关。");
-  }
-
-  return reasons.slice(0, 5);
+function hasMedicalContext(input: BPInterpretationInput): boolean {
+  return Boolean(input.medicalContext && Object.values(input.medicalContext).some(Boolean));
 }
 
-function makePersonalContextNotes(input: BPInterpretationInput, bmi: number | null): string[] {
-  const notes: string[] = [];
+function isHomeHigh(value: { systolic: number; diastolic: number }): boolean { return value.systolic >= 135 || value.diastolic >= 85; }
 
-  if (input.age !== null && input.age !== undefined && input.age >= 60) {
-    notes.push("年龄增加时，更建议关注连续读数和长期趋势。");
+function rangeAverages(values: Map<string, { systolic: number; diastolic: number }>, anchor: string, from: number, to: number) {
+  const selected: Array<{ systolic: number; diastolic: number }> = [];
+  for (let offset = from; offset <= to; offset += 1) {
+    const value = values.get(shiftDay(anchor, -offset));
+    if (value) selected.push(value);
   }
-
-  if (bmi !== null && bmi >= 24) {
-    notes.push(`按中国成人 BMI 参考，当前 BMI 约 ${bmi.toFixed(1)}，可能与生活方式相关风险有关。`);
-  }
-
-  if (input.averageSleepHoursLast7Days !== null && input.averageSleepHoursLast7Days !== undefined && input.averageSleepHoursLast7Days < 6) {
-    notes.push("近期睡眠偏少，可能让血压短期更容易偏高。");
-  }
-
-  if (input.todaySteps !== null && input.todaySteps !== undefined && input.todaySteps < 4000) {
-    notes.push("今日步数偏少，可作为生活方式背景一起观察。");
-  }
-
-  if (input.restingHeartRate !== null && input.restingHeartRate !== undefined && input.restingHeartRate >= 90) {
-    notes.push("静息心率偏快时，可留意压力、睡眠、近期活动和身体状态。");
-  }
-
-  if (hasMedicalFollowUpContext(input)) {
-    notes.push("已有相关健康背景或正在用药时，更建议把连续家庭血压记录带给医生参考。");
-  }
-
-  return notes.slice(0, 5);
+  return { average: selected.length > 0 ? average(selected) : null, count: selected.length };
 }
 
-function makeMeasurementQualityNotes(category: BPInterpretationCategory, context?: BPMeasurementContextInput): string[] {
-  const notes: string[] = [];
-  const shouldAlwaysInclude = category === "borderline" || category === "high_home" || category === "urgent";
-
-  if (shouldAlwaysInclude) {
-    notes.push("请尽量在安静坐位休息 5 分钟后测量，袖带合适，手臂与心脏同高。");
-  }
-
-  if (context?.rested5Min === false) {
-    notes.push("本次测量前可能休息不足，建议按规范复测。");
-  }
-  if (context?.caffeineExerciseSmokingAlcoholRecently === true) {
-    notes.push("咖啡因、运动、吸烟或饮酒后短时间内，读数可能暂时偏高。");
-  }
-  if (context?.correctCuff === false) {
-    notes.push("袖带大小或佩戴不合适会影响读数。");
-  }
-  if (context?.seated === false || context?.armAtHeartLevel === false) {
-    notes.push("坐姿和手臂高度不规范时，建议重新测量。");
-  }
-
-  if (notes.length === 0) {
-    notes.push("建议固定时间、固定姿势记录，方便比较趋势。");
-  }
-
-  return notes.slice(0, 4);
+function average(values: Array<{ systolic: number; diastolic: number }>) {
+  return { systolic: round(values.reduce((sum, item) => sum + item.systolic, 0) / values.length, 0),
+    diastolic: round(values.reduce((sum, item) => sum + item.diastolic, 0) / values.length, 0) };
 }
 
-function makeNextSteps(
-  input: BPInterpretationInput,
-  category: BPInterpretationCategory,
-  history: BPHistorySummary,
-  safetySymptoms: string[]
-): string[] {
-  if (category === "urgent" || safetySymptoms.length > 0) {
-    return [
-      "如伴有胸痛、气短、剧烈头痛、视物异常、肢体无力或意识异常，请立即寻求急诊帮助。",
-      "若没有明显不适，也建议安静休息后尽快复测，并考虑联系医生。"
-    ];
-  }
-
-  if (category === "high_home") {
-    const steps = [
-      "安静休息 5 分钟后复测一次，并记录测量条件。",
-      "建议连续几天按规范测量，观察家庭平均血压是否仍超过 135/85 mmHg。"
-    ];
-    if (history.averageHomeHigh || hasMedicalFollowUpContext(input)) {
-      steps.push("如果连续平均值仍偏高，建议带记录咨询医生。");
-    }
-    return steps;
-  }
-
-  if (category === "borderline") {
-    return [
-      "休息后可复测，并观察接下来几天的平均值。",
-      "继续记录睡眠、活动和测量时间，帮助理解波动。"
-    ];
-  }
-
-  if (category === "low") {
-    return [
-      "如有头晕、乏力、胸闷、晕厥等不适，请及时寻求医疗帮助。",
-      "如果没有不适，可在相同条件下复测并继续记录。"
-    ];
-  }
-
-  return ["继续保持规律记录即可。", "可固定在早晚相近时间测量，方便观察趋势。"];
+function deduplicateReadings(readings: BPRecentReadingInput[]): BPRecentReadingInput[] {
+  const map = new Map<string, BPRecentReadingInput>();
+  for (const item of readings) map.set(`${item.measurementTime ?? ""}:${item.systolicBp}:${item.diastolicBp}`, item);
+  return [...map.values()];
 }
 
-function titleForCategory(category: BPInterpretationCategory): string {
-  switch (category) {
-    case "urgent":
-      return "这次读数需要高度重视";
-    case "high_home":
-      return "这次家庭血压读数偏高";
-    case "borderline":
-      return "这次读数接近偏高范围";
-    case "low":
-      return "这次读数偏低";
-    case "normal":
-      return "这次读数在常见正常范围内";
-    case "insufficient_data":
-      return "还需要完整读数";
-  }
+function localDay(value: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "00";
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-function summaryForCategory(category: BPInterpretationCategory, history: BPHistorySummary): string {
-  switch (category) {
-    case "urgent":
-      return "如伴有明显不适或危险症状，请立即寻求急诊帮助。";
-    case "high_home":
-      return history.averageHomeHigh
-        ? "近期家庭平均血压也偏高，建议连续记录并咨询医生。"
-        : "单次读数不能诊断高血压，建议规范复测并观察几天平均值。";
-    case "borderline":
-      return "建议在安静休息后复测，并观察接下来几天的平均值。";
-    case "low":
-      return "请结合是否有头晕、乏力等不适，并在相同条件下复测。";
-    case "normal":
-      return "继续保持记录即可。";
-    case "insufficient_data":
-      return "请先确认本次收缩压和舒张压。";
-  }
+function shiftDay(day: string, offset: number): string {
+  const date = new Date(`${day}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10);
 }
 
-function safetyNoteFor(category: BPInterpretationCategory, safetySymptoms: string[]): string {
-  if (category === "urgent" || safetySymptoms.length > 0) {
-    return "如伴有胸痛、气短、剧烈头痛、视物异常、肢体无力、意识异常或晕厥，请立即寻求急诊帮助。";
-  }
-
-  return "如出现胸痛、气短、剧烈头痛、视物异常、肢体无力、意识异常或晕厥等症状，请及时寻求医疗帮助。";
+function validTimeZone(value?: string): boolean {
+  if (!value) return false;
+  try { new Intl.DateTimeFormat("en-US", { timeZone: value }).format(); return true; } catch { return false; }
 }
 
-function hasMedicalFollowUpContext(input: BPInterpretationInput): boolean {
-  const context = input.medicalContext;
-  return Boolean(
-    context?.knownHypertension ||
-      context?.diabetes ||
-      context?.kidneyDisease ||
-      context?.pregnancy ||
-      context?.cardiovascularDisease ||
-      context?.currentBpMedication
-  );
+function cleanLines(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback;
+  const lines = value.filter((item): item is string => typeof item === "string").map((item) => item.replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 3);
+  return lines.length > 0 ? lines : fallback;
 }
+function cleanString(value: unknown, fallback: string): string { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
+function shortText(value: string): string { const text = value.replace(/\s+/g, " ").trim(); return text.length <= 52 ? text : `${text.slice(0, 51)}…`; }
+function round(value: number, digits: number): number { const factor = 10 ** digits; return Math.round(value * factor) / factor; }
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
 
-function calculateBmi(heightCm?: number | null, weightKg?: number | null): number | null {
-  if (!heightCm || !weightKg || heightCm <= 0 || weightKg <= 0) {
-    return null;
-  }
-
-  return weightKg / (heightCm / 100) ** 2;
-}
-
-function makeElevationDriver(systolic: number, diastolic: number): BPHistorySummary["elevationDriver"] {
-  const systolicHigh = systolic >= 135;
-  const diastolicHigh = diastolic >= 85;
-
-  if (systolicHigh && diastolicHigh) {
-    return "both";
-  }
-  if (systolicHigh) {
-    return "systolic";
-  }
-  if (diastolicHigh) {
-    return "diastolic";
-  }
-  return "none";
-}
-
-function countDaysCovered(readings: BPRecentReadingInput[]): number | null {
-  const days = new Set<string>();
-  for (const reading of readings) {
-    if (!reading.measurementTime) {
-      continue;
-    }
-    const date = new Date(reading.measurementTime);
-    if (!Number.isNaN(date.getTime())) {
-      days.add(date.toISOString().slice(0, 10));
-    }
-  }
-
-  return days.size > 0 ? days.size : null;
-}
-
-function averagePair(readings: BPRecentReadingInput[]) {
-  return {
-    systolic: readings.reduce((sum, reading) => sum + reading.systolicBp, 0) / readings.length,
-    diastolic: readings.reduce((sum, reading) => sum + reading.diastolicBp, 0) / readings.length
-  };
-}
-
-function range(values: number[]): number {
-  return Math.max(...values) - Math.min(...values);
-}
-
-function round(value: number, digits: number): number {
-  const factor = 10 ** digits;
-  return Math.round(value * factor) / factor;
-}
-
-function emptyHistorySummary(): BPHistorySummary {
-  return {
-    averageSystolic: null,
-    averageDiastolic: null,
-    readingCount: 0,
-    daysCovered: null,
-    averageHomeHigh: false,
-    pattern: "none",
-    elevationDriver: "none"
-  };
-}
-
-function cleanString(value: unknown, fallback: string): string {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const trimmed = value.trim();
-  return trimmed ? trimmed : fallback;
-}
-
-function cleanStringArray(value: unknown, fallback: string[]): string[] {
-  if (!Array.isArray(value)) {
-    return fallback;
-  }
-
-  const cleaned = value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean);
-  return cleaned.length > 0 ? cleaned.slice(0, 6) : fallback;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-const disclaimerText = "此解释仅用于健康记录和趋势理解，不构成诊断，也不能替代医生建议或用药调整。";
+const urgentSafetyNote = "如伴胸痛、气短、严重头痛、视物异常、肢体无力、意识异常或晕厥，请立即寻求急诊帮助。";
+const defaultSafetyNote = "如出现胸痛、气短、严重头痛、视物异常、肢体无力、意识异常或晕厥，请及时寻求医疗帮助。";

@@ -207,12 +207,9 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: category,
                 severity: .urgent,
-                title: "这次读数需要高度重视",
-                summary: "如伴有明显不适，请立即寻求急诊帮助。",
+                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，达到需要高度重视的范围。"],
                 reasons: ["本次读数达到需要高度重视的范围。"],
-                personalContextNotes: [],
-                measurementQualityNotes: ["请确认安静休息 5 分钟、袖带合适、手臂与心脏同高。"],
-                nextSteps: ["如伴有胸痛、气短、剧烈头痛或肢体无力，请立即寻求急诊帮助。"],
+                nextSteps: ["安静休息后立即规范复测。", "如仍处于该范围或伴有明显不适，请立即寻求急诊帮助。"],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
@@ -220,12 +217,9 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: category,
                 severity: .repeat,
-                title: "这次家庭血压读数偏高",
-                summary: "单次读数不能诊断高血压，建议规范复测并观察几天平均值。",
+                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，超过家庭血压参考阈值 135/85 mmHg。"],
                 reasons: ["家庭血压超过 135/85 mmHg 时，建议复测并观察平均值。"],
-                personalContextNotes: [],
-                measurementQualityNotes: ["请尽量在安静坐位休息 5 分钟后测量，袖带合适，手臂与心脏同高。"],
-                nextSteps: ["连续几天按规范测量，观察家庭平均血压是否仍超过 135/85 mmHg。"],
+                nextSteps: ["安静坐位休息 5 分钟后规范复测。", "连续几天记录并观察家庭平均值。"],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
@@ -233,12 +227,9 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: category,
                 severity: .watch,
-                title: "这次读数接近偏高范围",
-                summary: "建议在安静休息后复测，并观察接下来几天的平均值。",
+                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，未达到家庭偏高阈值，但接近诊室正常高值范围。"],
                 reasons: ["本次读数接近偏高范围，可能受休息、压力或测量条件影响。"],
-                personalContextNotes: [],
-                measurementQualityNotes: ["请尽量在安静坐位休息 5 分钟后测量，袖带合适，手臂与心脏同高。"],
-                nextSteps: ["休息后可复测，并继续记录趋势。"],
+                nextSteps: ["在相同条件下继续记录。", "结合接下来几天的平均值观察变化。"],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
@@ -246,12 +237,9 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: category,
                 severity: .watch,
-                title: "这次读数偏低",
-                summary: "请结合是否有头晕、乏力等不适，并在相同条件下复测。",
+                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，低于常见参考范围。"],
                 reasons: ["本次读数低于常见参考范围。"],
-                personalContextNotes: [],
-                measurementQualityNotes: ["建议固定时间、固定姿势记录，方便比较趋势。"],
-                nextSteps: ["如有头晕、乏力或晕厥等不适，请及时寻求医疗帮助。"],
+                nextSteps: ["在相同条件下规范复测。", "如有头晕、乏力或晕厥等不适，请及时寻求医疗帮助。"],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
@@ -259,11 +247,8 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: .normal,
                 severity: .reassuring,
-                title: "这次读数在常见正常范围内",
-                summary: "继续保持记录即可。",
+                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，处于常见家庭血压参考范围。"],
                 reasons: ["本次家庭血压读数在常见正常范围内。"],
-                personalContextNotes: [],
-                measurementQualityNotes: ["建议固定时间、固定姿势记录，方便比较趋势。"],
                 nextSteps: ["继续保持规律记录即可。"],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer

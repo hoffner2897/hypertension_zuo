@@ -356,12 +356,12 @@ struct BloodPressureHomeView: View {
                         .clipShape(Circle())
 
                     VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-                        Text("最近血压解释")
+                        Text("血压解读")
                             .font(.headline)
                             .foregroundStyle(DSTheme.Color.textPrimary)
 
                         if latestReading == nil {
-                            Text("保存血压读数后，这里会解释正常与否和原因。")
+                            Text("保存血压读数后，这里会显示血压情况、原因和下一步。")
                                 .font(.subheadline)
                                 .foregroundStyle(DSTheme.Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -377,12 +377,7 @@ struct BloodPressureHomeView: View {
                         } else if let interpretation = viewModel.interpretation {
                             DSChip(interpretation.severity.displayTitle, systemImage: interpretationIcon, tint: interpretationTint, isSelected: true)
 
-                            Text(interpretation.title)
-                                .font(.title3.weight(.bold))
-                                .foregroundStyle(DSTheme.Color.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            Text(interpretation.summary)
+                            Text(interpretation.bloodPressureSituation.first ?? "已生成本次血压解读。")
                                 .font(.subheadline)
                                 .foregroundStyle(DSTheme.Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -407,13 +402,8 @@ struct BloodPressureHomeView: View {
                 }
 
                 if isInterpretationExpanded, let interpretation = viewModel.interpretation {
+                    interpretationBullets(title: "血压情况", items: interpretation.bloodPressureSituation, icon: "heart.text.square")
                     interpretationBullets(title: "原因", items: interpretation.reasons, icon: "list.bullet.clipboard")
-
-                    if !interpretation.personalContextNotes.isEmpty {
-                        interpretationBullets(title: "个人背景", items: interpretation.personalContextNotes, icon: "person.text.rectangle")
-                    }
-
-                    interpretationBullets(title: "测量提示", items: interpretation.measurementQualityNotes, icon: "checkmark.shield")
                     interpretationBullets(title: "下一步", items: interpretation.nextSteps, icon: "arrow.right.circle")
 
                     Text(interpretation.safetyNote)

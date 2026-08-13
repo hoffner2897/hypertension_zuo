@@ -112,23 +112,23 @@ struct ActionAdjustDemoView: View {
         let state = ActionGenerationBloodPressureState(reading: latestReading)
         return DSCard(
             padding: DSTheme.Spacing.small,
-            backgroundColor: Color(red: 1.0, green: 239.0 / 255.0, blue: 199.0 / 255.0)
+            backgroundColor: DSTheme.Color.primary
         ) {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                 HStack(spacing: 8) {
                     Label("今日最新血压", systemImage: "heart.circle.fill")
-                        .font(.caption.weight(.semibold)).foregroundStyle(DSTheme.Color.textSecondary)
+                        .font(.caption.weight(.semibold)).foregroundStyle(.white)
                     Spacer()
                     Label(state.title, systemImage: state.systemImage)
                         .font(.caption2.weight(.bold)).foregroundStyle(state.tint)
                         .padding(.horizontal, 9).padding(.vertical, 5)
-                        .background(state.tint.opacity(0.12)).clipShape(Capsule())
+                        .background(.white).clipShape(Capsule())
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text(latestReading.map { "\($0.systolic) / \($0.diastolic)" } ?? "-- / --")
                         .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
-                    Text("mmHg").font(.caption.weight(.bold)).foregroundStyle(DSTheme.Color.textSecondary)
+                        .foregroundStyle(.white)
+                    Text("mmHg").font(.caption.weight(.bold)).foregroundStyle(.white.opacity(0.86))
                 }
             }
         }
@@ -172,46 +172,33 @@ struct ActionAdjustDemoView: View {
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(DSTheme.Color.primary)
 
-                Text("趋势调整")
+                Text("行动建议")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
                 Spacer(minLength: 8)
 
-                Text(viewModel.evidenceDays > 1 ? "基于近\(viewModel.evidenceDays)天记录为你提供优化建议" : "基于近期趋势为你提供优化建议")
+                Text(viewModel.evidenceDays > 0 ? "根据你的饮食和运动记录生成" : "记录行动后生成个性化建议")
                     .font(.caption2)
                     .foregroundStyle(DSTheme.Color.textSecondary)
                     .lineLimit(2)
                     .multilineTextAlignment(.trailing)
             }
 
-            if viewModel.isLoading && viewModel.suggestions.isEmpty {
+            if viewModel.isLoading && viewModel.advice == nil {
                 TrendSuggestionRow(
                     systemImage: "clock",
-                    message: "正在分析当前行动安排..."
+                    message: "正在分析饮食和运动记录..."
                 )
-            } else if viewModel.suggestions.isEmpty {
-                TrendSuggestionRow(
-                    systemImage: "checkmark.circle.fill",
-                    message: viewModel.dataNote ?? "当前没有需要调整的行动。"
-                )
-            } else {
-                ForEach(viewModel.suggestions) { suggestion in
-                    Button {
-                        guard let target = target(for: suggestion) else {
-                            return
-                        }
-                        path.append(ActionAdjustmentRoute(target: target, suggestion: suggestion))
-                    } label: {
-                        TrendSuggestionRow(
-                            systemImage: suggestion.kind.systemImage,
-                            message: suggestion.message,
-                            showsChevron: suggestion.targetActionId != nil
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(suggestion.targetActionId == nil)
-                }
+            } else if let advice = viewModel.advice {
+                ActionAdviceSection(title: "饮食", systemImage: "fork.knife", rows: [
+                    ("结构", advice.diet.structure),
+                    ("烹饪", advice.diet.cooking)
+                ])
+                ActionAdviceSection(title: "运动", systemImage: "figure.walk", rows: [
+                    ("时段", advice.exercise.timing),
+                    ("类型", advice.exercise.type)
+                ])
             }
 
             Label("建议将根据你的数据持续优化。", systemImage: "info.circle.fill")
@@ -285,6 +272,35 @@ struct ActionAdjustDemoView: View {
         formatter.dateFormat = "M月d日 HH:mm"
         return formatter
     }()
+}
+
+private struct ActionAdviceSection: View {
+    let title: String
+    let systemImage: String
+    let rows: [(String, String)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(DSTheme.Color.primary)
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(row.0)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+                    Text(row.1)
+                        .font(.caption)
+                        .foregroundStyle(DSTheme.Color.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(DSTheme.Color.primarySoft.opacity(0.45))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
 }
 
 private struct AdjustmentPageTitle: View {
@@ -650,6 +666,7 @@ private final class ActionAdjustmentViewModel: ObservableObject {
     @Published private(set) var suggestions: [ActionTrendSuggestion] = []
     @Published private(set) var dataNote: String?
     @Published private(set) var evidenceDays = 0
+    @Published private(set) var advice: ActionAdvicePayload?
 
     private let service = ActionAdjustmentAPIService()
 
@@ -660,11 +677,13 @@ private final class ActionAdjustmentViewModel: ObservableObject {
         do {
             let response = try await service.fetchTrendSuggestions(items: items, userId: userId)
             suggestions = response.suggestions
+            advice = response.advice
             dataNote = response.dataNote
             evidenceDays = response.evidenceDays
         } catch {
             let fallback = ActionTrendSuggestion.localFallback(for: items, now: Date())
             suggestions = fallback.suggestions
+            advice = .fallback(hasExercises: !items.isEmpty)
             dataNote = fallback.dataNote
             evidenceDays = items.isEmpty ? 0 : 1
         }
@@ -751,8 +770,30 @@ private struct ActionTrendSuggestionResponse: Decodable {
     let source: String
     let evidenceDays: Int
     let suggestions: [ActionTrendSuggestion]
+    let advice: ActionAdvicePayload
     let dataNote: String?
     let disclaimer: String
+}
+
+private struct ActionAdvicePayload: Decodable {
+    let diet: Diet
+    let exercise: Exercise
+
+    struct Diet: Decodable { let structure: String; let cooking: String }
+    struct Exercise: Decodable { let timing: String; let type: String }
+
+    static func fallback(hasExercises: Bool) -> Self {
+        Self(
+            diet: Diet(
+                structure: "目前没有餐食记录；完成一次餐食记录后，这里会显示饮食结构建议。",
+                cooking: "目前没有可分析的烹饪方式；记录餐食后再提供建议。"
+            ),
+            exercise: Exercise(
+                timing: hasExercises ? "可以先保持当前运动时段，并观察是否容易开始和完成。" : "目前没有运动记录；完成一次运动安排后，这里会显示时段建议。",
+                type: hasExercises ? "可以优先保留更容易开始的轻量运动。" : "目前没有运动记录；生成或记录运动后再提供类型建议。"
+            )
+        )
+    }
 }
 
 private struct ActionTrendSuggestion: Decodable, Identifiable, Hashable {
@@ -795,7 +836,7 @@ private struct ActionTrendSuggestion: Decodable, Identifiable, Hashable {
             )
         }
 
-        let dataNote = suggestions.isEmpty ? "行动记录还在积累，完成几次后再提供更具体的建议。" : nil
+        let dataNote = suggestions.isEmpty ? "当前没有需要调整的行动。" : nil
         return (Array(suggestions), dataNote)
     }
 }

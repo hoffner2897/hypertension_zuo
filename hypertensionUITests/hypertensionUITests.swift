@@ -59,7 +59,7 @@ final class hypertensionUITests: XCTestCase {
         adjustmentTab.tap()
 
         XCTAssertTrue(app.staticTexts["今日最新血压"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["趋势调整"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["行动建议"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.staticTexts["血压测量"].exists)
         XCTAssertFalse(app.staticTexts["饮食建议"].exists)
 
@@ -85,15 +85,12 @@ final class hypertensionUITests: XCTestCase {
         debugPreviewButton.tap()
 
         let closeButton = app.buttons["meal.closeButton"]
-        let meals = [
-            (id: "breakfast", rule: "建议时段 07:00–09:00"),
-            (id: "lunch", rule: "建议时段 12:00–14:00"),
-            (id: "dinner", rule: "建议时段 18:00–20:00")
-        ]
-        for meal in meals {
-            let mealCard = app.buttons.matching(identifier: "today.meal.\(meal.id)").firstMatch
-            XCTAssertTrue(scrollUntilHittable(mealCard, in: app), "\(meal.id) card should be tappable")
-            XCTAssertTrue(mealCard.label.contains(meal.rule))
+        let mealIDs = ["breakfast", "lunch", "dinner"]
+        for mealID in mealIDs {
+            let mealCard = app.buttons.matching(identifier: "today.meal.\(mealID)").firstMatch
+            XCTAssertTrue(scrollUntilHittable(mealCard, in: app), "\(mealID) card should be tappable")
+            XCTAssertTrue(mealCard.label.contains("建议时间"))
+            XCTAssertFalse(mealCard.label.contains("建议时段"))
             mealCard.tap()
 
             XCTAssertTrue(closeButton.waitForExistence(timeout: 5))

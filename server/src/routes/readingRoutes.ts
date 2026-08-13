@@ -88,6 +88,7 @@ const interpretationRequestSchema = z.object({
   diastolicBp: z.number().int().min(30).max(180),
   bpMonitorPulse: z.number().int().min(30).max(240).nullable().optional(),
   measurementTime: z.string().datetime(),
+  timeZone: z.string().trim().min(1).max(64).optional(),
   recentBpReadings: z.array(recentInterpretationReadingSchema).max(30).optional(),
   symptoms: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
   medicalContext: medicalContextSchema,
@@ -128,9 +129,22 @@ export function createReadingRouter(config: ServerConfig, authUserLookup?: AuthU
     try {
       const auth = authFromRequest(request);
       const input = parseBody(interpretationRequestSchema, request.body);
-      const profile = await prisma.userProfile.findUnique({
-        where: { userId: auth.userId }
-      });
+      const since = new Date(Date.parse(input.measurementTime) - 15 * 24 * 60 * 60 * 1000);
+      const [profile, serverReadings, recentMeals, recentExercises] = await Promise.all([
+        prisma.userProfile.findUnique({ where: { userId: auth.userId } }),
+        prisma.bloodPressureReading.findMany({
+          where: { userId: auth.userId, deletedAt: null, measuredAt: { gte: since } },
+          orderBy: { measuredAt: "desc" }, take: 200
+        }),
+        prisma.mealRecord.findMany({
+          where: { userId: auth.userId, recordedAt: { gte: new Date(Date.parse(input.measurementTime) - 7 * 24 * 60 * 60 * 1000) } },
+          orderBy: { recordedAt: "desc" }, take: 21
+        }),
+        prisma.exerciseAction.findMany({
+          where: { userId: auth.userId, deletedAt: null, scheduledStartAt: { gte: new Date(Date.parse(input.measurementTime) - 7 * 24 * 60 * 60 * 1000) } },
+          orderBy: { scheduledStartAt: "desc" }, take: 100
+        })
+      ]);
 
       const interpretationInput = {
         age: profile ? new Date().getUTCFullYear() - profile.birthYear : null,
@@ -145,10 +159,35 @@ export function createReadingRouter(config: ServerConfig, authUserLookup?: AuthU
         diastolicBp: input.diastolicBp,
         bpMonitorPulse: input.bpMonitorPulse ?? null,
         measurementTime: input.measurementTime,
-        recentBpReadings: input.recentBpReadings ?? [],
+        timeZone: input.timeZone,
+        recentBpReadings: [
+          ...(input.recentBpReadings ?? []),
+          ...serverReadings.map((reading) => ({
+            systolicBp: reading.systolic,
+            diastolicBp: reading.diastolic,
+            measurementTime: reading.measuredAt.toISOString()
+          }))
+        ],
         symptoms: input.symptoms ?? [],
         medicalContext: input.medicalContext,
-        measurementContext: input.measurementContext
+        measurementContext: input.measurementContext,
+        lifestyleContext: {
+          recentMeals: recentMeals.map((meal) => ({
+            mealDate: meal.mealDate,
+            mealType: meal.mealType,
+            recognition: meal.recognition,
+            dietaryStructure: meal.dietaryStructureAnalysis,
+            cookingMethod: meal.cookingMethodAnalysis
+          })),
+          recentExercises: recentExercises.map((exercise) => ({
+            localDay: exercise.localDay,
+            title: exercise.title,
+            status: exercise.status,
+            durationMinutes: exercise.durationMinutes,
+            actualDurationMinutes: exercise.actualDurationSeconds == null ? null : Math.round(exercise.actualDurationSeconds / 60)
+          })),
+          healthDataSyncedAt: profile?.healthDataSyncedAt?.toISOString() ?? null
+        }
       };
 
       const baseInterpretation = makeRuleBasedInterpretation(interpretationInput);
@@ -166,7 +205,17 @@ export function createReadingRouter(config: ServerConfig, authUserLookup?: AuthU
         }
       }
 
-      response.json({ interpretation });
+      response.json({
+        interpretation: {
+          ...interpretation,
+          // Keep legacy fields during the TestFlight rollout so the previous public build
+          // continues to decode a useful rule-based/OpenAI response.
+          title: "血压解读",
+          summary: interpretation.bloodPressureSituation[0] ?? "已生成本次血压解读。",
+          personalContextNotes: [],
+          measurementQualityNotes: []
+        }
+      });
     } catch (error) {
       next(error);
     }

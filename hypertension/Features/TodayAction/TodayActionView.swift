@@ -501,13 +501,13 @@ struct ActionGenerateDemoView: View {
 
                         DSCard(
                             padding: DSTheme.Spacing.small,
-                            backgroundColor: Color(red: 1.0, green: 239.0 / 255.0, blue: 199.0 / 255.0)
+                            backgroundColor: DSTheme.Color.primary
                         ) {
                             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                                 HStack(spacing: 8) {
                                     Label("今日最新血压", systemImage: "heart.circle.fill")
                                         .font(.caption.weight(.semibold))
-                                        .foregroundStyle(DSTheme.Color.textSecondary)
+                                        .foregroundStyle(.white)
 
                                     Spacer()
 
@@ -516,18 +516,18 @@ struct ActionGenerateDemoView: View {
                                         .foregroundStyle(bloodPressureState.tint)
                                         .padding(.horizontal, 9)
                                         .padding(.vertical, 5)
-                                        .background(bloodPressureState.tint.opacity(0.12))
+                                        .background(.white)
                                         .clipShape(Capsule())
                                 }
 
                                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                                     Text(latestTodayReading.map { "\($0.systolic) / \($0.diastolic)" } ?? "-- / --")
                                         .font(.system(size: 30, weight: .bold, design: .rounded))
-                                        .foregroundStyle(Color(red: 0.04, green: 0.16, blue: 0.45))
+                                        .foregroundStyle(.white)
 
                                     Text("mmHg")
                                         .font(.caption.weight(.bold))
-                                        .foregroundStyle(DSTheme.Color.textSecondary)
+                                        .foregroundStyle(.white.opacity(0.86))
                                 }
 
                             }
@@ -951,10 +951,10 @@ private struct LowBarrierExerciseGenerationCard: View {
     }
 
     private static let sceneOptions = [
-        ActionOption(title: "私人室内", subtitle: "例如：家中", systemImage: "sofa.fill", tint: Color(red: 0.55, green: 0.62, blue: 0.83), assetImageName: "ScenePrivateIndoor"),
-        ActionOption(title: "公共室内", subtitle: "例如：工位，教室", systemImage: "laptopcomputer", tint: DSTheme.Color.primary, assetImageName: "ScenePublicIndoor"),
-        ActionOption(title: "公共室外", subtitle: "例如：广场，车站", systemImage: "building.2.fill", tint: Color(red: 0.50, green: 0.70, blue: 0.86), assetImageName: "ScenePublicOutdoor"),
-        ActionOption(title: "私人/开放室外", subtitle: "例如：公园，庭院", systemImage: "tree.fill", tint: Color(red: 0.20, green: 0.58, blue: 0.36), assetImageName: "ScenePrivateOpenOutdoor")
+        ActionOption(title: "私人室内", subtitle: "家中", systemImage: "sofa.fill", tint: Color(red: 0.55, green: 0.62, blue: 0.83)),
+        ActionOption(title: "公共室内", subtitle: "工位，教室", systemImage: "laptopcomputer", tint: DSTheme.Color.primary),
+        ActionOption(title: "公共室外", subtitle: "广场，车站", systemImage: "building.2.fill", tint: Color(red: 0.50, green: 0.70, blue: 0.86)),
+        ActionOption(title: "私人/开放室外", subtitle: "公园，庭院", systemImage: "tree.fill", tint: Color(red: 0.20, green: 0.58, blue: 0.36))
     ]
 
     private static let energyOptions = [
@@ -1199,10 +1199,10 @@ private struct SceneSelectionSheet: View {
     let onConfirm: () -> Void
 
     private let options = [
-        ActionOption(title: "私人室内", subtitle: "例如：家中", systemImage: "sofa.fill", tint: Color(red: 0.55, green: 0.62, blue: 0.83), assetImageName: "ScenePrivateIndoor"),
-        ActionOption(title: "公共室内", subtitle: "例如：工位，教室", systemImage: "laptopcomputer", tint: DSTheme.Color.primary, assetImageName: "ScenePublicIndoor"),
-        ActionOption(title: "公共室外", subtitle: "例如：广场，车站", systemImage: "building.2.fill", tint: Color(red: 0.50, green: 0.70, blue: 0.86), assetImageName: "ScenePublicOutdoor"),
-        ActionOption(title: "私人/开放室外", subtitle: "例如：公园，庭院", systemImage: "tree.fill", tint: Color(red: 0.20, green: 0.58, blue: 0.36), assetImageName: "ScenePrivateOpenOutdoor")
+        ActionOption(title: "私人室内", subtitle: "家中", systemImage: "sofa.fill", tint: Color(red: 0.55, green: 0.62, blue: 0.83)),
+        ActionOption(title: "公共室内", subtitle: "工位，教室", systemImage: "laptopcomputer", tint: DSTheme.Color.primary),
+        ActionOption(title: "公共室外", subtitle: "广场，车站", systemImage: "building.2.fill", tint: Color(red: 0.50, green: 0.70, blue: 0.86)),
+        ActionOption(title: "私人/开放室外", subtitle: "公园，庭院", systemImage: "tree.fill", tint: Color(red: 0.20, green: 0.58, blue: 0.36))
     ]
 
     var body: some View {
@@ -1678,7 +1678,7 @@ private struct TodayTreeTimelineView: View {
         guard isMeal, let rule = MealTimingRule(actionTitle: item.title) else {
             return item.title
         }
-        return "\(item.title)，建议时段 \(rule.timeRange)，\(rule.message)"
+        return "\(item.title)，建议时间，\(rule.message)"
     }
 }
 
@@ -2050,7 +2050,7 @@ private struct DesignActionCard: View {
     private var mealTimingRuleBox: some View {
         if let rule = MealTimingRule(actionTitle: item.title) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("建议时段 \(rule.timeRange)")
+                Text("建议时间")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(Color(red: 0.48, green: 0.30, blue: 0.04))
 
@@ -2463,6 +2463,7 @@ private struct ExerciseRecordSheet: View {
             Text(title).font(.title3.weight(.bold)).foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
             ForEach(Array(steps.enumerated()), id: \.offset) { _, step in
                 HStack(alignment: .top, spacing: 8) { Text("•"); Text(step).fixedSize(horizontal: false, vertical: true) }
+                    .foregroundStyle(DSTheme.Color.textPrimary)
             }
         }.padding(DSTheme.Spacing.medium).frame(maxWidth: .infinity, alignment: .leading)
             .background(tint).clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))

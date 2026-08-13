@@ -110,11 +110,8 @@ struct BPInterpretationResponse: Decodable {
 struct BPInterpretation: Decodable, Equatable {
     let category: BPInterpretationCategory
     let severity: BPInterpretationSeverity
-    let title: String
-    let summary: String
+    let bloodPressureSituation: [String]
     let reasons: [String]
-    let personalContextNotes: [String]
-    let measurementQualityNotes: [String]
     let nextSteps: [String]
     let safetyNote: String
     let disclaimer: String
@@ -159,6 +156,7 @@ private struct BPInterpretationRequest: Encodable {
     let diastolicBp: Int
     let bpMonitorPulse: Int?
     let measurementTime: String
+    let timeZone: String
     let recentBpReadings: [BPRecentInterpretationReading]
 
     nonisolated init(reading: BPInterpretationReadingSnapshot, recentReadings: [BPInterpretationReadingSnapshot]) {
@@ -166,6 +164,7 @@ private struct BPInterpretationRequest: Encodable {
         diastolicBp = reading.diastolic
         bpMonitorPulse = reading.pulse
         measurementTime = Self.formatDate(reading.measuredAt)
+        timeZone = TimeZone.current.identifier
         recentBpReadings = recentReadings
             .filter { $0.id != reading.id }
             .prefix(20)

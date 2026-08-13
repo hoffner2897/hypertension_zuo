@@ -74,6 +74,8 @@ test("trend suggestion endpoint requires auth and returns the public fallback co
     assert.equal(payload.source, "rule_based");
     assert.equal(payload.evidenceDays, 1);
     assert.equal(Array.isArray(payload.suggestions), true);
+    assert.equal(typeof (payload.advice as { diet?: { structure?: unknown } }).diet?.structure, "string");
+    assert.equal(typeof (payload.advice as { exercise?: { timing?: unknown } }).exercise?.timing, "string");
     assert.equal(typeof payload.dataNote, "string");
     assert.equal(typeof payload.disclaimer, "string");
   } finally {
