@@ -12,6 +12,8 @@ const config: ServerConfig = {
   openAIMealAnalysisModel: "test-meal-model",
   bpRecognitionDailyLimit: 30,
   mealAnalysisDailyLimit: 20,
+  minimumSupportedIOSBuild: 0,
+  iosUpdateURL: "https://testflight.apple.com/join/TyhR9xzw",
   accessTokenSecret: "test-only-access-token-secret-with-enough-entropy",
   accessTokenTTLSeconds: 900,
   refreshTokenTTLDays: 30,
@@ -52,6 +54,49 @@ test("malformed and oversized JSON use stable public error codes", async () => {
       code: "PAYLOAD_TOO_LARGE",
       message: "Request body is too large."
     });
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
+});
+
+test("minimum iOS build blocks missing and outdated clients without blocking health checks", async () => {
+  const app = createApp({
+    ...config,
+    minimumSupportedIOSBuild: 13
+  });
+  const server = app.listen(0, "127.0.0.1");
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("listening", resolve);
+      server.once("error", reject);
+    });
+    const address = server.address() as AddressInfo;
+    const baseURL = `http://127.0.0.1:${address.port}`;
+
+    const health = await fetch(`${baseURL}/health`);
+    assert.equal(health.status, 200);
+
+    for (const build of [undefined, "12", "not-a-build"]) {
+      const response = await fetch(`${baseURL}/auth/me`, {
+        headers: build === undefined ? {} : { "X-BPHealth-Build": build }
+      });
+      assert.equal(response.status, 426);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.deepEqual(await response.json(), {
+        code: "UPDATE_REQUIRED",
+        message: "A newer version of BPHealth is required.",
+        minimumBuild: 13,
+        updateURL: "https://testflight.apple.com/join/TyhR9xzw"
+      });
+    }
+
+    const currentBuild = await fetch(`${baseURL}/auth/me`, {
+      headers: { "X-BPHealth-Build": "13" }
+    });
+    assert.equal(currentBuild.status, 401);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());

@@ -11,6 +11,8 @@ const baseConfig: ServerConfig = {
   openAIMealAnalysisModel: "test-meal-model",
   bpRecognitionDailyLimit: 30,
   mealAnalysisDailyLimit: 20,
+  minimumSupportedIOSBuild: 0,
+  iosUpdateURL: "https://testflight.apple.com/join/TyhR9xzw",
   accessTokenSecret: "test-only-access-token-secret-with-enough-entropy",
   accessTokenTTLSeconds: 900,
   refreshTokenTTLDays: 30,
@@ -54,6 +56,17 @@ test("staging deployment config rejects development secrets and local URLs", () 
       DATABASE_URL: "postgresql://user:password@db.example.com:5432/bphealth_staging"
     }),
     /EMAIL_VERIFICATION_BASE_URL/
+  );
+
+  assert.throws(
+    () => validateDeploymentConfig({
+      ...baseConfig,
+      iosUpdateURL: "http://testflight.example.com/update"
+    }, {
+      BPHEALTH_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@db.example.com:5432/bphealth_staging"
+    }),
+    /IOS_UPDATE_URL/
   );
 });
 

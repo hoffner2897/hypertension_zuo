@@ -14,6 +14,8 @@ const config: ServerConfig = {
   openAIMealAnalysisModel: "test-meal-model",
   bpRecognitionDailyLimit: 30,
   mealAnalysisDailyLimit: 20,
+  minimumSupportedIOSBuild: 0,
+  iosUpdateURL: "https://testflight.apple.com/join/TyhR9xzw",
   accessTokenSecret: "test-only-access-token-secret-with-enough-entropy",
   accessTokenTTLSeconds: 900,
   refreshTokenTTLDays: 30,

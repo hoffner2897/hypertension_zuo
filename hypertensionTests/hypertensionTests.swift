@@ -239,6 +239,34 @@ struct hypertensionTests {
         #expect(successfulRequestCount == 2)
     }
 
+    @Test @MainActor func apiClientSendsBuildNumberAndSurfacesRequiredUpdate() async throws {
+        var sentBuild: String?
+        var observedRequirement: RequiredAppUpdate?
+        let client = APIClient(dataLoader: { request in
+            sentBuild = request.value(forHTTPHeaderField: "X-BPHealth-Build")
+            return self.httpResponse(
+                request: request,
+                statusCode: 426,
+                json: #"{"code":"UPDATE_REQUIRED","message":"Update required.","minimumBuild":13,"updateURL":"https://testflight.apple.com/join/TyhR9xzw"}"#
+            )
+        }, buildNumber: "12")
+        client.baseURL = URL(string: "https://unit.test")!
+        client.setUpdateRequiredHandler { requirement in
+            observedRequirement = requirement
+        }
+
+        do {
+            let _: NetworkTestPayload = try await client.get("/protected")
+            Issue.record("Expected an update-required response")
+        } catch APIClientError.updateRequired(let requirement) {
+            #expect(requirement.minimumBuild == 13)
+            #expect(requirement.updateURL?.absoluteString == "https://testflight.apple.com/join/TyhR9xzw")
+        }
+
+        #expect(sentBuild == "12")
+        #expect(observedRequirement?.minimumBuild == 13)
+    }
+
     @Test @MainActor func validationAcceptsValidReading() async throws {
         let viewModel = BPConfirmReadingViewModel(
             draft: BPReadingDraft(

@@ -13,6 +13,8 @@ export interface ServerConfig {
   openAIProxyURL?: string;
   bpRecognitionDailyLimit: number;
   mealAnalysisDailyLimit: number;
+  minimumSupportedIOSBuild: number;
+  iosUpdateURL: string;
   accessTokenSecret: string;
   accessTokenTTLSeconds: number;
   refreshTokenTTLDays: number;
@@ -66,6 +68,8 @@ export function loadConfig(): ServerConfig {
     openAIProxyURL: process.env.OPENAI_PROXY_URL,
     bpRecognitionDailyLimit: positiveIntegerEnv("BP_RECOGNITION_DAILY_LIMIT", 8),
     mealAnalysisDailyLimit: positiveIntegerEnv("MEAL_ANALYSIS_DAILY_LIMIT", 9),
+    minimumSupportedIOSBuild: nonNegativeIntegerEnv("MINIMUM_SUPPORTED_IOS_BUILD", 0),
+    iosUpdateURL: process.env.IOS_UPDATE_URL ?? "https://testflight.apple.com/join/TyhR9xzw",
     accessTokenSecret: process.env.ACCESS_TOKEN_SECRET ?? "dev-only-change-me-access-token-secret",
     accessTokenTTLSeconds: Number(process.env.ACCESS_TOKEN_TTL_SECONDS ?? 900),
     refreshTokenTTLDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30),
@@ -81,6 +85,14 @@ function positiveIntegerEnv(name: string, fallback: number): number {
   const value = Number(process.env[name] ?? fallback);
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`${name} must be a positive integer.`);
+  }
+  return value;
+}
+
+function nonNegativeIntegerEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative integer.`);
   }
   return value;
 }
@@ -104,6 +116,7 @@ export function validateDeploymentConfig(
 
   assertNonLocalURL(databaseURL, "DATABASE_URL");
   assertPublicHTTPSURL(config.emailVerificationBaseURL, "EMAIL_VERIFICATION_BASE_URL");
+  assertPublicHTTPSURL(config.iosUpdateURL, "IOS_UPDATE_URL");
 
   if (config.recognitionMode === "openai" && isPlaceholderValue(config.openAIAPIKey)) {
     throw new Error("OPENAI_API_KEY is required when BP_RECOGNITION_MODE=openai.");

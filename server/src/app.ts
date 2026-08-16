@@ -41,6 +41,7 @@ export function createApp(config: ServerConfig, dependencies: AppDependencies = 
   app.use(corsHeaders);
   app.use(optionsHandler);
   app.use(express.json({ limit: "8mb" }));
+  app.use(requireSupportedIOSBuild(config));
   app.use("/auth", createAuthRouter(config, dependencies.authUserLookup));
   app.use("/profile", createProfileRouter(config, dependencies.authUserLookup));
   app.use("/readings", createReadingRouter(config, dependencies.authUserLookup));
@@ -126,8 +127,32 @@ function makeRecognitionService(config: ServerConfig): BPRecognitionService {
 const corsHeaders: RequestHandler = (_request, response, next) => {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Authorization,Content-Type");
+  response.setHeader("Access-Control-Allow-Headers", "Authorization,Content-Type,X-BPHealth-Build");
   next();
+};
+
+const requireSupportedIOSBuild = (config: ServerConfig): RequestHandler => (request, response, next) => {
+  if (config.minimumSupportedIOSBuild === 0 || request.path === "/health") {
+    next();
+    return;
+  }
+
+  const header = request.header("x-bphealth-build");
+  const clientBuild = header === undefined ? Number.NaN : Number(header);
+  if (Number.isInteger(clientBuild) && clientBuild >= config.minimumSupportedIOSBuild) {
+    next();
+    return;
+  }
+
+  response
+    .status(426)
+    .setHeader("Cache-Control", "no-store")
+    .json({
+      code: "UPDATE_REQUIRED",
+      message: "A newer version of BPHealth is required.",
+      minimumBuild: config.minimumSupportedIOSBuild,
+      updateURL: config.iosUpdateURL
+    });
 };
 
 const optionsHandler: RequestHandler = (request, response, next) => {

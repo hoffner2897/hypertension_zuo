@@ -3,12 +3,20 @@ import Foundation
 struct APIErrorResponse: Decodable {
     let code: String
     let message: String?
+    let minimumBuild: Int?
+    let updateURL: String?
+}
+
+struct RequiredAppUpdate: Equatable {
+    let minimumBuild: Int
+    let updateURL: URL?
 }
 
 enum APIClientError: LocalizedError {
     case invalidURL
     case missingAccessToken
     case sessionExpired
+    case updateRequired(RequiredAppUpdate)
     case server(code: String, message: String?)
     case unexpectedResponse
 
@@ -20,6 +28,8 @@ enum APIClientError: LocalizedError {
             "Missing access token."
         case .sessionExpired:
             "Your session has expired. Please sign in again."
+        case .updateRequired:
+            "A newer version of BPHealth is required."
         case .server(let code, let message):
             message ?? code
         case .unexpectedResponse:
@@ -31,6 +41,7 @@ enum APIClientError: LocalizedError {
 final class APIClient {
     typealias DataLoader = (URLRequest) async throws -> (Data, URLResponse)
     typealias AuthorizationRefreshHandler = () async throws -> String
+    typealias UpdateRequiredHandler = @MainActor (RequiredAppUpdate) -> Void
 
     static let shared = APIClient()
 
@@ -38,10 +49,12 @@ final class APIClient {
     var accessToken: String?
 
     private let dataLoader: DataLoader
+    private let buildNumber: String
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private var authorizationRefreshHandler: AuthorizationRefreshHandler?
     private var authorizationRefreshTask: Task<String, Error>?
+    private var updateRequiredHandler: UpdateRequiredHandler?
 
     private static func configuredBaseURL(bundle: Bundle = .main) -> URL {
         if let value = bundle.object(forInfoDictionaryKey: "BPHealthAPIBaseURL") as? String,
@@ -54,14 +67,16 @@ final class APIClient {
         return URL(string: "https://bphealth-api-staging.onrender.com")!
     }
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared, bundle: Bundle = .main) {
+        buildNumber = Self.configuredBuildNumber(bundle: bundle)
         dataLoader = { request in
             try await session.data(for: request)
         }
     }
 
-    init(dataLoader: @escaping DataLoader) {
+    init(dataLoader: @escaping DataLoader, buildNumber: String = "0") {
         self.dataLoader = dataLoader
+        self.buildNumber = buildNumber
     }
 
     func setAuthorizationRefreshHandler(_ handler: AuthorizationRefreshHandler?) {
@@ -70,6 +85,10 @@ final class APIClient {
             authorizationRefreshTask?.cancel()
             authorizationRefreshTask = nil
         }
+    }
+
+    func setUpdateRequiredHandler(_ handler: UpdateRequiredHandler?) {
+        updateRequiredHandler = handler
     }
 
     func get<Response: Decodable>(_ path: String, requiresAuth: Bool = false) async throws -> Response {
@@ -106,6 +125,7 @@ final class APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(buildNumber, forHTTPHeaderField: "X-BPHealth-Build")
 
         let requestAccessToken: String?
         if requiresAuth {
@@ -154,6 +174,19 @@ final class APIClient {
             return EmptyResponse() as! Response
         }
 
+        if httpResponse.statusCode == 426,
+           let errorResponse = try? decoder.decode(APIErrorResponse.self, from: data),
+           errorResponse.code == "UPDATE_REQUIRED" {
+            let requirement = RequiredAppUpdate(
+                minimumBuild: errorResponse.minimumBuild ?? 0,
+                updateURL: errorResponse.updateURL.flatMap(URL.init(string:))
+            )
+            if let updateRequiredHandler {
+                await updateRequiredHandler(requirement)
+            }
+            throw APIClientError.updateRequired(requirement)
+        }
+
         guard (200..<300).contains(httpResponse.statusCode) else {
             if let errorResponse = try? decoder.decode(APIErrorResponse.self, from: data) {
                 throw APIClientError.server(code: errorResponse.code, message: errorResponse.message)
@@ -187,6 +220,10 @@ final class APIClient {
             authorizationRefreshTask = nil
             throw error
         }
+    }
+
+    private static func configuredBuildNumber(bundle: Bundle) -> String {
+        bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
     }
 }
 

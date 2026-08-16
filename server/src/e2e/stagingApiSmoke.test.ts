@@ -289,7 +289,8 @@ function actionPayload() {
 function authHeaders(accessToken: string): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`,
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "X-BPHealth-Build": process.env.BPHEALTH_E2E_BUILD ?? "13"
   };
 }
 
@@ -305,6 +306,7 @@ async function requestJSON(
   const response = await fetch(`${baseURL}${path}`, {
     method: options.method ?? "GET",
     headers: {
+      "X-BPHealth-Build": process.env.BPHEALTH_E2E_BUILD ?? "13",
       ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
       ...options.headers
     },

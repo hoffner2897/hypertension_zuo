@@ -68,6 +68,8 @@ Start from `server/.env.staging.example` and set these values in Render or your 
 - `EMAIL_VERIFICATION_BASE_URL`: public HTTPS staging URL.
 - `BP_RECOGNITION_MODE`: `mock` for flow testing, `openai` for real image recognition.
 - `OPENAI_API_KEY`: required only when `BP_RECOGNITION_MODE=openai`.
+- `MINIMUM_SUPPORTED_IOS_BUILD`: minimum accepted iOS build number. Keep `0` until the target TestFlight build is available.
+- `IOS_UPDATE_URL`: public HTTPS TestFlight update link returned with `UPDATE_REQUIRED`.
 
 Before or after deployment, validate the environment:
 
@@ -126,6 +128,8 @@ OPENAI_MEAL_ANALYSIS_MODEL=gpt-5.6-terra
 Meal analysis is limited by `MEAL_ANALYSIS_DAILY_LIMIT` (default `9`) per user per UTC day. Identical user/meal/date/image requests are deduplicated for 10 minutes without consuming quota. Both image-analysis quotas are persisted in PostgreSQL and use an atomic increment, so limits remain consistent across restarts and multiple server instances. An exhausted quota returns HTTP `429` with code `AI_DAILY_QUOTA_EXCEEDED`.
 
 Every OpenAI request records daily per-user, per-feature, and per-model counts, success/failure totals, token usage, cache hits, and an estimated cost in `ai_cost_daily_usage`. The table stores no image data or prompt/response content. Cost is an operational estimate based on configured model rates; OpenAI billing remains the source of truth.
+
+Every iOS request includes `X-BPHealth-Build`. When `MINIMUM_SUPPORTED_IOS_BUILD` is greater than zero, requests with a missing, malformed, or older build number receive HTTP `426` with code `UPDATE_REQUIRED`, the minimum build, and `IOS_UPDATE_URL`. `/health` remains available for hosting checks. Raise the minimum only after the matching TestFlight build is in `Testing` state.
 
 If your VPN is in smart mode and Terminal cannot reach OpenAI directly, start the server with a temporary proxy:
 

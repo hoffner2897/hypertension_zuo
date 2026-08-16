@@ -14,6 +14,7 @@ final class AppState: ObservableObject {
     @Published private(set) var routeState: AppRouteState = .checkingSession
     @Published private(set) var currentUser: AuthUser?
     @Published private(set) var currentProfile: UserProfile?
+    @Published private(set) var requiredUpdate: RequiredAppUpdate?
     @Published var errorMessage: String?
 
     private let authService = AuthService()
@@ -26,6 +27,9 @@ final class AppState: ObservableObject {
     }
 
     init() {
+        APIClient.shared.setUpdateRequiredHandler { [weak self] requirement in
+            self?.requiredUpdate = requirement
+        }
         APIClient.shared.setAuthorizationRefreshHandler { [weak self] in
             guard let self else {
                 throw APIClientError.sessionExpired
@@ -46,6 +50,9 @@ final class AppState: ObservableObject {
             try persistSession(response)
             routeByUser(response.user)
         } catch {
+            if case APIClientError.updateRequired = error {
+                return
+            }
             clearLocalSession()
             routeState = .signedOut
         }

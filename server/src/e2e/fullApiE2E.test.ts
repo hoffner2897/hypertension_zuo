@@ -49,6 +49,8 @@ test("real registration and PostgreSQL API lifecycle", { skip: !shouldRun }, asy
     openAIMealAnalysisModel: "e2e-meal-model",
     bpRecognitionDailyLimit: 2,
     mealAnalysisDailyLimit: 3,
+    minimumSupportedIOSBuild: 0,
+    iosUpdateURL: "https://testflight.apple.com/join/TyhR9xzw",
     accessTokenSecret: "bphealth-e2e-access-token-secret-with-enough-entropy",
     accessTokenTTLSeconds: 900,
     refreshTokenTTLDays: 30,

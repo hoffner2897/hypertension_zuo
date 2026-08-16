@@ -48,3 +48,6 @@
 "正在检查登录状态" = "Checking sign-in status";
 "有读数等待联网后同步。" = "Some readings are waiting to sync when online.";
 "已同步 %d 条本地读数。" = "Synced %d local readings.";
+"需要更新" = "Update Required";
+"为了继续使用 BPHealth，请更新到最新测试版本。" = "Update to the latest test version to continue using BPHealth.";
+"前往 TestFlight 更新" = "Update in TestFlight";
