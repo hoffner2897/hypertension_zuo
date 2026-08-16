@@ -717,7 +717,7 @@ private struct ActionTrendSuggestionRequest: Encodable {
         self.now = Self.formatter.string(from: now)
         self.timeZone = TimeZone.current.identifier
         self.todayActions = items.map { ActionTrendActionSnapshot(item: $0, now: now) }
-        self.recentActions = recent.prefix(100).map { observation in
+        self.recentActions = recent.prefix(100).compactMap { observation in
             ActionTrendActionSnapshot(observation)
         }
     }
@@ -741,21 +741,33 @@ private struct ActionTrendActionSnapshot: Encodable {
     init(item: TodayActionItem, now: Date) {
         id = item.id
         type = item.type.apiType
-        title = item.title
+        title = Self.normalizedTitle(item.title)
         scheduledStartAt = Self.formatter.string(from: item.scheduledStartAt)
-        durationMinutes = item.durationMinutes
+        durationMinutes = min(max(item.durationMinutes, 1), 240)
         status = item.effectiveStatus(now: now).apiValue
         completedAt = item.completedAt.map { Self.formatter.string(from: $0) }
     }
 
-    init(_ observation: StoredActionObservation) {
+    init?(_ observation: StoredActionObservation) {
+        let allowedTypes = ["blood_pressure", "diet", "exercise", "other"]
+        let allowedStatuses = ["pending", "in_progress", "completed", "skipped", "missed"]
+        guard allowedTypes.contains(observation.type),
+              allowedStatuses.contains(observation.normalizedStatus) else {
+            return nil
+        }
         id = observation.id
         type = observation.type
-        title = observation.title
+        title = Self.normalizedTitle(observation.title)
         scheduledStartAt = Self.formatter.string(from: observation.scheduledStartAt)
-        durationMinutes = observation.durationMinutes
+        durationMinutes = min(max(observation.durationMinutes, 1), 240)
         status = observation.normalizedStatus
         completedAt = observation.completedAt.map { Self.formatter.string(from: $0) }
+    }
+
+    private static func normalizedTitle(_ title: String) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = trimmed.isEmpty ? "行动" : trimmed
+        return String(value.prefix(60))
     }
 
     private static let formatter: ISO8601DateFormatter = {

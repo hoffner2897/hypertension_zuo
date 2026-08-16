@@ -3,7 +3,8 @@ import type { ServerConfig } from "../config.js";
 import {
   analyzeMealRequestSchema,
   listMealRecordsQuerySchema,
-  normalizeImageBase64
+  normalizeImageBase64,
+  type MealAnalysisResult
 } from "../domain/mealAnalysis.js";
 import { isAuthenticatedRequest, requireAuth } from "../auth/authMiddleware.js";
 import type { AuthUserLookup } from "../auth/authMiddleware.js";
@@ -15,6 +16,8 @@ import {
 } from "../services/openAIMealAnalysisService.js";
 import { parseBody, parseQuery } from "./validation.js";
 import { consumeAIUsageQuota } from "../services/aiUsageQuotaService.js";
+import { recordOpenAICacheHit } from "../services/openAIUsageTracking.js";
+import { makeImageRequestKey, ShortLivedRequestCache } from "../services/shortLivedRequestCache.js";
 
 export interface MealRecordRouterDependencies {
   analysisService?: MealAnalysisService | null;
@@ -36,6 +39,7 @@ export function createMealRecordRouter(
   const analysisService = dependencies.analysisService === undefined
     ? configuredAnalysisService
     : dependencies.analysisService;
+  const analysisCache = new ShortLivedRequestCache<MealAnalysisResult>(10 * 60 * 1000);
 
   router.use(requireAuth(config, dependencies.authUserLookup));
 
@@ -70,6 +74,13 @@ export function createMealRecordRouter(
       if (!analysisService) {
         throw new ApiError(503, "MEAL_ANALYSIS_UNAVAILABLE", "餐食分析服务暂时不可用，请稍后重试。");
       }
+      const normalizedImage = normalizeImageBase64(input.imageBase64);
+      const usageContext = { userId: request.auth.userId, feature: "meal_analysis" as const };
+      const cacheKey = makeImageRequestKey(
+        [request.auth.userId, "meal_analysis", input.mealDate, input.mealType],
+        normalizedImage.mimeType,
+        normalizedImage.base64
+      );
 
       const [profile, recentReadings] = await Promise.all([
         prisma.userProfile.findUnique({ where: { userId: request.auth.userId } }),
@@ -80,36 +91,42 @@ export function createMealRecordRouter(
         })
       ]);
 
-      await consumeAIUsageQuota({
-        userId: request.auth.userId,
-        feature: "meal_analysis",
-        dailyLimit: config.mealAnalysisDailyLimit
-      });
-
       let result;
       try {
-        result = await analysisService.analyze(normalizeImageBase64(input.imageBase64), {
-          mealType: input.mealType,
-          recordedAt: input.recordedAt,
-          timeZone: input.timeZone,
-          profile: {
-            age: profile ? new Date().getUTCFullYear() - profile.birthYear : null,
-            sex: profile?.sex ?? null,
-            heightCm: decimalToNumber(profile?.heightCm),
-            weightKg: decimalToNumber(profile?.weightKg),
-            todaySteps: profile?.dailySteps ?? null,
-            exerciseMinutes: profile?.exerciseMinutes ?? null,
-            restingHeartRate: profile?.restingHeartRate ?? null,
-            sleepHours: decimalToNumber(profile?.sleepHours)
-          },
-          recentBloodPressureReadings: recentReadings.map((reading) => ({
-            systolic: reading.systolic,
-            diastolic: reading.diastolic,
-            pulse: reading.pulse,
-            measuredAt: reading.measuredAt.toISOString()
-          }))
+        const cachedResult = await analysisCache.run(cacheKey, async () => {
+          await consumeAIUsageQuota({
+            userId: request.auth.userId,
+            feature: "meal_analysis",
+            dailyLimit: config.mealAnalysisDailyLimit
+          });
+          return analysisService.analyze(normalizedImage, {
+            mealType: input.mealType,
+            recordedAt: input.recordedAt,
+            timeZone: input.timeZone,
+            profile: {
+              age: profile ? new Date().getUTCFullYear() - profile.birthYear : null,
+              sex: profile?.sex ?? null,
+              heightCm: decimalToNumber(profile?.heightCm),
+              weightKg: decimalToNumber(profile?.weightKg),
+              todaySteps: profile?.dailySteps ?? null,
+              exerciseMinutes: profile?.exerciseMinutes ?? null,
+              restingHeartRate: profile?.restingHeartRate ?? null,
+              sleepHours: decimalToNumber(profile?.sleepHours)
+            },
+            recentBloodPressureReadings: recentReadings.map((reading) => ({
+              systolic: reading.systolic,
+              diastolic: reading.diastolic,
+              pulse: reading.pulse,
+              measuredAt: reading.measuredAt.toISOString()
+            }))
+          }, usageContext);
         });
+        result = cachedResult.value;
+        if (cachedResult.cacheHit && config.openAIAPIKey) {
+          await recordOpenAICacheHit(usageContext, config.openAIMealAnalysisModel);
+        }
       } catch (error) {
+        if (error instanceof ApiError) throw error;
         console.warn("OpenAI meal analysis failed.", error);
         throw new ApiError(502, "MEAL_ANALYSIS_FAILED", "暂时无法分析这张照片，请稍后重试。");
       }

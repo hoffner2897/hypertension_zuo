@@ -1,5 +1,6 @@
 import express, { type ErrorRequestHandler, type RequestHandler } from "express";
 import { BadRequestError, parseRecognizeBPRequest } from "./domain/bloodPressureRecognition.js";
+import type { BPRecognitionResult } from "./domain/bloodPressureRecognition.js";
 import type { ServerConfig } from "./config.js";
 import { createAuthRouter } from "./routes/authRoutes.js";
 import { createProfileRouter } from "./routes/profileRoutes.js";
@@ -13,6 +14,8 @@ import type { AuthUserLookup } from "./auth/authMiddleware.js";
 import { isAuthenticatedRequest, requireAuth } from "./auth/authMiddleware.js";
 import { unauthorized } from "./errors.js";
 import { consumeAIUsageQuota } from "./services/aiUsageQuotaService.js";
+import { recordOpenAICacheHit } from "./services/openAIUsageTracking.js";
+import { makeImageRequestKey, ShortLivedRequestCache } from "./services/shortLivedRequestCache.js";
 import {
   createExerciseActionRouter,
   type ExerciseActionRepository
@@ -33,6 +36,7 @@ export interface AppDependencies {
 export function createApp(config: ServerConfig, dependencies: AppDependencies = {}): express.Express {
   const app = express();
   const recognitionService = dependencies.recognitionService ?? makeRecognitionService(config);
+  const recognitionCache = new ShortLivedRequestCache<BPRecognitionResult>(10 * 60 * 1000);
 
   app.use(corsHeaders);
   app.use(optionsHandler);
@@ -71,15 +75,22 @@ export function createApp(config: ServerConfig, dependencies: AppDependencies = 
       }
 
       const { image } = parseRecognizeBPRequest(request.body);
-      if (config.recognitionMode === "openai") {
-        await consumeAIUsageQuota({
-          userId: request.auth.userId,
-          feature: "bp_recognition",
-          dailyLimit: config.bpRecognitionDailyLimit
-        });
+      const usageContext = { userId: request.auth.userId, feature: "bp_recognition" as const };
+      const cacheKey = makeImageRequestKey([request.auth.userId, "bp_recognition"], image.mimeType, image.base64);
+      const cachedResult = await recognitionCache.run(cacheKey, async () => {
+        if (config.recognitionMode === "openai") {
+          await consumeAIUsageQuota({
+            userId: request.auth.userId,
+            feature: "bp_recognition",
+            dailyLimit: config.bpRecognitionDailyLimit
+          });
+        }
+        return recognitionService.recognize(image, usageContext);
+      });
+      if (cachedResult.cacheHit && config.recognitionMode === "openai") {
+        await recordOpenAICacheHit(usageContext, config.openAIModel);
       }
-      const result = await recognitionService.recognize(image);
-      response.json(result);
+      response.json(cachedResult.value);
     } catch (error) {
       next(error);
     }

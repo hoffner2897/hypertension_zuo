@@ -86,7 +86,7 @@ Important values:
 - `ACCESS_TOKEN_SECRET`: use a strong random value outside local-only testing.
 - `BP_RECOGNITION_MODE`: use `mock` for no-cost local testing, or `openai` for real recognition.
 - `OPENAI_API_KEY`: required only when `BP_RECOGNITION_MODE=openai`; also enables AI-assisted reading interpretation when present.
-- `OPENAI_MODEL`: currently configured as `gpt-5.5` by default.
+- `OPENAI_MODEL`: defaults to `gpt-5.6-terra`; blood-pressure recognition, reading interpretation, meal analysis, and action advice use Terra unless explicitly overridden.
 - `OPENAI_PROXY_URL`: optional proxy for server-side OpenAI calls.
 
 Never commit `server/.env`.

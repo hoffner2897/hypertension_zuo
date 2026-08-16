@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import type { ServerConfig } from "../config.js";
 import {
@@ -9,11 +11,18 @@ import {
 } from "../domain/actionTrendSuggestions.js";
 import { isAuthenticatedRequest, requireAuth } from "../auth/authMiddleware.js";
 import type { AuthUserLookup } from "../auth/authMiddleware.js";
-import { buildActionAdviceEvidence, makeRuleBasedActionAdvice } from "../domain/actionAdvice.js";
+import {
+  buildActionAdviceEvidence,
+  makeRuleBasedActionAdvice,
+  normalizeActionAdvice,
+  type ActionAdvice,
+  type ActionAdviceEvidence
+} from "../domain/actionAdvice.js";
 import { OpenAIActionAdviceService } from "../services/openAIActionAdviceService.js";
 import { prisma } from "../db/prisma.js";
 import { unauthorized } from "../errors.js";
 import { parseBody } from "./validation.js";
+import { recordOpenAICacheHit } from "../services/openAIUsageTracking.js";
 
 export function createActionAdjustmentRouter(config: ServerConfig, authUserLookup?: AuthUserLookup): Router {
   const router = Router();
@@ -80,11 +89,33 @@ export function createActionAdjustmentRouter(config: ServerConfig, authUserLooku
       );
       let advice = makeRuleBasedActionAdvice(evidence);
       let source: "openai" | "rule_based" = "rule_based";
+      let cached = false;
 
       if (openAIService && (evidence.meals.length > 0 || evidence.exercises.length > 0)) {
+        const fingerprint = makeAdviceFingerprint(config.openAIActionSuggestionModel, evidence);
         try {
-          advice = await openAIService.generate(evidence, advice);
-          source = "openai";
+          const cachedAdvice = await loadCachedAdvice(request.auth.userId, fingerprint, advice);
+          if (cachedAdvice) {
+            advice = cachedAdvice;
+            source = "openai";
+            cached = true;
+            await recordOpenAICacheHit(
+              { userId: request.auth.userId, feature: "action_advice" },
+              config.openAIActionSuggestionModel
+            );
+          } else {
+            advice = await openAIService.generate(evidence, advice, {
+              userId: request.auth.userId,
+              feature: "action_advice"
+            });
+            source = "openai";
+            await saveCachedAdvice(
+              request.auth.userId,
+              fingerprint,
+              config.openAIActionSuggestionModel,
+              advice
+            );
+          }
         } catch (error) {
           console.warn("OpenAI action advice failed; returning rule-based advice.", error);
         }
@@ -93,6 +124,7 @@ export function createActionAdjustmentRouter(config: ServerConfig, authUserLooku
       const payload = {
         status: evidence.meals.length > 0 || evidence.exercises.length > 0 ? "ready" : "no_suggestions",
         source,
+        cached,
         evidenceDays: Math.max(plan.evidenceDays, new Set([...evidence.meals.map((item) => item.mealDate), ...evidence.exercises.map((item) => item.localDay)]).size),
         suggestions,
         advice,
@@ -107,6 +139,61 @@ export function createActionAdjustmentRouter(config: ServerConfig, authUserLooku
   });
 
   return router;
+}
+
+function makeAdviceFingerprint(model: string, evidence: ActionAdviceEvidence): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ version: 1, model, evidence }))
+    .digest("hex");
+}
+
+async function loadCachedAdvice(
+  userId: string,
+  fingerprint: string,
+  fallback: ActionAdvice
+): Promise<ActionAdvice | null> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ advice: unknown }>>(Prisma.sql`
+      SELECT "advice"
+      FROM "action_advice_cache"
+      WHERE "user_id" = ${userId}::uuid
+        AND "evidence_fingerprint" = ${fingerprint}
+        AND "expires_at" > CURRENT_TIMESTAMP
+      LIMIT 1
+    `);
+    return rows[0] ? normalizeActionAdvice(rows[0].advice, fallback) : null;
+  } catch (error) {
+    console.warn("Action advice cache unavailable; regenerating advice.", error);
+    return null;
+  }
+}
+
+async function saveCachedAdvice(
+  userId: string,
+  fingerprint: string,
+  model: string,
+  advice: ActionAdvice
+): Promise<void> {
+  try {
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "action_advice_cache" (
+        "user_id", "evidence_fingerprint", "model", "advice", "expires_at", "created_at", "updated_at"
+      ) VALUES (
+        ${userId}::uuid, ${fingerprint}, ${model}, ${JSON.stringify(advice)}::jsonb,
+        ${expiresAt}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("user_id")
+      DO UPDATE SET
+        "evidence_fingerprint" = EXCLUDED."evidence_fingerprint",
+        "model" = EXCLUDED."model",
+        "advice" = EXCLUDED."advice",
+        "expires_at" = EXCLUDED."expires_at",
+        "updated_at" = CURRENT_TIMESTAMP
+    `);
+  } catch (error) {
+    console.warn("Action advice cache save unavailable.", error);
+  }
 }
 
 function formatLocalDay(value: string, timeZone: string): string {

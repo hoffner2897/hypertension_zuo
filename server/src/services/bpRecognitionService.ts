@@ -1,8 +1,9 @@
 import type { BPRecognitionResult } from "../domain/bloodPressureRecognition.js";
 import type { NormalizedImageBase64 } from "../domain/imageBase64.js";
+import type { OpenAIUsageContext } from "./openAIUsageTracking.js";
 
 export interface BPRecognitionService {
-  recognize(image: NormalizedImageBase64): Promise<BPRecognitionResult>;
+  recognize(image: NormalizedImageBase64, usageContext?: OpenAIUsageContext): Promise<BPRecognitionResult>;
 }
 
 export class MockBPRecognitionService implements BPRecognitionService {

@@ -3,6 +3,13 @@ import type { BPRecognitionResult } from "../domain/bloodPressureRecognition.js"
 import { normalizeRecognitionResult } from "../domain/bloodPressureRecognition.js";
 import type { BPRecognitionService } from "./bpRecognitionService.js";
 import type { NormalizedImageBase64 } from "../domain/imageBase64.js";
+import {
+  openAIErrorCode,
+  parseOpenAIResponseUsage,
+  recordOpenAIUsage,
+  type OpenAIResponseUsage,
+  type OpenAIUsageContext
+} from "./openAIUsageTracking.js";
 
 interface OpenAIRecognitionServiceOptions {
   apiKey: string;
@@ -19,6 +26,12 @@ interface ResponsesAPIResponse {
       text?: string;
     }>;
   }>;
+  usage?: {
+    input_tokens?: unknown;
+    output_tokens?: unknown;
+    input_tokens_details?: { cached_tokens?: unknown };
+    output_tokens_details?: { reasoning_tokens?: unknown };
+  };
 }
 
 const recognitionSchema = {
@@ -60,13 +73,13 @@ export class OpenAIBPRecognitionService implements BPRecognitionService {
     this.proxyURL = options.proxyURL;
   }
 
-  async recognize(image: NormalizedImageBase64): Promise<BPRecognitionResult> {
+  async recognize(image: NormalizedImageBase64, usageContext?: OpenAIUsageContext): Promise<BPRecognitionResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
+    let usage: OpenAIResponseUsage | undefined;
 
-    let response: Awaited<ReturnType<typeof fetch>>;
     try {
-      response = await fetch("https://api.openai.com/v1/responses", {
+      const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         signal: controller.signal,
         dispatcher: this.proxyURL ? new ProxyAgent(this.proxyURL) : undefined,
@@ -76,21 +89,38 @@ export class OpenAIBPRecognitionService implements BPRecognitionService {
         },
         body: JSON.stringify(makeOpenAIBPRecognitionRequestBody(this.model, image))
       });
+
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(`OpenAI recognition failed: ${response.status} ${details}`);
+      }
+
+      const data = (await response.json()) as ResponsesAPIResponse;
+      usage = parseOpenAIResponseUsage(data.usage);
+      const text = extractOutputText(data);
+      const parsed = JSON.parse(text) as unknown;
+      const result = normalizeRecognitionResult(parsed);
+      if (usageContext) {
+        await recordOpenAIUsage({ context: usageContext, model: this.model, succeeded: true, usage });
+      }
+      return result;
     } catch (error) {
-      throw new Error(`OpenAI request failed before receiving a response: ${describeFetchError(error)}`);
+      const recordedError = error instanceof Error
+        ? error
+        : new Error(`OpenAI request failed before receiving a response: ${describeFetchError(error)}`);
+      if (usageContext) {
+        await recordOpenAIUsage({
+          context: usageContext,
+          model: this.model,
+          succeeded: false,
+          usage,
+          errorCode: openAIErrorCode(recordedError)
+        });
+      }
+      throw recordedError;
     } finally {
       clearTimeout(timeout);
     }
-
-    if (!response.ok) {
-      const details = await response.text();
-      throw new Error(`OpenAI recognition failed: ${response.status} ${details}`);
-    }
-
-    const data = (await response.json()) as ResponsesAPIResponse;
-    const text = extractOutputText(data);
-    const parsed = JSON.parse(text) as unknown;
-    return normalizeRecognitionResult(parsed);
   }
 }
 
@@ -111,6 +141,7 @@ export function makeOpenAIBPRecognitionRequestBody(
           },
           {
             type: "input_image",
+            detail: "low",
             image_url: `data:${image.mimeType};base64,${image.base64}`
           }
         ]

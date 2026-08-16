@@ -1,6 +1,13 @@
 import { fetch, ProxyAgent } from "undici";
 import type { ActionAdvice, ActionAdviceEvidence } from "../domain/actionAdvice.js";
 import { normalizeActionAdvice } from "../domain/actionAdvice.js";
+import {
+  openAIErrorCode,
+  parseOpenAIResponseUsage,
+  recordOpenAIUsage,
+  type OpenAIResponseUsage,
+  type OpenAIUsageContext
+} from "./openAIUsageTracking.js";
 
 const schema = {
   type: "object", additionalProperties: false,
@@ -13,9 +20,14 @@ const schema = {
 export class OpenAIActionAdviceService {
   constructor(private readonly options: { apiKey: string; model: string; proxyURL?: string }) {}
 
-  async generate(evidence: ActionAdviceEvidence, fallback: ActionAdvice): Promise<ActionAdvice> {
+  async generate(
+    evidence: ActionAdviceEvidence,
+    fallback: ActionAdvice,
+    usageContext?: OpenAIUsageContext
+  ): Promise<ActionAdvice> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25_000);
+    let usage: OpenAIResponseUsage | undefined;
     try {
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST", signal: controller.signal,
@@ -31,10 +43,35 @@ export class OpenAIActionAdviceService {
         })
       });
       if (!response.ok) throw new Error(`OpenAI action advice failed: ${response.status} ${await response.text()}`);
-      const data = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> };
+      const data = await response.json() as {
+        output_text?: string;
+        output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+        usage?: {
+          input_tokens?: unknown;
+          output_tokens?: unknown;
+          input_tokens_details?: { cached_tokens?: unknown };
+          output_tokens_details?: { reasoning_tokens?: unknown };
+        };
+      };
+      usage = parseOpenAIResponseUsage(data.usage);
       const text = data.output_text ?? data.output?.flatMap((item) => item.content ?? []).find((item) => item.type === "output_text")?.text;
       if (!text) throw new Error("OpenAI action advice returned no output text.");
-      return normalizeActionAdvice(JSON.parse(text), fallback);
+      const result = normalizeActionAdvice(JSON.parse(text), fallback);
+      if (usageContext) {
+        await recordOpenAIUsage({ context: usageContext, model: this.options.model, succeeded: true, usage });
+      }
+      return result;
+    } catch (error) {
+      if (usageContext) {
+        await recordOpenAIUsage({
+          context: usageContext,
+          model: this.options.model,
+          succeeded: false,
+          usage,
+          errorCode: openAIErrorCode(error)
+        });
+      }
+      throw error;
     } finally { clearTimeout(timeout); }
   }
 }

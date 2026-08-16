@@ -4,6 +4,13 @@ import {
   type MealAnalysisContext,
   type MealAnalysisResult
 } from "../domain/mealAnalysis.js";
+import {
+  openAIErrorCode,
+  parseOpenAIResponseUsage,
+  recordOpenAIUsage,
+  type OpenAIResponseUsage,
+  type OpenAIUsageContext
+} from "./openAIUsageTracking.js";
 
 interface OpenAIMealAnalysisServiceOptions {
   apiKey: string;
@@ -16,12 +23,19 @@ interface ResponsesAPIResponse {
   output?: Array<{
     content?: Array<{ type?: string; text?: string }>;
   }>;
+  usage?: {
+    input_tokens?: unknown;
+    output_tokens?: unknown;
+    input_tokens_details?: { cached_tokens?: unknown };
+    output_tokens_details?: { reasoning_tokens?: unknown };
+  };
 }
 
 export interface MealAnalysisService {
   analyze(
     image: { base64: string; mimeType: string },
-    context: MealAnalysisContext
+    context: MealAnalysisContext,
+    usageContext?: OpenAIUsageContext
   ): Promise<MealAnalysisResult>;
 }
 
@@ -61,14 +75,15 @@ export class OpenAIMealAnalysisService implements MealAnalysisService {
 
   async analyze(
     image: { base64: string; mimeType: string },
-    context: MealAnalysisContext
+    context: MealAnalysisContext,
+    usageContext?: OpenAIUsageContext
   ): Promise<MealAnalysisResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
-    let response: Awaited<ReturnType<typeof fetch>>;
+    let usage: OpenAIResponseUsage | undefined;
 
     try {
-      response = await fetch("https://api.openai.com/v1/responses", {
+      const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         signal: controller.signal,
         dispatcher: this.proxyURL ? new ProxyAgent(this.proxyURL) : undefined,
@@ -95,6 +110,7 @@ export class OpenAIMealAnalysisService implements MealAnalysisService {
                 },
                 {
                   type: "input_image",
+                  detail: "high",
                   image_url: `data:${image.mimeType};base64,${image.base64}`
                 }
               ]
@@ -111,19 +127,36 @@ export class OpenAIMealAnalysisService implements MealAnalysisService {
           }
         })
       });
+
+      if (!response.ok) {
+        const details = (await response.text()).slice(0, 600);
+        throw new Error(`OpenAI meal analysis failed: ${response.status} ${details}`);
+      }
+
+      const payload = (await response.json()) as ResponsesAPIResponse;
+      usage = parseOpenAIResponseUsage(payload.usage);
+      const result = mealAnalysisResultSchema.parse(JSON.parse(extractOutputText(payload)));
+      if (usageContext) {
+        await recordOpenAIUsage({ context: usageContext, model: this.model, succeeded: true, usage });
+      }
+      return result;
     } catch (error) {
-      throw new Error(`OpenAI meal analysis request failed: ${describeFetchError(error)}`);
+      const recordedError = error instanceof Error
+        ? error
+        : new Error(`OpenAI meal analysis request failed: ${describeFetchError(error)}`);
+      if (usageContext) {
+        await recordOpenAIUsage({
+          context: usageContext,
+          model: this.model,
+          succeeded: false,
+          usage,
+          errorCode: openAIErrorCode(recordedError)
+        });
+      }
+      throw recordedError;
     } finally {
       clearTimeout(timeout);
     }
-
-    if (!response.ok) {
-      const details = (await response.text()).slice(0, 600);
-      throw new Error(`OpenAI meal analysis failed: ${response.status} ${details}`);
-    }
-
-    const payload = (await response.json()) as ResponsesAPIResponse;
-    return mealAnalysisResultSchema.parse(JSON.parse(extractOutputText(payload)));
   }
 }
 

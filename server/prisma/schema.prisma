@@ -30,6 +30,8 @@ enum MealType {
 enum AIUsageFeature {
   bp_recognition
   meal_analysis
+  bp_interpretation
+  action_advice
 }
 
 enum ExerciseActionStatus {
@@ -59,6 +61,8 @@ model User {
   dailyActionSnapshots    DailyActionSnapshot[]
   actionEvents            ActionEvent[]
   aiDailyUsage            AIDailyUsage[]
+  aiCostDailyUsage        AICostDailyUsage[]
+  actionAdviceCache       ActionAdviceCache?
 
   @@index([deletedAt])
   @@map("users")
@@ -254,4 +258,44 @@ model AIDailyUsage {
   @@id([userId, usageDate, feature])
   @@index([usageDate, feature])
   @@map("ai_daily_usage")
+}
+
+model AICostDailyUsage {
+  userId                String         @map("user_id") @db.Uuid
+  usageDate             DateTime       @map("usage_date") @db.Date
+  feature               AIUsageFeature
+  model                 String         @db.VarChar(80)
+  requestCount          Int            @default(0) @map("request_count")
+  successCount          Int            @default(0) @map("success_count")
+  failureCount          Int            @default(0) @map("failure_count")
+  cacheHitCount         Int            @default(0) @map("cache_hit_count")
+  inputTokens           BigInt         @default(0) @map("input_tokens")
+  cachedInputTokens     BigInt         @default(0) @map("cached_input_tokens")
+  outputTokens          BigInt         @default(0) @map("output_tokens")
+  reasoningTokens       BigInt         @default(0) @map("reasoning_tokens")
+  estimatedCostMicrousd BigInt         @default(0) @map("estimated_cost_microusd")
+  lastErrorCode         String?        @map("last_error_code") @db.VarChar(80)
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, usageDate, feature, model])
+  @@index([usageDate, feature, model])
+  @@map("ai_cost_daily_usage")
+}
+
+model ActionAdviceCache {
+  userId              String   @id @map("user_id") @db.Uuid
+  evidenceFingerprint String   @map("evidence_fingerprint") @db.VarChar(64)
+  model               String   @db.VarChar(80)
+  advice              Json
+  expiresAt           DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("action_advice_cache")
 }

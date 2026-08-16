@@ -1,6 +1,13 @@
 import { fetch, ProxyAgent } from "undici";
 import type { BPBaseInterpretation, BPInterpretationInput, BPInterpretationResult } from "../domain/bloodPressureInterpretation.js";
 import { normalizeInterpretationResult } from "../domain/bloodPressureInterpretation.js";
+import {
+  openAIErrorCode,
+  parseOpenAIResponseUsage,
+  recordOpenAIUsage,
+  type OpenAIResponseUsage,
+  type OpenAIUsageContext
+} from "./openAIUsageTracking.js";
 
 interface OpenAIBPInterpretationServiceOptions {
   apiKey: string;
@@ -17,6 +24,12 @@ interface ResponsesAPIResponse {
       text?: string;
     }>;
   }>;
+  usage?: {
+    input_tokens?: unknown;
+    output_tokens?: unknown;
+    input_tokens_details?: { cached_tokens?: unknown };
+    output_tokens_details?: { reasoning_tokens?: unknown };
+  };
 }
 
 const interpretationSchema = {
@@ -74,13 +87,17 @@ export class OpenAIBPInterpretationService {
     this.proxyURL = options.proxyURL;
   }
 
-  async interpret(input: BPInterpretationInput, base: BPBaseInterpretation): Promise<BPInterpretationResult> {
+  async interpret(
+    input: BPInterpretationInput,
+    base: BPBaseInterpretation,
+    usageContext?: OpenAIUsageContext
+  ): Promise<BPInterpretationResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25_000);
 
-    let response: Awaited<ReturnType<typeof fetch>>;
+    let usage: OpenAIResponseUsage | undefined;
     try {
-      response = await fetch("https://api.openai.com/v1/responses", {
+      const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         signal: controller.signal,
         dispatcher: this.proxyURL ? new ProxyAgent(this.proxyURL) : undefined,
@@ -90,21 +107,38 @@ export class OpenAIBPInterpretationService {
         },
         body: JSON.stringify(makeOpenAIBPInterpretationRequestBody(this.model, input, base))
       });
+
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(`OpenAI interpretation failed: ${response.status} ${details}`);
+      }
+
+      const data = (await response.json()) as ResponsesAPIResponse;
+      usage = parseOpenAIResponseUsage(data.usage);
+      const text = extractOutputText(data);
+      const parsed = JSON.parse(text) as unknown;
+      const result = normalizeInterpretationResult(parsed, base);
+      if (usageContext) {
+        await recordOpenAIUsage({ context: usageContext, model: this.model, succeeded: true, usage });
+      }
+      return result;
     } catch (error) {
-      throw new Error(`OpenAI interpretation request failed before receiving a response: ${describeFetchError(error)}`);
+      const recordedError = error instanceof Error
+        ? error
+        : new Error(`OpenAI interpretation request failed before receiving a response: ${describeFetchError(error)}`);
+      if (usageContext) {
+        await recordOpenAIUsage({
+          context: usageContext,
+          model: this.model,
+          succeeded: false,
+          usage,
+          errorCode: openAIErrorCode(recordedError)
+        });
+      }
+      throw recordedError;
     } finally {
       clearTimeout(timeout);
     }
-
-    if (!response.ok) {
-      const details = await response.text();
-      throw new Error(`OpenAI interpretation failed: ${response.status} ${details}`);
-    }
-
-    const data = (await response.json()) as ResponsesAPIResponse;
-    const text = extractOutputText(data);
-    const parsed = JSON.parse(text) as unknown;
-    return normalizeInterpretationResult(parsed, base);
   }
 }
 

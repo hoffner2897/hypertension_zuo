@@ -199,7 +199,10 @@ export function createReadingRouter(config: ServerConfig, authUserLookup?: AuthU
             apiKey: config.openAIAPIKey,
             model: config.openAIModel,
             proxyURL: config.openAIProxyURL
-          }).interpret(interpretationInput, baseInterpretation);
+          }).interpret(interpretationInput, baseInterpretation, {
+            userId: auth.userId,
+            feature: "bp_interpretation"
+          });
         } catch (error) {
           console.warn("OpenAI BP interpretation failed; returning rule-based interpretation.", error);
         }

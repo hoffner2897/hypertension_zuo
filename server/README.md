@@ -110,20 +110,22 @@ For real OpenAI recognition:
 ```env
 BP_RECOGNITION_MODE=openai
 OPENAI_API_KEY=your_api_key_here
-OPENAI_MODEL=gpt-5.5
-OPENAI_ACTION_SUGGESTION_MODEL=gpt-5.6-sol
-OPENAI_MEAL_ANALYSIS_MODEL=gpt-5.5
+OPENAI_MODEL=gpt-5.6-terra
+OPENAI_ACTION_SUGGESTION_MODEL=gpt-5.6-terra
+OPENAI_MEAL_ANALYSIS_MODEL=gpt-5.6-terra
 ```
 
 `OPENAI_API_KEY` is required when `BP_RECOGNITION_MODE=openai`. If `OPENAI_API_KEY` is present, `/readings/interpretation` also tries OpenAI interpretation after building a local rule-based baseline; if the OpenAI call fails, it falls back to the rule-based result.
 
-`/recognize-bp` requires an access token and accepts only valid JPEG, PNG, or WebP base64 whose file signature matches its declared MIME type. In `openai` mode, successful quota reservations are limited by `BP_RECOGNITION_DAILY_LIMIT` (default `30`) per user per UTC day.
+`/recognize-bp` requires an access token and accepts only valid JPEG, PNG, or WebP base64 whose file signature matches its declared MIME type. In `openai` mode, new OpenAI requests are limited by `BP_RECOGNITION_DAILY_LIMIT` (default `8`) per user per UTC day. Identical images from the same user are deduplicated for 10 minutes; a cache hit does not consume quota or call OpenAI again.
 
-`/action-adjustments/trend-suggestions` uses `OPENAI_ACTION_SUGGESTION_MODEL`. The server always creates evidence-backed candidates first; OpenAI may only select and polish those candidates. When no key is configured or the OpenAI request fails, the endpoint returns the rule-based candidate wording.
+`/action-adjustments/trend-suggestions` uses `OPENAI_ACTION_SUGGESTION_MODEL`. The server always creates evidence-backed candidates first; OpenAI may only select and polish those candidates. OpenAI advice is cached for 24 hours against a fingerprint of the user's current evidence, so screen refreshes do not regenerate unchanged advice. Evidence changes invalidate the cache. When no key is configured or the OpenAI request fails, the endpoint returns the rule-based candidate wording.
 
 `/meal-records/analyze` uses `OPENAI_MEAL_ANALYSIS_MODEL` and requires authentication. The uploaded meal image is sent to OpenAI with `store: false`, is never written to PostgreSQL, and is discarded after the request. PostgreSQL stores only the generated analysis text, similar-meal suggestion, card summary, meal type, date, and timestamps.
 
-Meal analysis is limited by `MEAL_ANALYSIS_DAILY_LIMIT` (default `20`) per user per UTC day. Both OpenAI-backed quotas are persisted in PostgreSQL and use an atomic increment, so limits remain consistent across restarts and multiple server instances. An exhausted quota returns HTTP `429` with code `AI_DAILY_QUOTA_EXCEEDED`.
+Meal analysis is limited by `MEAL_ANALYSIS_DAILY_LIMIT` (default `9`) per user per UTC day. Identical user/meal/date/image requests are deduplicated for 10 minutes without consuming quota. Both image-analysis quotas are persisted in PostgreSQL and use an atomic increment, so limits remain consistent across restarts and multiple server instances. An exhausted quota returns HTTP `429` with code `AI_DAILY_QUOTA_EXCEEDED`.
+
+Every OpenAI request records daily per-user, per-feature, and per-model counts, success/failure totals, token usage, cache hits, and an estimated cost in `ai_cost_daily_usage`. The table stores no image data or prompt/response content. Cost is an operational estimate based on configured model rates; OpenAI billing remains the source of truth.
 
 If your VPN is in smart mode and Terminal cannot reach OpenAI directly, start the server with a temporary proxy:
 
@@ -141,7 +143,7 @@ This only affects that terminal process.
 - Profile and reading routes require auth. Profile routes are not currently blocked by email verification.
 - Readings are user-scoped and use `clientId` for idempotent offline sync.
 - Blood pressure values are stored in mmHg only.
-- Account deletion hard-deletes the user row; related profile, tokens, verification tokens, readings, meal records, and AI quota counters cascade.
+- Account deletion hard-deletes the user row; related profile, tokens, verification tokens, readings, meal records, AI quota/cost counters, and cached action advice cascade.
 
 ## Endpoints
 
