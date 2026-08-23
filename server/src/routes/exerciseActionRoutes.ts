@@ -189,6 +189,16 @@ export async function putExerciseAction(
     if (input.clientUpdatedAt.getTime() < existing.clientUpdatedAt.getTime()) {
       return { action: existing, applied: false };
     }
+    if (
+      input.clientUpdatedAt.getTime() === existing.clientUpdatedAt.getTime() &&
+      exerciseActionStatusRank(input.status) < exerciseActionStatusRank(existing.status)
+    ) {
+      // Equal timestamps describe the same logical client write. Never allow
+      // an older pending/missed snapshot to regress a running or completed
+      // timer. A deliberate adjustment still works because it carries a newer
+      // clientUpdatedAt value.
+      return { action: existing, applied: false };
+    }
 
     const applied = await repository.updateIfNotOlder(userId, id, input);
     const current = await repository.findByID(id);
@@ -210,6 +220,16 @@ export async function putExerciseAction(
       throw idConflict();
     }
     throw error;
+  }
+}
+
+function exerciseActionStatusRank(status: ExerciseActionStatusValue): number {
+  switch (status) {
+    case "pending": return 0;
+    case "missed": return 1;
+    case "skipped": return 2;
+    case "in_progress": return 3;
+    case "completed": return 4;
   }
 }
 

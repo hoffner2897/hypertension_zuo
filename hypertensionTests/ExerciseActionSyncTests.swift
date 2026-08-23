@@ -122,4 +122,58 @@ struct ExerciseActionSyncTests {
             #expect(input.completionMode == "timer_completed")
         }
     }
+
+    @Test @MainActor func generatedRunningTimerSurvivesRelaunchAfterPlannedEnd() throws {
+        let userId = "running-timer-restore-\(UUID().uuidString)"
+        defer { ActionHistoryStore.removeAll(userId: userId) }
+        let now = Date()
+        let startedAt = now.addingTimeInterval(-3_900)
+        let exercise = try #require(LowBarrierExerciseCatalog.exercise(id: "public-indoor-slow-walk"))
+        var item = TodayActionItem.generatedMovement(
+            title: "饭后散步",
+            timeText: TodayActionItem.timeFormatter.string(from: startedAt),
+            duration: 60,
+            order: 8,
+            exercise: exercise,
+            scene: exercise.scene.rawValue,
+            energy: ExerciseEnergyTier.medium.title
+        )
+        item.scheduledStartAt = startedAt
+        item.scheduledEndAt = startedAt.addingTimeInterval(3_600)
+        item.status = .inProgress
+        item.displayStatus = .inProgress
+        item.actualStartedAt = startedAt
+        item.timerLastResumedAt = startedAt
+
+        ActionHistoryStore.saveToday([item], userId: userId, now: now)
+        let restored = try #require(ActionHistoryStore.restoreToday([], userId: userId, now: now).first)
+
+        #expect(restored.status == .inProgress)
+        #expect(abs(try #require(restored.actualStartedAt).timeIntervalSince(startedAt)) < 1)
+        #expect(abs(try #require(restored.timerLastResumedAt).timeIntervalSince(startedAt)) < 1)
+    }
+
+    @Test @MainActor func equalTimestampRemoteRegressionDoesNotReplaceLocalProgress() throws {
+        let timestamp = Date(timeIntervalSince1970: 1_790_000_000)
+        let exercise = try #require(LowBarrierExerciseCatalog.exercise(id: "public-indoor-slow-walk"))
+        var local = TodayActionItem.generatedMovement(
+            title: exercise.name,
+            timeText: "19:30",
+            duration: 60,
+            order: 0,
+            exercise: exercise,
+            scene: exercise.scene.rawValue,
+            energy: ExerciseEnergyTier.medium.title
+        )
+        local.status = .inProgress
+        local.actualStartedAt = timestamp
+        local.timerLastResumedAt = timestamp
+        local.clientUpdatedAt = timestamp
+
+        var remote = local
+        remote.status = .missed
+
+        #expect(!local.shouldAcceptRemoteExerciseSync(remote))
+        #expect(remote.shouldAcceptRemoteExerciseSync(local))
+    }
 }

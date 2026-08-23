@@ -134,6 +134,31 @@ test("an older offline write cannot overwrite a newer exercise action", async ()
   });
 });
 
+test("an equal-timestamp missed snapshot cannot regress an active exercise timer", async () => {
+  const repository = new InMemoryExerciseActionRepository();
+  await withServer(repository, async (baseURL) => {
+    const token = accessToken(primaryUserID);
+    await putAction(baseURL, actionID, token, {
+      ...makeBody(),
+      status: "in_progress",
+      actualStartedAt: "2026-07-22T09:00:00.000Z",
+      timerLastResumedAt: "2026-07-22T09:00:00.000Z"
+    });
+
+    const regressed = await putAction(baseURL, actionID, token, {
+      ...makeBody(),
+      status: "missed",
+      actualStartedAt: "2026-07-22T09:00:00.000Z",
+      timerLastResumedAt: "2026-07-22T09:00:00.000Z"
+    });
+
+    assert.equal(regressed.response.status, 200);
+    assert.equal(regressed.body.applied, false);
+    assert.equal(regressed.body.action.status, "in_progress");
+    assert.equal(regressed.body.action.actualStartedAt, "2026-07-22T09:00:00.000Z");
+  });
+});
+
 test("an exercise action UUID owned by another user cannot be overwritten or listed", async () => {
   const repository = new InMemoryExerciseActionRepository();
   await withServer(repository, async (baseURL) => {

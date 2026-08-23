@@ -360,6 +360,26 @@ struct hypertensionTests {
         #expect(observation.normalizedStatus == "missed")
     }
 
+    @Test @MainActor func pastInProgressActionRemainsActiveAfterPlannedEnd() async throws {
+        let oldStart = Date().addingTimeInterval(-7_200)
+        var action = makeAction(start: oldStart, status: .inProgress)
+        action.actualStartedAt = oldStart
+        action.timerLastResumedAt = oldStart
+        let observation = StoredActionObservation(item: action, now: Date())
+
+        #expect(observation.normalizedStatus == "in_progress")
+    }
+
+    @Test @MainActor func legacyMissedTimerWithStartEvidenceIsRecoveredAsInProgress() async throws {
+        let oldStart = Date().addingTimeInterval(-7_200)
+        var action = makeAction(start: oldStart, status: .missed)
+        action.actualStartedAt = oldStart
+        action.timerLastResumedAt = oldStart
+        let observation = StoredActionObservation(item: action, now: Date())
+
+        #expect(observation.normalizedStatus == "in_progress")
+    }
+
     @Test @MainActor func generatedActionSurvivesAppRelaunch() async throws {
         let userId = "generated-action-test-\(UUID().uuidString)"
         defer { ActionHistoryStore.removeAll(userId: userId) }

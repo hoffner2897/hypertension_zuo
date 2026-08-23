@@ -175,8 +175,23 @@ extension TodayActionItem {
         guard let id = UUID(uuidString: action.id),
               let scheduledStartAt = ExerciseActionService.date(fromISO8601: action.scheduledStartAt),
               let clientUpdatedAt = ExerciseActionService.date(fromISO8601: action.clientUpdatedAt),
-              let status = TodayActionStatus(actionHistoryAPIValue: action.status) else {
+              let decodedStatus = TodayActionStatus(actionHistoryAPIValue: action.status) else {
             return nil
+        }
+
+        let completedAt = action.completedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) }
+        let actualStartedAt = action.actualStartedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) }
+        let actualEndedAt = action.actualEndedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) }
+        let status: TodayActionStatus
+        if decodedStatus == .missed,
+           actualStartedAt != nil,
+           actualEndedAt == nil,
+           completedAt == nil {
+            // Older clients could upload a regressed `missed` state after a
+            // running timer crossed its planned end. Recover it on download.
+            status = .inProgress
+        } else {
+            status = decodedStatus
         }
 
         self.init(
@@ -188,7 +203,7 @@ extension TodayActionItem {
             scheduledStartAt: scheduledStartAt,
             durationMinutes: action.durationMinutes,
             status: status,
-            completedAt: action.completedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) },
+            completedAt: completedAt,
             sortOrder: sortOrder,
             exerciseId: action.exerciseId,
             exerciseScene: action.scene,
@@ -196,14 +211,41 @@ extension TodayActionItem {
             exerciseContexts: action.contexts,
             exerciseMovementAdvice: action.movementAdvice,
             exerciseIntensityAdvice: action.intensityAdvice,
-            actualStartedAt: action.actualStartedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) },
+            actualStartedAt: actualStartedAt,
             timerLastResumedAt: action.timerLastResumedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) },
             timerAccumulatedSeconds: action.timerAccumulatedSeconds,
-            actualEndedAt: action.actualEndedAt.flatMap { ExerciseActionService.date(fromISO8601: $0) },
+            actualEndedAt: actualEndedAt,
             actualDurationSeconds: action.actualDurationSeconds,
             completionMode: action.completionMode.flatMap(ExerciseCompletionMode.init(rawValue:)),
             clientUpdatedAt: clientUpdatedAt
         )
+    }
+
+    func shouldAcceptRemoteExerciseSync(_ remote: TodayActionItem) -> Bool {
+        let timestampDelta = remote.clientUpdatedAt.timeIntervalSince(clientUpdatedAt)
+        if timestampDelta > 0.01 {
+            return true
+        }
+        if timestampDelta < -0.01 {
+            return false
+        }
+
+        // For the same logical write, keep the state that contains more user
+        // progress. This prevents a stale pending/missed snapshot from
+        // replacing an active or completed timer.
+        return remote.status.exerciseSyncProgressRank > status.exerciseSyncProgressRank
+    }
+}
+
+private extension TodayActionStatus {
+    var exerciseSyncProgressRank: Int {
+        switch self {
+        case .pending: 0
+        case .missed: 1
+        case .skipped: 2
+        case .inProgress: 3
+        case .completed: 4
+        }
     }
 }
 

@@ -340,7 +340,7 @@ struct TodayActionView: View {
                 ) else { continue }
 
                 if let localIndex = mergedItems.firstIndex(where: { $0.id == remoteItem.id }) {
-                    if remoteItem.clientUpdatedAt >= mergedItems[localIndex].clientUpdatedAt {
+                    if mergedItems[localIndex].shouldAcceptRemoteExerciseSync(remoteItem) {
                         mergedItems[localIndex] = remoteItem
                     }
                 } else {
@@ -372,7 +372,7 @@ struct TodayActionView: View {
                 guard !result.applied,
                       let remoteItem = TodayActionItem(remoteExerciseAction: result.action),
                       let localIndex = items.firstIndex(where: { $0.id == remoteItem.id }),
-                      remoteItem.clientUpdatedAt > items[localIndex].clientUpdatedAt else {
+                      items[localIndex].shouldAcceptRemoteExerciseSync(remoteItem) else {
                     continue
                 }
 
