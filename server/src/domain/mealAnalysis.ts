@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizeImageBase64, supportedImageBase64Schema } from "./imageBase64.js";
+import type { AppLocale } from "../i18n/locale.js";
 
 export { normalizeImageBase64 } from "./imageBase64.js";
 
@@ -35,18 +36,19 @@ export const listMealRecordsQuerySchema = z.object({
 
 export const mealAnalysisResultSchema = z.object({
   canAnalyze: z.boolean(),
-  recognition: z.string().trim().min(1).max(90),
-  dietaryStructureAnalysis: z.string().trim().min(1).max(180),
-  cookingMethodAnalysis: z.string().trim().min(1).max(140),
-  dietaryStructureSuggestion: z.string().trim().min(1).max(160),
-  cookingMethodSuggestion: z.string().trim().min(1).max(140),
-  cardSummary: z.string().trim().min(1).max(90)
+  recognition: z.string().trim().min(1).max(180),
+  dietaryStructureAnalysis: z.string().trim().min(1).max(360),
+  cookingMethodAnalysis: z.string().trim().min(1).max(280),
+  dietaryStructureSuggestion: z.string().trim().min(1).max(320),
+  cookingMethodSuggestion: z.string().trim().min(1).max(280),
+  cardSummary: z.string().trim().min(1).max(180)
 });
 
 export type MealType = z.infer<typeof mealTypeSchema>;
 export type MealAnalysisResult = z.infer<typeof mealAnalysisResultSchema>;
 
 export interface MealAnalysisContext {
+  locale?: AppLocale;
   mealType: MealType;
   recordedAt: string;
   timeZone: string;

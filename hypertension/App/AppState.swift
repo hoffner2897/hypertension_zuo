@@ -267,30 +267,30 @@ final class AppState: ObservableObject {
         if case APIClientError.server(let code, _) = error {
             switch code {
             case "EMAIL_ALREADY_REGISTERED":
-                return "这个邮箱已经注册。"
+                return L10n.string("这个邮箱已经注册。")
             case "INVALID_CREDENTIALS":
-                return "邮箱或密码不正确。"
+                return L10n.string("邮箱或密码不正确。")
             case "PASSWORD_CONFIRMATION_FAILED":
-                return "密码确认失败。"
+                return L10n.string("密码确认失败。")
             case "VALIDATION_FAILED":
-                return "邮箱或密码格式不符合要求。"
+                return L10n.string("邮箱或密码格式不符合要求。")
             default:
-                return "服务器返回错误：\(code)。"
+                return L10n.format("服务器返回错误：%@。", code)
             }
         }
 
         if error is KeychainStoreError {
-            return "登录信息保存失败，请重试。"
+            return L10n.string("登录信息保存失败，请重试。")
         }
 
         if error is DecodingError {
-            return "服务器返回格式与 app 暂时不匹配。"
+            return L10n.string("服务器返回格式与 app 暂时不匹配。")
         }
 
         if error is URLError {
-            return "网络连接失败，请检查网络后重试。"
+            return L10n.string("网络连接失败，请检查网络后重试。")
         }
 
-        return "网络或服务器暂时不可用。"
+        return L10n.string("网络或服务器暂时不可用。")
     }
 }

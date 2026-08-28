@@ -27,13 +27,13 @@ struct DSLoadingIndicator: View {
                     .tint(DSTheme.Color.primary)
 
                 VStack(spacing: DSTheme.Spacing.xSmall) {
-                    Text(title)
+                    Text(L10n.string(title))
                         .font(.headline)
                         .foregroundStyle(DSTheme.Color.textPrimary)
                         .multilineTextAlignment(.center)
 
                     if let message {
-                        Text(message)
+                        Text(L10n.string(message))
                             .font(.subheadline)
                             .foregroundStyle(DSTheme.Color.textSecondary)
                             .multilineTextAlignment(.center)

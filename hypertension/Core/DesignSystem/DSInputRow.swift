@@ -42,13 +42,13 @@ struct DSInputRow: View {
                     .clipShape(Circle())
             }
 
-            Text(title)
+            Text(L10n.string(title))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textPrimary)
 
             Spacer(minLength: DSTheme.Spacing.small)
 
-            TextField(placeholder, text: $text)
+            TextField(L10n.string(placeholder), text: $text)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textPrimary)
                 .multilineTextAlignment(.trailing)
@@ -56,7 +56,7 @@ struct DSInputRow: View {
                 .frame(minWidth: 56, maxWidth: 90)
 
             if let unit {
-                Text(unit)
+                Text(L10n.string(unit))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
             }

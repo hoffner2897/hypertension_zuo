@@ -66,20 +66,20 @@ struct BPReadingAnalysisView: View {
                         .clipShape(Circle())
                         .overlay(Circle().stroke(.white, lineWidth: 2))
 
-                    Text("小宁")
+                    Text(L10n.string("小宁"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(DSTheme.Color.textPrimary)
                 }
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("正在理解你的读数")
+                Text(L10n.string("正在理解你的读数"))
                     .font(.system(size: 31, weight: .bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                     .lineLimit(2)
                     .minimumScaleFactor(0.86)
 
-                Text("结合 Apple Watch 数据进行分析。")
+                Text(L10n.string("结合 Apple Watch 数据进行分析。"))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
             }
@@ -95,7 +95,7 @@ struct BPReadingAnalysisView: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("当前血压")
+                Text(L10n.string("当前血压"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
 
@@ -106,7 +106,7 @@ struct BPReadingAnalysisView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.76)
 
-                    Text("mmHg")
+                    Text(L10n.string("mmHg"))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color(red: 0.26, green: 0.34, blue: 0.58))
                 }
@@ -136,14 +136,14 @@ struct BPReadingAnalysisView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 94, height: 94)
-                .accessibilityLabel("分析中")
+                .accessibilityLabel(L10n.string("分析中"))
 
-            Text("我们正在结合近期趋势与日常状态。")
+            Text(L10n.string("我们正在结合近期趋势与日常状态。"))
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
                 .multilineTextAlignment(.center)
 
-            Text("分析中...")
+            Text(L10n.string("分析中..."))
                 .font(.headline.weight(.bold))
                 .foregroundStyle(Color(red: 0.52, green: 0.66, blue: 0.92))
                 .frame(maxWidth: .infinity)
@@ -159,7 +159,7 @@ struct BPReadingAnalysisView: View {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.headline.weight(.bold))
 
-                    Text("测试读数正常界面")
+                    Text(L10n.string("测试读数正常界面"))
                         .font(.subheadline.weight(.bold))
                 }
                 .foregroundStyle(DSTheme.Color.primary)
@@ -177,7 +177,7 @@ struct BPReadingAnalysisView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.headline.weight(.bold))
 
-                    Text("测试读数偏高界面")
+                    Text(L10n.string("测试读数偏高界面"))
                         .font(.subheadline.weight(.bold))
                 }
                 .foregroundStyle(Color(red: 1.0, green: 0.32, blue: 0.07))
@@ -220,7 +220,7 @@ private struct BPAnalysisMetricCard: View {
                 .frame(width: 48, height: 48)
                 .clipShape(Circle())
 
-            Text(title)
+            Text(L10n.string(title))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
                 .lineLimit(1)
@@ -234,7 +234,7 @@ private struct BPAnalysisMetricCard: View {
                     .minimumScaleFactor(0.72)
 
                 if !suffix.isEmpty {
-                    Text(suffix)
+                    Text(L10n.string(suffix))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                         .lineLimit(1)

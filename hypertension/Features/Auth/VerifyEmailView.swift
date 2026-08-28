@@ -48,7 +48,7 @@ struct VerifyEmailView: View {
                         }
 
                         VStack(spacing: DSTheme.Spacing.small) {
-                            DSPrimaryButton("完成验证", systemImage: "checkmark.seal.fill", isLoading: isVerifying) {
+                            DSPrimaryButton(L10n.string("完成验证"), systemImage: "checkmark.seal.fill", isLoading: isVerifying) {
                                 Task {
                                     await verify()
                                 }
@@ -60,7 +60,7 @@ struct VerifyEmailView: View {
                                 }
                             }
 
-                            DSSecondaryButton("退出登录", systemImage: "rectangle.portrait.and.arrow.right") {
+                            DSSecondaryButton(L10n.string("退出登录"), systemImage: "rectangle.portrait.and.arrow.right") {
                                 Task {
                                     await appState.logout()
                                 }
@@ -70,14 +70,14 @@ struct VerifyEmailView: View {
                     .padding(DSTheme.Spacing.large)
                 }
             }
-            .navigationTitle("验证邮箱")
+            .navigationTitle(L10n.string("验证邮箱"))
             .navigationBarTitleDisplayMode(.inline)
         }
     }
 
     private func verify() async {
         guard !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            notice = "请输入验证 token。"
+            notice = L10n.string("请输入验证 token。")
             return
         }
 
@@ -92,7 +92,7 @@ struct VerifyEmailView: View {
         isResending = true
         await appState.resendVerification()
         if appState.errorMessage == nil {
-            notice = "新的验证链接已打印到 server console。"
+            notice = L10n.string("新的验证链接已打印到 server console。")
         }
         isResending = false
     }

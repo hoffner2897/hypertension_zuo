@@ -158,6 +158,7 @@ model MealRecord {
   dietaryStructureSuggestion  String?  @map("dietary_structure_suggestion")
   cookingMethodSuggestion     String?  @map("cooking_method_suggestion")
   cardSummary                 String   @map("card_summary")
+  analysisLocale              String?  @map("analysis_locale") @db.VarChar(16)
   recordedAt                  DateTime @map("recorded_at") @db.Timestamptz(3)
   createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)

@@ -187,13 +187,13 @@ struct TodayActionView: View {
                         )
                         .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
 
-                    Text(headerDisplayName)
+                    Text(L10n.string(headerDisplayName))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(DSTheme.Color.textPrimary)
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("打开账号与健康数据")
+            .accessibilityLabel(L10n.string("打开账号与健康数据"))
         }
     }
 
@@ -505,13 +505,13 @@ struct ActionGenerateDemoView: View {
                         ) {
                             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                                 HStack(spacing: 8) {
-                                    Label("今日最新血压", systemImage: "heart.circle.fill")
+                                    Label(L10n.string("今日最新血压"), systemImage: "heart.circle.fill")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.white)
 
                                     Spacer()
 
-                                    Label(bloodPressureState.title, systemImage: bloodPressureState.systemImage)
+                                    Label(L10n.string(bloodPressureState.title), systemImage: bloodPressureState.systemImage)
                                         .font(.caption2.weight(.bold))
                                         .foregroundStyle(bloodPressureState.tint)
                                         .padding(.horizontal, 9)
@@ -525,7 +525,7 @@ struct ActionGenerateDemoView: View {
                                         .font(.system(size: 30, weight: .bold, design: .rounded))
                                         .foregroundStyle(.white)
 
-                                    Text("mmHg")
+                                    Text(L10n.string("mmHg"))
                                         .font(.caption.weight(.bold))
                                         .foregroundStyle(.white.opacity(0.86))
                                 }
@@ -557,11 +557,11 @@ struct ActionGenerateDemoView: View {
                                     .clipShape(Circle())
 
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text("记录自定义运动")
+                                    Text(L10n.string("记录自定义运动"))
                                         .font(.headline)
                                         .foregroundStyle(DSTheme.Color.textPrimary)
 
-                                    Text("填写运动名称和时间，加入今日行动")
+                                    Text(L10n.string("填写运动名称和时间，加入今日行动"))
                                         .font(.caption)
                                         .foregroundStyle(DSTheme.Color.textSecondary)
                                 }
@@ -583,7 +583,7 @@ struct ActionGenerateDemoView: View {
                             Image(systemName: "info.circle.fill")
                                 .foregroundStyle(DSTheme.Color.primary)
 
-                            Text("系统将主动推荐中低强度、低门槛运动，并在饮食时间提供低盐清单提醒。")
+                            Text(L10n.string("系统将主动推荐中低强度、低门槛运动，并在饮食时间提供低盐清单提醒。"))
                                 .font(.caption)
                                 .foregroundStyle(DSTheme.Color.textSecondary)
                         }
@@ -648,9 +648,10 @@ struct ActionGenerateDemoView: View {
     }
 
     private var stateSummary: String {
-        let contextText = contexts.sorted().joined(separator: "、")
-        let statusText = contextText.isEmpty ? energy : "\(energy) · \(contextText)"
-        return "\(scene) · \(statusText)"
+        let contextText = contexts.sorted().map(L10n.string).joined(separator: L10n.string("、"))
+        let localizedEnergy = L10n.string(energy)
+        let statusText = contextText.isEmpty ? localizedEnergy : "\(localizedEnergy) · \(contextText)"
+        return "\(L10n.string(scene)) · \(statusText)"
     }
 
     private var generatedActionTitle: String {
@@ -697,7 +698,7 @@ struct ActionGenerateDemoView: View {
             order: 100
         )
         item.type = .custom
-        item.description = "保持轻量运动 \(item.durationMinutes) 分钟，不追求强度。"
+        item.description = L10n.format("保持轻量运动 %d 分钟，不追求强度。", item.durationMinutes)
         item.reason = TodayActionType.custom.reason
         onGenerateAction(item)
     }
@@ -808,11 +809,11 @@ private struct LowBarrierExerciseGenerationCard: View {
         DSCard {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label("生成低门槛运动", systemImage: "figure.walk.circle.fill")
+                    Label(L10n.string("生成低门槛运动"), systemImage: "figure.walk.circle.fill")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                    Text("依次选择场景和当前状态，系统会即时更新推荐运动。")
+                    Text(L10n.string("依次选择场景和当前状态，系统会即时更新推荐运动。"))
                         .font(.caption)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -835,7 +836,7 @@ private struct LowBarrierExerciseGenerationCard: View {
                 }
 
                 stepHeader(number: 2, title: "选择当前状态")
-                Text("精力状态  [单选]")
+                Text(L10n.string("精力状态  [单选]"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
 
@@ -852,7 +853,7 @@ private struct LowBarrierExerciseGenerationCard: View {
                     }
                 }
 
-                Text("情景状态  [可多选]")
+                Text(L10n.string("情景状态  [可多选]"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
 
@@ -874,10 +875,10 @@ private struct LowBarrierExerciseGenerationCard: View {
                         .foregroundStyle(DSTheme.Color.warning)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("我有明显不适")
+                        Text(L10n.string("我有明显不适"))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(DSTheme.Color.textPrimary)
-                        Text("选择后暂停生成运动，请先休息并复测。")
+                        Text(L10n.string("选择后暂停生成运动，请先休息并复测。"))
                             .font(.caption2)
                             .foregroundStyle(DSTheme.Color.textSecondary)
                     }
@@ -891,7 +892,7 @@ private struct LowBarrierExerciseGenerationCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
 
                 if isSafetyBlocked {
-                    Label("当前不生成运动：请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
+                    Label(L10n.string("当前不生成运动：请先休息并复测。"), systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DSTheme.Color.warning)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -928,7 +929,7 @@ private struct LowBarrierExerciseGenerationCard: View {
                 .background(DSTheme.Color.primary)
                 .clipShape(Circle())
 
-            Text(title)
+            Text(L10n.string(title))
                 .font(.headline.weight(.bold))
                 .foregroundStyle(DSTheme.Color.textPrimary)
         }
@@ -997,7 +998,7 @@ private struct LowBarrierExerciseSelectionSheet: View {
                 VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
                     HStack(alignment: .top, spacing: DSTheme.Spacing.small) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("选择运动和时间")
+                            Text(L10n.string("选择运动和时间"))
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
@@ -1018,16 +1019,16 @@ private struct LowBarrierExerciseSelectionSheet: View {
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("关闭")
+                        .accessibilityLabel(L10n.string("关闭"))
                     }
 
                     DSCard {
                         VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                            Text("推荐的低门槛运动")
+                            Text(L10n.string("推荐的低门槛运动"))
                                 .font(.title3.weight(.bold))
                                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                            Text("系统已根据场景和当前状态更新以下 4 项推荐。")
+                            Text(L10n.string("系统已根据场景和当前状态更新以下 4 项推荐。"))
                                 .font(.caption)
                                 .foregroundStyle(DSTheme.Color.textSecondary)
 
@@ -1052,7 +1053,7 @@ private struct LowBarrierExerciseSelectionSheet: View {
 
                     DSCard {
                         VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                            Text("设置运动时间")
+                            Text(L10n.string("设置运动时间"))
                                 .font(.title3.weight(.bold))
                                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
@@ -1106,13 +1107,13 @@ private struct ActionSetupCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
+                    Text(L10n.string(title))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(DSTheme.Color.textPrimary)
                         .lineLimit(2)
 
                     HStack(spacing: 5) {
-                        Text(value)
+                        Text(L10n.string(value))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(DSTheme.Color.primary)
                             .lineLimit(1)
@@ -1153,11 +1154,11 @@ private struct ActionPageTitle: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-            Text(subtitle)
+            Text(L10n.string(subtitle))
                 .font(subtitleFont)
                 .foregroundStyle(DSTheme.Color.textSecondary)
         }
@@ -1172,11 +1173,11 @@ private struct ActionSheetHeader: View {
     var body: some View {
         HStack(alignment: .top, spacing: DSTheme.Spacing.small) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
+                Text(L10n.string(title))
                     .font(.title3.weight(.bold))
                     .foregroundStyle(DSTheme.Color.textPrimary)
 
-                Text(subtitle)
+                Text(L10n.string(subtitle))
                     .font(.caption)
                     .foregroundStyle(DSTheme.Color.textSecondary)
             }
@@ -1226,7 +1227,7 @@ private struct SceneSelectionSheet: View {
                 }
             }
 
-            DSPrimaryButton("确认场景", action: onConfirm)
+            DSPrimaryButton(L10n.string("确认场景"), action: onConfirm)
         }
         .presentationDetents([.medium, .large])
     }
@@ -1304,11 +1305,11 @@ private struct StatusSelectionSheet: View {
                     .foregroundStyle(DSTheme.Color.warning)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("我有明显不适")
+                    Text(L10n.string("我有明显不适"))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(DSTheme.Color.textPrimary)
 
-                    Text("如选择此项，系统将优先建议休息与复测。")
+                    Text(L10n.string("如选择此项，系统将优先建议休息与复测。"))
                         .font(.caption2)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                 }
@@ -1322,7 +1323,7 @@ private struct StatusSelectionSheet: View {
             .background(.white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            DSPrimaryButton("确认状态", action: onConfirm)
+            DSPrimaryButton(L10n.string("确认状态"), action: onConfirm)
         }
         .presentationDetents([.large])
     }
@@ -1345,11 +1346,11 @@ private struct PreferenceMovementSheet: View {
             )
 
             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
-                Text("运动名称")
+                Text(L10n.string("运动名称"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
 
-                TextField("例如：骑车", text: $customMovementName)
+                TextField(L10n.string("例如：骑车"), text: $customMovementName)
                     .textInputAutocapitalization(.never)
                     .foregroundStyle(DSTheme.Color.textPrimary)
                     .tint(DSTheme.Color.primary)
@@ -1364,7 +1365,7 @@ private struct PreferenceMovementSheet: View {
 
             ExerciseTimeRangePicker(startTime: $startTime, endTime: $endTime)
 
-            Label("保存后会按所选时间生成一张运动卡片，并显示在今日行动的时间轴中。", systemImage: "info.circle.fill")
+            Label(L10n.string("保存后会按所选时间生成一张运动卡片，并显示在今日行动的时间轴中。"), systemImage: "info.circle.fill")
                 .font(.caption)
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .padding(DSTheme.Spacing.medium)
@@ -1372,7 +1373,7 @@ private struct PreferenceMovementSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             if isSafetyBlocked {
-                Label("当前状态不适合直接生成今日运动，请先休息并复测。", systemImage: "exclamationmark.triangle.fill")
+                Label(L10n.string("当前状态不适合直接生成今日运动，请先休息并复测。"), systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.warning)
             }
@@ -1418,7 +1419,7 @@ private struct SheetSectionTitle: View {
     }
 
     var body: some View {
-        Label(title, systemImage: systemImage)
+        Label(L10n.string(title), systemImage: systemImage)
             .font(.caption.weight(.bold))
             .foregroundStyle(DSTheme.Color.primary)
     }
@@ -1467,12 +1468,12 @@ private struct ActionChoiceTile: View {
                     }
                 }
 
-                Text(title)
+                Text(L10n.string(title))
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(DSTheme.Color.textPrimary)
 
                 if !subtitle.isEmpty {
-                    Text(subtitle)
+                    Text(L10n.string(subtitle))
                         .font(.caption2)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .lineLimit(2)
@@ -1505,7 +1506,7 @@ private struct StatusChip: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(isSelected ? DSTheme.Color.primary : tint)
 
-                Text(title)
+                Text(L10n.string(title))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(isSelected ? DSTheme.Color.primary : DSTheme.Color.textSecondary)
                     .lineLimit(1)
@@ -1543,7 +1544,7 @@ private struct TodaySummaryCard: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 0) {
-                Text(title)
+                Text(L10n.string(title))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
 
@@ -1552,7 +1553,7 @@ private struct TodaySummaryCard: View {
                         .font(.system(size: 27, weight: .bold, design: .rounded))
                         .foregroundStyle(.black)
 
-                    Text(suffix)
+                    Text(L10n.string(suffix))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(DSTheme.Color.textSecondary)
                 }
@@ -1680,7 +1681,7 @@ private struct TodayTreeTimelineView: View {
         guard isMeal, let rule = MealTimingRule(actionTitle: item.title) else {
             return item.title
         }
-        return "\(item.title)，建议时间，\(rule.message)"
+        return L10n.format("%@，建议时间，%@", L10n.string(item.title), L10n.string(rule.message))
     }
 }
 
@@ -1864,7 +1865,7 @@ private struct TimelineLaneHeader: View {
 
     var body: some View {
         HStack {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
                 .lineLimit(1)
@@ -1894,7 +1895,7 @@ private struct DesignActionCard: View {
                 if let bloodPressureText = item.bloodPressureText {
                     metricPill(bloodPressureText, suffix: "mmHg")
                 } else {
-                    Text("点击前往记录")
+                    Text(L10n.string("点击前往记录"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(DSTheme.Color.primary)
                 }
@@ -1906,7 +1907,7 @@ private struct DesignActionCard: View {
             case .walk:
                 EmptyView()
             case .rest, .hydration, .sleep, .custom:
-                Text(item.description)
+                Text(L10n.string(item.description))
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(DSTheme.Color.textSecondary)
                     .lineLimit(2)
@@ -1967,7 +1968,7 @@ private struct DesignActionCard: View {
     }
 
     private var titleText: some View {
-        Text(item.title)
+        Text(L10n.string(item.title))
             .font(.caption.weight(.bold))
             .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
             .lineLimit(2)
@@ -1976,7 +1977,7 @@ private struct DesignActionCard: View {
     }
 
     private var subtitleText: some View {
-        Text(item.timelineSubtitle)
+        Text(L10n.string(item.timelineSubtitle))
             .font(.caption2.weight(.semibold))
             .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
             .lineLimit(2)
@@ -1985,7 +1986,7 @@ private struct DesignActionCard: View {
     }
 
     private var statusPill: some View {
-        Text(actionStatusTitle)
+        Text(L10n.string(actionStatusTitle))
             .font(.caption2.weight(.bold))
             .foregroundStyle(statusTextColor)
             .padding(.horizontal, 10)
@@ -2020,7 +2021,7 @@ private struct DesignActionCard: View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(value)
                 .font(.caption.weight(.bold))
-            Text(suffix)
+            Text(L10n.string(suffix))
                 .font(.caption2.weight(.bold))
         }
         .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
@@ -2032,11 +2033,11 @@ private struct DesignActionCard: View {
 
     private var adviceBox: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("AI分析与建议")
+            Text(L10n.string("AI分析与建议"))
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-            Text(item.adviceText ?? item.description)
+            Text(item.adviceText ?? L10n.string(item.description))
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(DSTheme.Color.textPrimary)
                 .lineLimit(4)
@@ -2052,11 +2053,11 @@ private struct DesignActionCard: View {
     private var mealTimingRuleBox: some View {
         if let rule = MealTimingRule(actionTitle: item.title) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("建议时间")
+                Text(L10n.string("建议时间"))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(Color(red: 0.48, green: 0.30, blue: 0.04))
 
-                Text(rule.message)
+                Text(L10n.string(rule.message))
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Color(red: 0.30, green: 0.23, blue: 0.10))
                     .fixedSize(horizontal: false, vertical: true)
@@ -2125,7 +2126,7 @@ private struct TimeBubble: View {
     let tint: Color
 
     var body: some View {
-        Text(text)
+        Text(L10n.string(text))
             .font(.caption2.weight(.bold))
             .foregroundStyle(tint)
             .padding(.horizontal, 7)
@@ -2181,7 +2182,7 @@ private struct CurrentTimeGlow: View {
                 .clipShape(Capsule())
                 .shadow(color: tint.opacity(0.35), radius: 8, x: 0, y: 4)
         }
-        .accessibilityLabel("当前时间 \(timeText)")
+        .accessibilityLabel(L10n.format("当前时间 %@", timeText))
     }
 }
 
@@ -2291,11 +2292,19 @@ private struct ExerciseRecordSheet: View {
     }
 
     private var movementSteps: [String] {
-        catalogExercise?.movementAdviceSteps ?? adviceLines(from: item.exerciseMovementAdvice ?? item.description)
+        if let exerciseID = item.exerciseId,
+           let copy = ExerciseInstructionCatalog.localizedCopy(for: exerciseID) {
+            return adviceLines(from: copy.howTo)
+        }
+        return adviceLines(from: item.exerciseMovementAdvice ?? item.description)
     }
 
     private var intensityAdviceSteps: [String] {
-        catalogExercise?.intensityAdviceSteps ?? adviceLines(from: item.exerciseIntensityAdvice ?? "保持自然呼吸；如有明显不适，请停止并休息。")
+        if let exerciseID = item.exerciseId,
+           let copy = ExerciseInstructionCatalog.localizedCopy(for: exerciseID) {
+            return adviceLines(from: copy.intensity)
+        }
+        return adviceLines(from: item.exerciseIntensityAdvice ?? L10n.string("保持自然呼吸；如有明显不适，请停止并休息。"))
     }
 
     var body: some View {
@@ -2319,31 +2328,31 @@ private struct ExerciseRecordSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .presentationCornerRadius(28)
-        .alert("提前结束运动？", isPresented: $isConfirmingEarlyEnd) {
-            Button("取消", role: .cancel) {}
-            Button("提前结束") { finish(mode: .endedEarly) }
+        .alert(L10n.string("提前结束运动？"), isPresented: $isConfirmingEarlyEnd) {
+            Button(L10n.string("取消"), role: .cancel) {}
+            Button(L10n.string("提前结束")) { finish(mode: .endedEarly) }
         } message: {
-            Text("实际运动时长会被记录，便于后续趋势研究。")
+            Text(L10n.string("实际运动时长会被记录，便于后续趋势研究。"))
         }
-        .alert("删除今日行动？", isPresented: $isConfirmingDelete) {
-            Button("取消", role: .cancel) {}
-            Button("删除", role: .destructive, action: onDelete)
+        .alert(L10n.string("删除今日行动？"), isPresented: $isConfirmingDelete) {
+            Button(L10n.string("取消"), role: .cancel) {}
+            Button(L10n.string("删除"), role: .destructive, action: onDelete)
         } message: {
-            Text("这个行动将从今天的时间轴移除；后台会保留匿名删除记录用于研究。")
+            Text(L10n.string("这个行动将从今天的时间轴移除；后台会保留匿名删除记录用于研究。"))
         }
     }
 
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.title).font(.system(size: 30, weight: .bold)).foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-                Text("\(item.durationMinutes)分钟").font(.title3.weight(.semibold)).foregroundStyle(DSTheme.Color.textPrimary)
+                Text(L10n.string(item.title)).font(.system(size: 30, weight: .bold)).foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+                Text(L10n.format("%d 分钟", item.durationMinutes)).font(.title3.weight(.semibold)).foregroundStyle(DSTheme.Color.textPrimary)
             }
             Spacer()
             Button(action: onClose) {
                 Image(systemName: "xmark").font(.headline.weight(.bold)).foregroundStyle(DSTheme.Color.textPrimary)
                     .frame(width: 40, height: 40).background(DSTheme.Color.primarySoft.opacity(0.7)).clipShape(Circle())
-            }.buttonStyle(.plain).accessibilityLabel("关闭")
+            }.buttonStyle(.plain).accessibilityLabel(L10n.string("关闭"))
         }
     }
 
@@ -2353,7 +2362,7 @@ private struct ExerciseRecordSheet: View {
             let remaining = max(item.durationMinutes * 60 - elapsed, 0)
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Label(timerTitle(remaining: remaining), systemImage: timerIcon)
+                    Label(L10n.string(timerTitle(remaining: remaining)), systemImage: timerIcon)
                         .font(.headline).foregroundStyle(timerTint)
                     Spacer()
                     if status == .inProgress {
@@ -2362,7 +2371,7 @@ private struct ExerciseRecordSheet: View {
                     }
                 }
                 if status == .inProgress && remaining == 0 {
-                    Text("计划时长已完成，请确认完成或继续运动。")
+                    Text(L10n.string("计划时长已完成，请确认完成或继续运动。"))
                         .font(.subheadline).foregroundStyle(DSTheme.Color.textSecondary)
                 }
             }
@@ -2377,29 +2386,29 @@ private struct ExerciseRecordSheet: View {
             let timedOut = elapsed >= item.durationMinutes * 60
             switch status {
             case .completed:
-                DSPrimaryButton("关闭", action: onClose)
+                DSPrimaryButton(L10n.string("关闭"), action: onClose)
             case .inProgress:
                 VStack(spacing: 10) {
                     if timedOut {
-                        DSPrimaryButton("完成本次运动", systemImage: "checkmark.circle.fill") { finish(mode: .timerCompleted) }
-                        DSSecondaryButton("继续运动", systemImage: "figure.run") { onClose() }
+                        DSPrimaryButton(L10n.string("完成本次运动"), systemImage: "checkmark.circle.fill") { finish(mode: .timerCompleted) }
+                        DSSecondaryButton(L10n.string("继续运动"), systemImage: "figure.run") { onClose() }
                     } else if timerLastResumedAt == nil {
-                        DSPrimaryButton("继续计时", systemImage: "play.fill", action: resume)
+                        DSPrimaryButton(L10n.string("继续计时"), systemImage: "play.fill", action: resume)
                     } else {
-                        DSPrimaryButton("暂停计时", systemImage: "pause.fill", action: pause)
+                        DSPrimaryButton(L10n.string("暂停计时"), systemImage: "pause.fill", action: pause)
                     }
-                    Button("提前结束") { isConfirmingEarlyEnd = true }
+                    Button(L10n.string("提前结束")) { isConfirmingEarlyEnd = true }
                         .font(.subheadline.weight(.semibold)).foregroundStyle(DSTheme.Color.textSecondary)
                 }
             case .pending, .missed, .skipped:
-                DSPrimaryButton("开始运动", systemImage: "play.fill", action: start)
+                DSPrimaryButton(L10n.string("开始运动"), systemImage: "play.fill", action: start)
             }
         }
     }
 
     private var deleteButton: some View {
         Button { isConfirmingDelete = true } label: {
-            Label("删除今日行动", systemImage: "trash")
+            Label(L10n.string("删除今日行动"), systemImage: "trash")
                 .font(.headline).foregroundStyle(.red).frame(maxWidth: .infinity).frame(height: 52)
                 .overlay(RoundedRectangle(cornerRadius: 13).stroke(Color.red, lineWidth: 1.5))
         }.buttonStyle(.plain)
@@ -2462,9 +2471,9 @@ private struct ExerciseRecordSheet: View {
 
     private func advicePanel(title: String, tint: Color, steps: [String]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.title3.weight(.bold)).foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
+            Text(L10n.string(title)).font(.title3.weight(.bold)).foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
             ForEach(Array(steps.enumerated()), id: \.offset) { _, step in
-                HStack(alignment: .top, spacing: 8) { Text("•"); Text(step).fixedSize(horizontal: false, vertical: true) }
+                HStack(alignment: .top, spacing: 8) { Text(L10n.string("•")); Text(step).fixedSize(horizontal: false, vertical: true) }
                     .foregroundStyle(DSTheme.Color.textPrimary)
             }
         }.padding(DSTheme.Spacing.medium).frame(maxWidth: .infinity, alignment: .leading)
@@ -2512,23 +2521,23 @@ private struct TodayActionDetailView: View {
                                 Image(systemName: effectiveStatus.systemImage)
                                     .foregroundStyle(effectiveStatus.tint)
 
-                                Text(effectiveStatus.title)
+                                Text(L10n.string(effectiveStatus.title))
                                     .font(.headline)
                                     .foregroundStyle(effectiveStatus.tint)
 
                                 Spacer()
 
-                                Text("\(item.durationMinutes) 分钟")
+                                Text(L10n.format("%d 分钟", item.durationMinutes))
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                             }
 
-                            Text(detailDescription)
+                            Text(L10n.string(detailDescription))
                                 .font(.body)
                                 .foregroundStyle(DSTheme.Color.textPrimary)
                                 .fixedSize(horizontal: false, vertical: true)
 
-                            Text(item.reason)
+                            Text(L10n.string(item.reason))
                                 .font(.subheadline)
                                 .foregroundStyle(DSTheme.Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -2536,7 +2545,7 @@ private struct TodayActionDetailView: View {
                     }
 
                     VStack(spacing: DSTheme.Spacing.small) {
-                        DSPrimaryButton("标记完成", systemImage: "checkmark.circle.fill", isDisabled: item.status == .completed) {
+                        DSPrimaryButton(L10n.string("标记完成"), systemImage: "checkmark.circle.fill", isDisabled: item.status == .completed) {
                             onComplete()
                         }
                     }
@@ -2545,7 +2554,7 @@ private struct TodayActionDetailView: View {
                 .padding(.bottom, 130)
             }
         }
-        .navigationTitle("行动详情")
+        .navigationTitle(L10n.string("行动详情"))
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -2568,7 +2577,7 @@ private struct GeneratePreviewRow: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(L10n.string(title))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
 
@@ -2587,7 +2596,7 @@ private struct PlanPreviewPill: View {
 
     var body: some View {
         HStack {
-            Label(title, systemImage: icon)
+            Label(L10n.string(title), systemImage: icon)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textPrimary)
 
@@ -2727,13 +2736,13 @@ struct TodayActionItem: Identifiable, Hashable {
     var timelineSubtitle: String {
         switch type {
         case .walk:
-            return "\(startTimeText) | \(durationMinutes) 分钟"
+            return L10n.format("%@ | %d 分钟", startTimeText, durationMinutes)
         case .diet:
             return startTimeText
         case .bpRecheck:
             return startTimeText
         case .rest, .hydration, .sleep, .custom:
-            return "\(startTimeText) | \(durationMinutes) 分钟"
+            return L10n.format("%@ | %d 分钟", startTimeText, durationMinutes)
         }
     }
 
@@ -2882,12 +2891,12 @@ struct TodayActionItem: Identifiable, Hashable {
         return item
     }
 
-    static let timeFormatter: DateFormatter = {
+    static var timeFormatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.locale = L10n.locale
         formatter.dateFormat = "HH:mm"
         return formatter
-    }()
+    }
 
     private static func make(
         _ type: TodayActionType,
@@ -3008,13 +3017,13 @@ enum TodayActionType: String, CaseIterable, Identifiable, Hashable {
     func description(durationMinutes: Int) -> String {
         switch self {
         case .walk:
-            return "保持轻量运动 \(durationMinutes) 分钟，不追求强度。"
+            return L10n.format("保持轻量运动 %d 分钟，不追求强度。", durationMinutes)
         case .diet:
             return "选择清淡、少盐、不过量的一餐，完成后点亮行动。"
         case .bpRecheck:
             return "安静坐位休息后复测，记录读数即可。"
         case .rest:
-            return "跟随呼吸节奏放松 \(durationMinutes) 分钟。"
+            return L10n.format("跟随呼吸节奏放松 %d 分钟。", durationMinutes)
         case .hydration:
             return "喝一杯水，完成后点亮今日行动。"
         case .sleep:

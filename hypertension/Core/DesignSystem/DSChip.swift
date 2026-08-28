@@ -32,7 +32,7 @@ struct DSChip: View {
                     .font(.caption.weight(.semibold))
             }
 
-            Text(title)
+            Text(L10n.string(title))
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)

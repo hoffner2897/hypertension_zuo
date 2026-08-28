@@ -33,7 +33,7 @@ struct BPReadingHighView: View {
                         resultInfoCard(
                             imageName: "BPHighWarningIcon",
                             title: "为什么这是偏高的",
-                            body: "你的收缩压（\(systolicText)）和舒张压（\(diastolicText)）均高于正常范围，说明你的血压目前处于偏高水平，需要引起重视。"
+                            body: L10n.format("你的收缩压（%@）和舒张压（%@）均高于正常范围，说明你的血压目前处于偏高水平，需要引起重视。", systolicText, diastolicText)
                         )
                         resultInfoCard(
                             imageName: "BPHighLeafIcon",
@@ -50,7 +50,7 @@ struct BPReadingHighView: View {
                 Button {
                     dismiss()
                 } label: {
-                    Text("完成")
+                    Text(L10n.string("完成"))
                         .font(.headline.weight(.bold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -94,18 +94,18 @@ struct BPReadingHighView: View {
                         .clipShape(Circle())
                         .overlay(Circle().stroke(.white, lineWidth: 2))
 
-                    Text("小宁")
+                    Text(L10n.string("小宁"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(DSTheme.Color.textPrimary)
                 }
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("你的读数偏高")
+                Text(L10n.string("你的读数偏高"))
                     .font(.system(size: 32, weight: .bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                Text("你的血压高于健康范围，需要关注。\n请注意休息并保持良好习惯。")
+                Text(L10n.string("你的血压高于健康范围，需要关注。\n请注意休息并保持良好习惯。"))
                     .font(.subheadline.weight(.medium))
                     .lineSpacing(4)
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
@@ -131,7 +131,7 @@ struct BPReadingHighView: View {
             .padding(.bottom, -1)
 
             VStack(spacing: 14) {
-                Text("今日最新血压")
+                Text(L10n.string("今日最新血压"))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color(red: 1.0, green: 0.12, blue: 0.18))
                     .padding(.horizontal, 18)
@@ -143,13 +143,13 @@ struct BPReadingHighView: View {
                     Text(systolicText)
                         .foregroundStyle(Color(red: 1.0, green: 0.15, blue: 0.16))
 
-                    Text("/")
+                    Text(L10n.string("/"))
                         .foregroundStyle(Color(red: 0.48, green: 0.54, blue: 0.74))
 
                     Text(diastolicText)
                         .foregroundStyle(Color(red: 1.0, green: 0.32, blue: 0.07))
 
-                    Text("mmHg")
+                    Text(L10n.string("mmHg"))
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Color(red: 0.26, green: 0.34, blue: 0.58))
                 }
@@ -157,7 +157,7 @@ struct BPReadingHighView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
 
-                Text("偏高")
+                Text(L10n.string("偏高"))
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color(red: 1.0, green: 0.15, blue: 0.16))
                     .padding(.horizontal, 20)
@@ -185,7 +185,7 @@ struct BPReadingHighView: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(title)
+                Text(L10n.string(title))
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
@@ -205,7 +205,7 @@ struct BPReadingHighView: View {
 
     private var continueCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("继续做什么")
+            Text(L10n.string("继续做什么"))
                 .font(.headline.weight(.bold))
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
@@ -216,11 +216,11 @@ struct BPReadingHighView: View {
                     .frame(width: 44, height: 44)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("休息后再次测量")
+                    Text(L10n.string("休息后再次测量"))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                    Text("安静休息 5 分钟后再测量。\n如持续偏高，请咨询医生并保持定期监测。")
+                    Text(L10n.string("安静休息 5 分钟后再测量。\n如持续偏高，请咨询医生并保持定期监测。"))
                         .font(.caption.weight(.medium))
                         .lineSpacing(3)
                         .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))

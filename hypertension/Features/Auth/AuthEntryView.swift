@@ -28,8 +28,8 @@ struct AuthEntryView: View {
                         )
 
                         Picker("Mode", selection: $mode) {
-                            Text("登录").tag(AuthMode.login)
-                            Text("注册").tag(AuthMode.register)
+                            Text(L10n.string("登录")).tag(AuthMode.login)
+                            Text(L10n.string("注册")).tag(AuthMode.register)
                         }
                         .pickerStyle(.segmented)
 
@@ -67,10 +67,10 @@ struct AuthEntryView: View {
                                 if isPreparingTestSession {
                                     HStack(spacing: DSTheme.Spacing.small) {
                                         ProgressView()
-                                        Text("正在准备测试版…")
+                                        Text(L10n.string("正在准备测试版…"))
                                     }
                                 } else {
-                                    Label("免注册进入测试版", systemImage: "hammer.circle.fill")
+                                    Label(L10n.string("免注册进入测试版"), systemImage: "hammer.circle.fill")
                                 }
                             }
                             .font(.headline.weight(.semibold))
@@ -86,7 +86,7 @@ struct AuthEntryView: View {
                         Button {
                             isShowingHealthConnectTest = true
                         } label: {
-                            Label("测试 Apple Health 连接界面", systemImage: "heart.text.square.fill")
+                            Label(L10n.string("测试 Apple Health 连接界面"), systemImage: "heart.text.square.fill")
                                 .font(.headline.weight(.semibold))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
@@ -97,7 +97,7 @@ struct AuthEntryView: View {
                         .disabled(isLoading || isPreparingTestSession)
                         .accessibilityIdentifier("auth.healthConnectPreviewButton")
 
-                        Text("仅开发包显示。纯本地预览 UI，不连接测试后端或在线 AI。")
+                        Text(L10n.string("仅开发包显示。纯本地预览 UI，不连接测试后端或在线 AI。"))
                             .font(.caption.weight(.medium))
                             .foregroundStyle(DSTheme.Color.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -107,7 +107,7 @@ struct AuthEntryView: View {
                     .padding(DSTheme.Spacing.large)
                 }
             }
-            .navigationTitle(mode.navigationTitle)
+            .navigationTitle(L10n.string(mode.navigationTitle))
             .navigationBarTitleDisplayMode(.inline)
             #if DEBUG
             .sheet(isPresented: $isShowingHealthConnectTest) {
@@ -128,17 +128,17 @@ struct AuthEntryView: View {
         localError = nil
 
         guard !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            localError = "请输入邮箱。"
+            localError = L10n.string("请输入邮箱。")
             return
         }
 
         guard password.count >= 8 else {
-            localError = "密码至少需要 8 位。"
+            localError = L10n.string("密码至少需要 8 位。")
             return
         }
 
         if mode == .register, password != confirmPassword {
-            localError = "两次输入的密码不一致。"
+            localError = L10n.string("两次输入的密码不一致。")
             return
         }
 
@@ -210,11 +210,11 @@ private struct AuthTextField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
 
-            TextField(title, text: $text)
+            TextField(L10n.string(title), text: $text)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(keyboardType)
@@ -238,11 +238,11 @@ private struct AuthSecureField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
 
-            SecureField(title, text: $text)
+            SecureField(L10n.string(title), text: $text)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textPrimary)
                 .textFieldStyle(.plain)
@@ -265,7 +265,7 @@ struct AuthErrorBanner: View {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(DSTheme.Color.warning)
 
-            Text(message)
+            Text(L10n.string(message))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.warning)
                 .fixedSize(horizontal: false, vertical: true)

@@ -126,6 +126,7 @@ final class APIClient {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(buildNumber, forHTTPHeaderField: "X-BPHealth-Build")
+        request.setValue(L10n.language.rawValue, forHTTPHeaderField: "Accept-Language")
 
         let requestAccessToken: String?
         if requiresAuth {

@@ -55,7 +55,7 @@ struct HealthConnectView: View {
                                         .tint(.white)
                                 }
 
-                                Text("连接 Apple Health")
+                                Text(L10n.string("连接 Apple Health"))
                                     .font(.headline.weight(.bold))
                             }
                             .foregroundStyle(.white)
@@ -71,7 +71,7 @@ struct HealthConnectView: View {
                         Button {
                             isShowingSyncExplanation = true
                         } label: {
-                            Text("查看同步说明")
+                            Text(L10n.string("查看同步说明"))
                                 .font(.headline.weight(.bold))
                                 .foregroundStyle(DSTheme.Color.primary)
                                 .frame(maxWidth: .infinity)
@@ -89,7 +89,7 @@ struct HealthConnectView: View {
                         Button {
                             isShowingSyncedDataTest = true
                         } label: {
-                            Text("测试已同步基础数据界面")
+                            Text(L10n.string("测试已同步基础数据界面"))
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(DSTheme.Color.primary)
                                 .frame(maxWidth: .infinity)
@@ -108,9 +108,9 @@ struct HealthConnectView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .alert("同步说明", isPresented: $isShowingSyncExplanation) {
-            Button("知道了", role: .cancel) {}
+            Button(L10n.string("知道了"), role: .cancel) {}
         } message: {
-            Text("BPHealth 只读取你授权的 Apple Health 数据，用于理解读数和趋势。连接后可减少重复手动填写，未授权或缺失的数据仍可稍后补充。")
+            Text(L10n.string("BPHealth 只读取你授权的 Apple Health 数据，用于理解读数和趋势。连接后可减少重复手动填写，未授权或缺失的数据仍可稍后补充。"))
         }
         #if DEBUG
         .sheet(isPresented: $isShowingSyncedDataTest) {
@@ -150,20 +150,20 @@ struct HealthConnectView: View {
                         .clipShape(Circle())
                         .overlay(Circle().stroke(.white, lineWidth: 2))
 
-                    Text("小宁")
+                    Text(L10n.string("小宁"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(DSTheme.Color.textPrimary)
                 }
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("连接 Apple Health")
+                Text(L10n.string("连接 Apple Health"))
                     .font(.system(size: 31, weight: .bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
 
-                Text("先连接 Apple Watch 和 Apple Health，\n自动同步基础健康数据。")
+                Text(L10n.string("先连接 Apple Watch 和 Apple Health，\n自动同步基础健康数据。"))
                     .font(.subheadline.weight(.medium))
                     .lineSpacing(4)
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
@@ -183,7 +183,7 @@ struct HealthConnectView: View {
 
     private var dataCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("将自动同步以下数据")
+            Text(L10n.string("将自动同步以下数据"))
                 .font(.headline.weight(.bold))
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                 .padding(.bottom, 12)
@@ -202,7 +202,7 @@ struct HealthConnectView: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(DSTheme.Color.primary)
 
-                Text("已连接后，无需重复手动填写。")
+                Text(L10n.string("已连接后，无需重复手动填写。"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
             }
@@ -234,7 +234,7 @@ private struct HealthConnectDataRow: View {
                 .frame(width: 36, height: 36)
                 .clipShape(Circle())
 
-            Text(item.title)
+            Text(L10n.string(item.title))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
                 .lineLimit(1)

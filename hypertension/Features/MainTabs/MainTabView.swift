@@ -25,7 +25,7 @@ struct MainTabView: View {
                 }
             )
             .tabItem {
-                tabLabel("今日行动", imageName: "TabTodayAction")
+                tabLabel(L10n.string("今日行动"), imageName: "TabTodayAction")
             }
             .tag(MainTab.today)
 
@@ -38,7 +38,7 @@ struct MainTabView: View {
                 }
             )
             .tabItem {
-                tabLabel("血压读数", imageName: "TabBloodPressure")
+                tabLabel(L10n.string("血压读数"), imageName: "TabBloodPressure")
             }
             .tag(MainTab.bloodPressure)
 
@@ -53,7 +53,7 @@ struct MainTabView: View {
                 }
             )
             .tabItem {
-                tabLabel("行动生成", imageName: "TabActionGenerate")
+                tabLabel(L10n.string("行动生成"), imageName: "TabActionGenerate")
             }
             .tag(MainTab.actionGenerate)
 
@@ -62,7 +62,7 @@ struct MainTabView: View {
                 userId: appState.currentUser?.id ?? ""
             )
             .tabItem {
-                tabLabel("行动调整", imageName: "TabActionAdjust")
+                tabLabel(L10n.string("行动调整"), imageName: "TabActionAdjust")
             }
             .tag(MainTab.actionAdjust)
         }
@@ -89,7 +89,7 @@ struct MainTabView: View {
 
     private func tabLabel(_ title: String, imageName: String) -> some View {
         Label {
-            Text(title)
+            Text(L10n.string(title))
         } icon: {
             Image(imageName)
                 .renderingMode(.template)
@@ -205,7 +205,7 @@ private struct HealthProfileTabView: View {
                     .padding(.bottom, 112)
                 }
             }
-            .navigationTitle("Health Profile")
+            .navigationTitle(L10n.string("Health Profile"))
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showEditProfile) {
                 EditProfileSheet(profile: profile) { updatedProfile in
@@ -259,7 +259,7 @@ private struct HealthProfileTabView: View {
                         .font(.headline)
                         .foregroundStyle(DSTheme.Color.textPrimary)
 
-                    Text("已登录。血压读数和健康背景会同步到这个账号。")
+                    Text(L10n.string("已登录。血压读数和健康背景会同步到这个账号。"))
                         .font(.subheadline)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -269,7 +269,7 @@ private struct HealthProfileTabView: View {
             DSCard {
                 VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
                     HStack {
-                        Text("Profile")
+                        Text(L10n.string("Profile"))
                             .font(.headline)
                             .foregroundStyle(DSTheme.Color.textPrimary)
 
@@ -283,7 +283,7 @@ private struct HealthProfileTabView: View {
                                 .foregroundStyle(DSTheme.Color.primary)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("编辑 Profile")
+                        .accessibilityLabel(L10n.string("编辑 Profile"))
                     }
 
                     if isLoadingProfile {
@@ -293,7 +293,7 @@ private struct HealthProfileTabView: View {
                         ProfileSummaryRow(title: "出生年份", value: "\(profile.birthYear)")
                         ProfileSummaryRow(title: "性别", value: displaySex(profile.sex))
                     } else {
-                        Text("暂时没有读取到 Profile。")
+                        Text(L10n.string("暂时没有读取到 Profile。"))
                             .font(.subheadline)
                             .foregroundStyle(DSTheme.Color.textSecondary)
                     }
@@ -328,7 +328,7 @@ private struct HealthProfileTabView: View {
 
     private var accountActions: some View {
         VStack(spacing: DSTheme.Spacing.small) {
-            DSSecondaryButton("退出登录", systemImage: "rectangle.portrait.and.arrow.right") {
+            DSSecondaryButton(L10n.string("退出登录"), systemImage: "rectangle.portrait.and.arrow.right") {
                 Task {
                     await appState.logout()
                 }
@@ -339,7 +339,7 @@ private struct HealthProfileTabView: View {
             } label: {
                 HStack(spacing: DSTheme.Spacing.small) {
                     Image(systemName: "trash.fill")
-                    Text("删除账号")
+                    Text(L10n.string("删除账号"))
                         .font(.headline)
                 }
                 .foregroundStyle(.white)
@@ -365,7 +365,7 @@ private struct HealthProfileTabView: View {
                         systemImage: "trash"
                     )
 
-                    SecureField("输入密码确认", text: $deletePassword)
+                    SecureField(L10n.string("输入密码确认"), text: $deletePassword)
                         .font(.body.weight(.semibold))
                         .padding(DSTheme.Spacing.medium)
                         .background(DSTheme.Color.cardBackground)
@@ -392,7 +392,7 @@ private struct HealthProfileTabView: View {
                                 Image(systemName: "trash.fill")
                             }
 
-                            Text("永久删除账号")
+                            Text(L10n.string("永久删除账号"))
                                 .font(.headline)
                         }
                         .foregroundStyle(.white)
@@ -408,11 +408,11 @@ private struct HealthProfileTabView: View {
                 }
                 .padding(DSTheme.Spacing.large)
             }
-            .navigationTitle("删除账号")
+            .navigationTitle(L10n.string("删除账号"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
+                    Button(L10n.string("取消")) {
                         showDeleteConfirmation = false
                     }
                 }

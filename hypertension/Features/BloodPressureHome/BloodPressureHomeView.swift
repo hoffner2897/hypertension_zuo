@@ -88,7 +88,7 @@ struct BloodPressureHomeView: View {
                         Button {
                             path.append(.cameraUpload)
                         } label: {
-                            Text("上传读数")
+                            Text(L10n.string("上传读数"))
                                 .font(.headline.weight(.bold))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
@@ -107,7 +107,7 @@ struct BloodPressureHomeView: View {
                                 showsAllHistory.toggle()
                             }
                         } label: {
-                            Text("查看历史读数")
+                            Text(L10n.string("查看历史读数"))
                                 .font(.headline.weight(.bold))
                                 .foregroundStyle(DSTheme.Color.primary)
                                 .frame(maxWidth: .infinity)
@@ -129,7 +129,7 @@ struct BloodPressureHomeView: View {
                                 Image(systemName: "testtube.2")
                                     .font(.headline.weight(.bold))
 
-                                Text("测试确认读数界面")
+                                Text(L10n.string("测试确认读数界面"))
                                     .font(.subheadline.weight(.bold))
                             }
                             .foregroundStyle(DSTheme.Color.primary)
@@ -235,7 +235,7 @@ struct BloodPressureHomeView: View {
                 ),
                 presenting: readingPendingDeletion
             ) { reading in
-                Button("删除", role: .destructive) {
+                Button(L10n.string("删除"), role: .destructive) {
                     Task {
                         _ = await viewModel.deleteReading(
                             reading,
@@ -246,11 +246,11 @@ struct BloodPressureHomeView: View {
                     }
                 }
 
-                Button("取消", role: .cancel) {
+                Button(L10n.string("取消"), role: .cancel) {
                     readingPendingDeletion = nil
                 }
             } message: { reading in
-                Text("将删除 \(reading.systolic)/\(reading.diastolic) mmHg（\(Self.historyDateFormatter.string(from: reading.measuredAt))）。此操作不能撤销。")
+                Text(L10n.format("将删除 %d/%d mmHg（%@）。此操作不能撤销。", reading.systolic, reading.diastolic, Self.historyDateFormatter.string(from: reading.measuredAt)))
             }
         }
     }
@@ -277,11 +277,11 @@ struct BloodPressureHomeView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("读数卡片")
+                Text(L10n.string("读数卡片"))
                     .font(.system(size: 32, weight: .bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                Text("通过拍照上传今天的血压计读数。")
+                Text(L10n.string("通过拍照上传今天的血压计读数。"))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
             }
@@ -292,7 +292,7 @@ struct BloodPressureHomeView: View {
     private var recentMeasurementCard: some View {
         DSCard(padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("今日最新血压")
+                Text(L10n.string("今日最新血压"))
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
@@ -311,22 +311,22 @@ struct BloodPressureHomeView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.75)
 
-                            Text("mmHg")
+                            Text(L10n.string("mmHg"))
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(DSTheme.Color.textSecondary)
 
                             if let pulse = reading.pulse {
-                                Text("脉搏 \(pulse) bpm")
+                                Text(L10n.format("脉搏 %d bpm", pulse))
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                             }
                         } else {
-                            Text("还没有读数")
+                            Text(L10n.string("还没有读数"))
                                 .font(.title3.weight(.bold))
                                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                                 .fixedSize(horizontal: false, vertical: true)
 
-                            Text("拍照上传血压计屏幕，系统会自动识别并分析。")
+                            Text(L10n.string("拍照上传血压计屏幕，系统会自动识别并分析。"))
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -356,12 +356,12 @@ struct BloodPressureHomeView: View {
                         .clipShape(Circle())
 
                     VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-                        Text("血压解读")
+                        Text(L10n.string("血压解读"))
                             .font(.headline)
                             .foregroundStyle(DSTheme.Color.textPrimary)
 
                         if latestReading == nil {
-                            Text("保存血压读数后，这里会显示血压情况、原因和下一步。")
+                            Text(L10n.string("保存血压读数后，这里会显示血压情况、原因和下一步。"))
                                 .font(.subheadline)
                                 .foregroundStyle(DSTheme.Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -370,14 +370,14 @@ struct BloodPressureHomeView: View {
                                 ProgressView()
                                     .controlSize(.small)
 
-                                Text("正在生成解释")
+                                Text(L10n.string("正在生成解释"))
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                             }
                         } else if let interpretation = viewModel.interpretation {
                             DSChip(interpretation.severity.displayTitle, systemImage: interpretationIcon, tint: interpretationTint, isSelected: true)
 
-                            Text(interpretation.bloodPressureSituation.first ?? "已生成本次血压解读。")
+                            Text(interpretation.bloodPressureSituation.first ?? L10n.string("已生成本次血压解读。"))
                                 .font(.subheadline)
                                 .foregroundStyle(DSTheme.Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -395,7 +395,7 @@ struct BloodPressureHomeView: View {
                 .buttonStyle(.plain)
 
                 if let message = viewModel.interpretationErrorMessage {
-                    Text(message)
+                    Text(L10n.string(message))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DSTheme.Color.warning)
                         .fixedSize(horizontal: false, vertical: true)
@@ -422,25 +422,25 @@ struct BloodPressureHomeView: View {
 
     private static func relativeMeasurementText(for date: Date) -> String {
         if Calendar.current.isDateInToday(date) {
-            return "今天 \(Self.measurementTimeFormatter.string(from: date))"
+            return L10n.format("今天 %@", Self.measurementTimeFormatter.string(from: date))
         }
 
         return Self.measurementDateFormatter.string(from: date)
     }
 
-    private static let measurementTimeFormatter: DateFormatter = {
+    private static var measurementTimeFormatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.locale = L10n.locale
         formatter.dateFormat = "HH:mm"
         return formatter
-    }()
+    }
 
-    private static let measurementDateFormatter: DateFormatter = {
+    private static var measurementDateFormatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.locale = L10n.locale
         formatter.setLocalizedDateFormatFromTemplate("MMMd HH:mm")
         return formatter
-    }()
+    }
 
     private func interpretationBullets(title: String, items: [String], icon: String) -> some View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
@@ -448,7 +448,7 @@ struct BloodPressureHomeView: View {
                 Image(systemName: icon)
                     .foregroundStyle(DSTheme.Color.primary)
 
-                Text(title)
+                Text(L10n.string(title))
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(DSTheme.Color.textPrimary)
             }
@@ -504,11 +504,11 @@ struct BloodPressureHomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("最近 7 天趋势")
+                        Text(L10n.string("最近 7 天趋势"))
                             .font(.headline.weight(.bold))
                             .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                        Text("每日取当日血压测量的平均值，呈现趋势分析")
+                        Text(L10n.string("每日取当日血压测量的平均值，呈现趋势分析"))
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(DSTheme.Color.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -529,7 +529,7 @@ struct BloodPressureHomeView: View {
                     Image(systemName: "info.circle")
                         .font(.caption.weight(.bold))
 
-                    Text(trendPoints.isEmpty ? "上传后可查看趋势变化" : "趋势用于观察变化，不用于诊断。")
+                    Text(L10n.string(trendPoints.isEmpty ? "上传后可查看趋势变化" : "趋势用于观察变化，不用于诊断。"))
                         .font(.caption.weight(.semibold))
                 }
                 .foregroundStyle(Color(red: 0.37, green: 0.50, blue: 0.74))
@@ -552,11 +552,11 @@ struct BloodPressureHomeView: View {
                     .clipShape(Circle())
 
                 VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-                    Text("还没有趋势")
+                    Text(L10n.string("还没有趋势"))
                         .font(.headline)
                         .foregroundStyle(DSTheme.Color.textPrimary)
 
-                    Text("保存一次血压读数后，这里会显示已有天数的趋势。")
+                    Text(L10n.string("保存一次血压读数后，这里会显示已有天数的趋势。"))
                         .font(.subheadline)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -572,11 +572,11 @@ struct BloodPressureHomeView: View {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
                 HStack {
                     VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-                        Text("历史读数")
+                        Text(L10n.string("历史读数"))
                             .font(.headline)
                             .foregroundStyle(DSTheme.Color.textPrimary)
 
-                        Text("共 \(savedReadings.count) 条，按测量时间排列")
+                        Text(L10n.format("共 %d 条，按测量时间排列", savedReadings.count))
                             .font(.caption)
                             .foregroundStyle(DSTheme.Color.textSecondary)
                     }
@@ -603,7 +603,7 @@ struct BloodPressureHomeView: View {
                         }
                     } label: {
                         HStack {
-                            Text(showsAllHistory ? "收起" : "查看全部 \(savedReadings.count) 条")
+                            Text(showsAllHistory ? L10n.string("收起") : L10n.format("查看全部 %d 条", savedReadings.count))
                             Image(systemName: showsAllHistory ? "chevron.up" : "chevron.down")
                         }
                         .font(.subheadline.weight(.semibold))
@@ -627,7 +627,7 @@ struct BloodPressureHomeView: View {
                     Text(Self.historyDateFormatter.string(from: reading.measuredAt))
 
                     if let pulse = reading.pulse {
-                        Text("脉搏 \(pulse)")
+                        Text(L10n.format("脉搏 %d", pulse))
                     }
 
                     Text(BPReadingSource.fromStoredValue(reading.source).label)
@@ -643,14 +643,14 @@ struct BloodPressureHomeView: View {
                     viewModel.clearHistoryActionError()
                     path.append(.editReading(reading.id))
                 } label: {
-                    Label("编辑", systemImage: "square.and.pencil")
+                    Label(L10n.string("编辑"), systemImage: "square.and.pencil")
                 }
 
                 Button(role: .destructive) {
                     viewModel.clearHistoryActionError()
                     readingPendingDeletion = reading
                 } label: {
-                    Label("删除", systemImage: "trash")
+                    Label(L10n.string("删除"), systemImage: "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -659,7 +659,7 @@ struct BloodPressureHomeView: View {
                     .frame(width: 44, height: 44)
             }
             .disabled(viewModel.isUpdatingHistory)
-            .accessibilityLabel("管理 \(reading.systolic)/\(reading.diastolic) 读数")
+            .accessibilityLabel(L10n.format("管理 %d/%d 读数", reading.systolic, reading.diastolic))
         }
         .contentShape(Rectangle())
     }
@@ -699,26 +699,26 @@ struct BloodPressureHomeView: View {
         return draft
     }
 
-    private static let historyDateFormatter: DateFormatter = {
+    private static var historyDateFormatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.locale = L10n.locale
         formatter.setLocalizedDateFormatFromTemplate("yyyyMMMd HH:mm")
         return formatter
-    }()
+    }
 
-    private static let trendDayFormatter: DateFormatter = {
+    private static var trendDayFormatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.locale = L10n.locale
         formatter.dateFormat = "M/d"
         return formatter
-    }()
+    }
 
-    private static let trendWeekdayFormatter: DateFormatter = {
+    private static var trendWeekdayFormatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.locale = L10n.locale
         formatter.dateFormat = "EEE"
         return formatter
-    }()
+    }
 
     #if DEBUG
     private static var confirmReadingTestDraft: BPReadingDraft {
@@ -762,15 +762,15 @@ private extension BPInterpretationSeverity {
     var displayTitle: String {
         switch self {
         case .reassuring:
-            return "稳定"
+            return L10n.string("稳定")
         case .watch:
-            return "观察"
+            return L10n.string("观察")
         case .repeat:
-            return "建议复测"
+            return L10n.string("建议复测")
         case .followUp:
-            return "建议随访"
+            return L10n.string("建议随访")
         case .urgent:
-            return "需要重视"
+            return L10n.string("需要重视")
         }
     }
 }
@@ -787,7 +787,7 @@ private struct TrendLegendItem: View {
                 .frame(width: 16, height: 8)
                 .clipped()
 
-            Text(title)
+            Text(L10n.string(title))
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .lineLimit(1)
@@ -941,12 +941,12 @@ private struct BPTrendChart: View {
         ZStack {
             ForEach(points.indices, id: \.self) { index in
                 if points[index].systolic == nil && points[index].diastolic == nil {
-                    Text("--")
+                    Text(L10n.string("--"))
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(systolicColor)
                         .position(x: chartX(for: index, count: points.count, size: size), y: chartY(for: 125, in: size))
 
-                    Text("--")
+                    Text(L10n.string("--"))
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(diastolicColor)
                         .position(x: chartX(for: index, count: points.count, size: size), y: chartY(for: 82, in: size))

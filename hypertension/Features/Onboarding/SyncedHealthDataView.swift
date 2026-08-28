@@ -31,7 +31,7 @@ struct SyncedHealthDataView: View {
                         header
                         dataGridCard
 
-                        Text("数据来源：\(viewModel.dataSourceText)")
+                        Text(L10n.format("数据来源：%@", L10n.string(viewModel.dataSourceText)))
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
 
@@ -100,20 +100,20 @@ struct SyncedHealthDataView: View {
                         .clipShape(Circle())
                         .overlay(Circle().stroke(.white, lineWidth: 2))
 
-                    Text("小宁")
+                    Text(L10n.string("小宁"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(DSTheme.Color.textPrimary)
                 }
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("已同步基础数据")
+                Text(L10n.string("已同步基础数据"))
                     .font(.system(size: 31, weight: .bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
 
-                Text("这些信息已从 Apple Health 和 Apple Watch\n自动获取。")
+                Text(L10n.string("这些信息已从 Apple Health 和 Apple Watch\n自动获取。"))
                     .font(.subheadline.weight(.medium))
                     .lineSpacing(4)
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
@@ -142,7 +142,7 @@ struct SyncedHealthDataView: View {
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.primary)
 
-            Text("这些数据将用于后续理解血压读数。")
+            Text(L10n.string("这些数据将用于后续理解血压读数。"))
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
 
@@ -174,7 +174,7 @@ struct SyncedHealthDataView: View {
                             .tint(.white)
                     }
 
-                    Text("完成")
+                    Text(L10n.string("完成"))
                         .font(.headline.weight(.bold))
                 }
                 .foregroundStyle(.white)
@@ -193,7 +193,7 @@ struct SyncedHealthDataView: View {
                     onResync()
                 }
             } label: {
-                Text("重新同步")
+                Text(L10n.string("重新同步"))
                     .font(.headline.weight(.bold))
                     .foregroundStyle(DSTheme.Color.primary)
                     .frame(maxWidth: .infinity)
@@ -215,7 +215,7 @@ struct SyncedHealthDataView: View {
                     }
                     UIApplication.shared.open(settingsURL)
                 } label: {
-                    Text("打开系统设置")
+                    Text(L10n.string("打开系统设置"))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(DSTheme.Color.primary)
                 }
@@ -273,7 +273,7 @@ struct SyncedHealthDataView: View {
 
         let wholeHours = Int(hours)
         let minutes = Int((hours - Double(wholeHours)) * 60)
-        return "\(wholeHours) 小时 \(minutes) 分"
+        return L10n.format("%d 小时 %d 分", wholeHours, minutes)
     }
 }
 
@@ -299,21 +299,21 @@ private struct SyncedHealthMetricTile: View {
                     .clipShape(Circle())
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(item.title)
+                    Text(L10n.string(item.title))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
                         .lineLimit(1)
                         .minimumScaleFactor(0.74)
 
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text(item.value)
+                        Text(L10n.string(item.value))
                             .font(.system(size: 21, weight: .bold, design: .rounded))
                             .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                             .lineLimit(1)
                             .minimumScaleFactor(0.62)
 
                         if !item.unit.isEmpty {
-                            Text(item.unit)
+                            Text(L10n.string(item.unit))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
                                 .lineLimit(1)

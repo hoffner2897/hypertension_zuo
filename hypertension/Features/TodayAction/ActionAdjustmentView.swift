@@ -116,10 +116,10 @@ struct ActionAdjustDemoView: View {
         ) {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
                 HStack(spacing: 8) {
-                    Label("今日最新血压", systemImage: "heart.circle.fill")
+                    Label(L10n.string("今日最新血压"), systemImage: "heart.circle.fill")
                         .font(.caption.weight(.semibold)).foregroundStyle(.white)
                     Spacer()
-                    Label(state.title, systemImage: state.systemImage)
+                    Label(L10n.string(state.title), systemImage: state.systemImage)
                         .font(.caption2.weight(.bold)).foregroundStyle(state.tint)
                         .padding(.horizontal, 9).padding(.vertical, 5)
                         .background(.white).clipShape(Capsule())
@@ -128,7 +128,7 @@ struct ActionAdjustDemoView: View {
                     Text(latestReading.map { "\($0.systolic) / \($0.diastolic)" } ?? "-- / --")
                         .font(.system(size: 30, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                    Text("mmHg").font(.caption.weight(.bold)).foregroundStyle(.white.opacity(0.86))
+                    Text(L10n.string("mmHg")).font(.caption.weight(.bold)).foregroundStyle(.white.opacity(0.86))
                 }
             }
         }
@@ -137,7 +137,7 @@ struct ActionAdjustDemoView: View {
     private var actionListCard: some View {
         VStack(spacing: 0) {
             if entries.isEmpty {
-                Text("今天还没有可显示的行动")
+                Text(L10n.string("今天还没有可显示的行动"))
                     .font(.subheadline)
                     .foregroundStyle(DSTheme.Color.textSecondary)
                     .frame(maxWidth: .infinity)
@@ -172,13 +172,13 @@ struct ActionAdjustDemoView: View {
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(DSTheme.Color.primary)
 
-                Text("行动建议")
+                Text(L10n.string("行动建议"))
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
                 Spacer(minLength: 8)
 
-                Text(viewModel.evidenceDays > 0 ? "根据你的饮食和运动记录生成" : "记录行动后生成个性化建议")
+                Text(L10n.string(viewModel.evidenceDays > 0 ? "根据你的饮食和运动记录生成" : "记录行动后生成个性化建议"))
                     .font(.caption2)
                     .foregroundStyle(DSTheme.Color.textSecondary)
                     .lineLimit(2)
@@ -201,7 +201,7 @@ struct ActionAdjustDemoView: View {
                 ])
             }
 
-            Label("建议将根据你的数据持续优化。", systemImage: "info.circle.fill")
+            Label(L10n.string("建议将根据你的数据持续优化。"), systemImage: "info.circle.fill")
                 .font(.caption2)
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .padding(.top, 2)
@@ -266,12 +266,12 @@ struct ActionAdjustDemoView: View {
         }
     }
 
-    private static let measurementTimeFormatter: DateFormatter = {
+    private static var measurementTimeFormatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans")
-        formatter.dateFormat = "M月d日 HH:mm"
+        formatter.locale = L10n.locale
+        formatter.setLocalizedDateFormatFromTemplate("MMMd HH:mm")
         return formatter
-    }()
+    }
 }
 
 private struct ActionAdviceSection: View {
@@ -281,12 +281,12 @@ private struct ActionAdviceSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Label(title, systemImage: systemImage)
+            Label(L10n.string(title), systemImage: systemImage)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(DSTheme.Color.primary)
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(row.0)
+                    Text(L10n.string(row.0))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
                     Text(row.1)
@@ -306,11 +306,11 @@ private struct ActionAdviceSection: View {
 private struct AdjustmentPageTitle: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("行动调整")
+            Text(L10n.string("行动调整"))
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-            Text("Action Adjustment")
+            Text(L10n.string("Action Adjustment"))
                 .font(.subheadline)
                 .foregroundStyle(DSTheme.Color.textSecondary)
         }
@@ -371,7 +371,7 @@ private struct AdjustmentEntryRow: View {
 
     private var informationBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(entry.title)
+            Text(L10n.string(entry.title))
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
                 .lineLimit(1)
@@ -382,7 +382,7 @@ private struct AdjustmentEntryRow: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Color(red: 0.36, green: 0.52, blue: 0.82))
 
-                Text(entry.scheduleText)
+                Text(L10n.string(entry.scheduleText))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
                     .lineLimit(2)
@@ -395,7 +395,7 @@ private struct AdjustmentEntryRow: View {
     private var actionControls: some View {
         if entry.hasAdjustableItems {
             HStack(spacing: 8) {
-                Text("可调整")
+                Text(L10n.string("可调整"))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(DSTheme.Color.success)
                     .lineLimit(1)
@@ -406,7 +406,7 @@ private struct AdjustmentEntryRow: View {
 
                 Button(action: onAdjust) {
                     HStack(spacing: 5) {
-                        Text("调整")
+                        Text(L10n.string("调整"))
                             .lineLimit(1)
                         Image(systemName: "chevron.right")
                     }
@@ -422,7 +422,7 @@ private struct AdjustmentEntryRow: View {
                 .buttonStyle(.plain)
             }
         } else {
-            Text("已完成")
+            Text(L10n.string("已完成"))
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .lineLimit(1)
@@ -519,7 +519,7 @@ private struct TrendSuggestionRow: View {
                 .background(DSTheme.Color.primarySoft.opacity(0.7))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            Text(message)
+            Text(L10n.string(message))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
                 .multilineTextAlignment(.leading)
@@ -831,10 +831,10 @@ private struct ActionTrendSuggestion: Decodable, Identifiable, Hashable {
             let proposedDuration: Int?
 
             if kind == .shorten {
-                message = "今天的\(item.title)已错过，可尝试缩短时长或重新安排。"
+                message = L10n.format("今天的%@已错过，可尝试缩短时长或重新安排。", L10n.string(item.title))
                 proposedDuration = min(item.durationMinutes, 10)
             } else {
-                message = "今天的\(item.title)已错过，可调整到更方便的时间。"
+                message = L10n.format("今天的%@已错过，可调整到更方便的时间。", L10n.string(item.title))
                 proposedDuration = nil
             }
 
@@ -1115,11 +1115,11 @@ private struct GroupedTimeAdjustmentEditor: View {
 
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack(spacing: 7) {
-                                    Text(item.title)
+                                    Text(L10n.string(item.title))
                                         .font(.subheadline.weight(.bold))
                                         .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                                    Text(item.status == .completed ? "已完成" : "原计划")
+                                    Text(L10n.string(item.status == .completed ? "已完成" : "原计划"))
                                         .font(.caption2.weight(.bold))
                                         .foregroundStyle(item.status == .completed ? DSTheme.Color.textSecondary : DSTheme.Color.primary)
                                         .padding(.horizontal, 7)
@@ -1148,7 +1148,7 @@ private struct GroupedTimeAdjustmentEditor: View {
     private var groupedTimeSelectionCard: some View {
         DSCard {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                Text("重新选择开始时间")
+                Text(L10n.string("重新选择开始时间"))
                     .font(.title3.weight(.bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
@@ -1165,7 +1165,7 @@ private struct GroupedTimeAdjustmentEditor: View {
                 }
 
                 if originalItems.contains(where: { $0.status == .completed }) {
-                    Label("已完成的行动会保留原计划，不能再次调整。", systemImage: "lock.fill")
+                    Label(L10n.string("已完成的行动会保留原计划，不能再次调整。"), systemImage: "lock.fill")
                         .font(.caption)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                 }
@@ -1239,11 +1239,11 @@ private struct AdjustmentDetailHeader: View {
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("行动调整")
+                    Text(L10n.string("行动调整"))
                         .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                    Text("Action Adjustment")
+                    Text(L10n.string("Action Adjustment"))
                         .font(.subheadline)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                 }
@@ -1267,7 +1267,7 @@ private struct IconText: View {
                 .frame(width: 15, height: 15)
                 .foregroundStyle(Color(red: 0.36, green: 0.52, blue: 0.82))
 
-            Text(text)
+            Text(L10n.string(text))
         }
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
@@ -1289,9 +1289,9 @@ private struct GroupedTimeMenuRow: View {
                     onSelect(option)
                 } label: {
                     if option == selectedTime {
-                        Label(option, systemImage: "checkmark")
+                        Label(L10n.string(option), systemImage: "checkmark")
                     } else {
-                        Text(option)
+                        Text(L10n.string(option))
                     }
                 }
             }
@@ -1301,7 +1301,7 @@ private struct GroupedTimeMenuRow: View {
                     .foregroundStyle(isLocked ? DSTheme.Color.textSecondary : DSTheme.Color.primary)
                     .frame(width: 24)
 
-                Text(title)
+                Text(L10n.string(title))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textPrimary)
 
@@ -1337,19 +1337,19 @@ private struct GroupedAdjustmentSummary: View {
     var body: some View {
         DSCard {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                Label("调整后的行动", systemImage: "calendar.badge.checkmark")
+                Label(L10n.string("调整后的行动"), systemImage: "calendar.badge.checkmark")
                     .font(.title3.weight(.bold))
                     .foregroundStyle(DSTheme.Color.primary)
 
                 ForEach(Array(changedItems.enumerated()), id: \.element.id) { index, item in
                     HStack(spacing: DSTheme.Spacing.medium) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(item.title)
+                            Text(L10n.string(item.title))
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
                             if let original = originalItems.first(where: { $0.id == item.id }) {
-                                Text("原计划：\(original.startTimeText)  |  \(original.title)")
+                                Text(L10n.format("原计划：%@  |  %@", original.startTimeText, L10n.string(original.title)))
                                     .font(.caption)
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                             }
@@ -1358,7 +1358,7 @@ private struct GroupedAdjustmentSummary: View {
                         Spacer(minLength: 0)
 
                         VStack(alignment: .trailing, spacing: 3) {
-                            Text("开始时间")
+                            Text(L10n.string("开始时间"))
                                 .font(.caption)
                                 .foregroundStyle(DSTheme.Color.textSecondary)
                             Text(item.startTimeText)
@@ -1367,10 +1367,10 @@ private struct GroupedAdjustmentSummary: View {
                         }
 
                         VStack(alignment: .trailing, spacing: 3) {
-                            Text("行动内容")
+                            Text(L10n.string("行动内容"))
                                 .font(.caption)
                                 .foregroundStyle(DSTheme.Color.textSecondary)
-                            Text(kind.contentText)
+                            Text(L10n.string(kind.contentText))
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(DSTheme.Color.warning)
                         }
@@ -1393,7 +1393,7 @@ private struct AdjustmentConfirmBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DSPrimaryButton("确认调整", isDisabled: isDisabled, action: action)
+            DSPrimaryButton(L10n.string("确认调整"), isDisabled: isDisabled, action: action)
                 .padding(.horizontal, DSTheme.Spacing.medium)
                 .padding(.top, 12)
                 .padding(.bottom, 12)
@@ -1744,7 +1744,7 @@ private struct MovementAdjustmentEditor: View {
             .frame(width: 132, height: 112)
 
             VStack(alignment: .leading, spacing: 10) {
-                Text(isLocked ? "已完成" : "原计划")
+                Text(L10n.string(isLocked ? "已完成" : "原计划"))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(isLocked ? DSTheme.Color.textSecondary : DSTheme.Color.primary)
                     .padding(.horizontal, 10)
@@ -1752,7 +1752,7 @@ private struct MovementAdjustmentEditor: View {
                     .background(DSTheme.Color.primarySoft.opacity(0.75))
                     .clipShape(Capsule())
 
-                Text(originalItem.title)
+                Text(L10n.string(originalItem.title))
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
@@ -1769,11 +1769,11 @@ private struct MovementAdjustmentEditor: View {
     private var reasonSelectionCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("为什么需要调整？")
+                Text(L10n.string("为什么需要调整？"))
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                Text("可多选，系统会根据你的选择生成调整方案。")
+                Text(L10n.string("可多选，系统会根据你的选择生成调整方案。"))
                     .font(.caption)
                     .foregroundStyle(DSTheme.Color.textSecondary)
             }
@@ -1796,7 +1796,7 @@ private struct MovementAdjustmentEditor: View {
 
     private var lockedNotice: some View {
         DSCard {
-            Label("这项行动已经完成，计划将保持不变。", systemImage: "lock.fill")
+            Label(L10n.string("这项行动已经完成，计划将保持不变。"), systemImage: "lock.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
         }
@@ -1805,7 +1805,7 @@ private struct MovementAdjustmentEditor: View {
     private var timeRangeCard: some View {
         DSCard {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
-                Label("重新选择运动时间", systemImage: "clock.arrow.circlepath")
+                Label(L10n.string("重新选择运动时间"), systemImage: "clock.arrow.circlepath")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
@@ -1820,11 +1820,11 @@ private struct MovementAdjustmentEditor: View {
     private var movementOptionsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("选择其他低门槛运动")
+                Text(L10n.string("选择其他低门槛运动"))
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-                Text("动作简单、无需器械，强度更容易控制。")
+                Text(L10n.string("动作简单、无需器械，强度更容易控制。"))
                     .font(.caption)
                     .foregroundStyle(DSTheme.Color.textSecondary)
             }
@@ -1847,12 +1847,12 @@ private struct MovementAdjustmentEditor: View {
     private var customMovementCard: some View {
         DSCard {
             VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
-                Text("填写想尝试的运动")
+                Text(L10n.string("填写想尝试的运动"))
                     .font(.title3.weight(.bold))
                     .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
                 HStack {
-                    TextField("例如：瑜伽", text: $customMovementName)
+                    TextField(L10n.string("例如：瑜伽"), text: $customMovementName)
                         .foregroundStyle(DSTheme.Color.textPrimary)
                         .textInputAutocapitalization(.never)
 
@@ -1875,7 +1875,7 @@ private struct MovementAdjustmentEditor: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                Text("系统会记录你的选择，并在今日行动中沿用相同的时间与时长格式。")
+                Text(L10n.string("系统会记录你的选择，并在今日行动中沿用相同的时间与时长格式。"))
                     .font(.caption)
                     .foregroundStyle(DSTheme.Color.textSecondary)
             }
@@ -1965,7 +1965,7 @@ private struct AdjustmentReasonButton: View {
                         .frame(width: 18, height: 18)
                         .foregroundStyle(isSelected ? DSTheme.Color.primary : Color(red: 0.47, green: 0.52, blue: 0.66))
 
-                    Text(reason.rawValue)
+                    Text(L10n.string(reason.rawValue))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(isSelected ? DSTheme.Color.primary : Color(red: 0.05, green: 0.14, blue: 0.46))
                         .lineLimit(2)
@@ -2011,7 +2011,7 @@ private struct MovementOptionButton: View {
                         .frame(height: 86)
                         .frame(maxWidth: .infinity)
 
-                    Text(movement.rawValue)
+                    Text(L10n.string(movement.rawValue))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(isSelected ? DSTheme.Color.primary : Color(red: 0.05, green: 0.14, blue: 0.46))
                         .frame(maxWidth: .infinity)
@@ -2075,7 +2075,7 @@ private struct MovementAdjustmentSummary: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("调整后的行动")
+            Text(L10n.string("调整后的行动"))
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(DSTheme.Color.primary)
 
@@ -2099,7 +2099,7 @@ private struct MovementAdjustmentSummary: View {
                 summaryColumn(title: "运动种类", value: movementName)
             }
 
-            Text("原计划：\(originalItem.timeRangeText)  |  \(originalItem.title)")
+            Text(L10n.format("原计划：%@  |  %@", originalItem.timeRangeText, L10n.string(originalItem.title)))
                 .font(.caption)
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -2126,7 +2126,7 @@ private struct MovementAdjustmentSummary: View {
 
     private func summaryColumn(title: String, value: String) -> some View {
         VStack(spacing: 5) {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.caption)
                 .foregroundStyle(Color(red: 0.29, green: 0.39, blue: 0.58))
 

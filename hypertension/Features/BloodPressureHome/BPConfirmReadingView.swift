@@ -51,7 +51,7 @@ struct BPConfirmReadingView: View {
                                 Image(systemName: "waveform.path.ecg.rectangle")
                                     .font(.headline.weight(.bold))
 
-                                Text("测试血压读数分析界面")
+                                Text(L10n.string("测试血压读数分析界面"))
                                     .font(.subheadline.weight(.bold))
                             }
                             .foregroundStyle(DSTheme.Color.primary)
@@ -90,7 +90,7 @@ struct BPConfirmReadingView: View {
                                 .tint(.white)
                         }
 
-                        Text(existingReading == nil ? "保存读数" : "更新读数")
+                        Text(L10n.string(existingReading == nil ? "保存读数" : "更新读数"))
                             .font(.headline.weight(.bold))
                     }
                     .foregroundStyle(.white)
@@ -131,11 +131,11 @@ struct BPConfirmReadingView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(existingReading == nil ? "确认读数" : "编辑读数")
+                Text(L10n.string(existingReading == nil ? "确认读数" : "编辑读数"))
                     .font(.system(size: 32, weight: .bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                Text(existingReading == nil ? "确认数值，并补充本次测量时的状态。" : "修改后会更新历史记录，并在联网时同步。")
+                Text(L10n.string(existingReading == nil ? "确认数值，并补充本次测量时的状态。" : "修改后会更新历史记录，并在联网时同步。"))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
             }
@@ -241,7 +241,7 @@ private struct BPConfirmNumberRow: View {
                 .frame(width: 42, height: 42)
                 .clipShape(Circle())
 
-            Text(title)
+            Text(L10n.string(title))
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                 .lineLimit(1)
@@ -259,7 +259,7 @@ private struct BPConfirmNumberRow: View {
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
                 .frame(width: 68)
 
-            Text(unit)
+            Text(L10n.string(unit))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(Color(red: 0.26, green: 0.34, blue: 0.58))
                 .frame(width: 42, alignment: .leading)
@@ -285,7 +285,7 @@ private struct BPConfirmTimeRow: View {
                 .frame(width: 42, height: 42)
                 .clipShape(Circle())
 
-            Text("时间")
+            Text(L10n.string("时间"))
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
@@ -343,49 +343,49 @@ final class BPConfirmReadingViewModel: ObservableObject {
         let pulseText = draft.pulse.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !systolicText.isEmpty else {
-            errorMessage = "请输入收缩压。"
+            errorMessage = L10n.string("请输入收缩压。")
             return false
         }
 
         guard !diastolicText.isEmpty else {
-            errorMessage = "请输入舒张压。"
+            errorMessage = L10n.string("请输入舒张压。")
             return false
         }
 
         guard let systolic = Int(systolicText), let diastolic = Int(diastolicText) else {
-            errorMessage = "收缩压和舒张压需要是数字。"
+            errorMessage = L10n.string("收缩压和舒张压需要是数字。")
             return false
         }
 
         guard (40...260).contains(systolic) else {
-            errorMessage = "收缩压应在 40–260 mmHg 之间。"
+            errorMessage = L10n.string("收缩压应在 40–260 mmHg 之间。")
             return false
         }
 
         guard (30...180).contains(diastolic) else {
-            errorMessage = "舒张压应在 30–180 mmHg 之间。"
+            errorMessage = L10n.string("舒张压应在 30–180 mmHg 之间。")
             return false
         }
 
         guard systolic > diastolic else {
-            errorMessage = "收缩压需要大于舒张压。"
+            errorMessage = L10n.string("收缩压需要大于舒张压。")
             return false
         }
 
         if !pulseText.isEmpty {
             guard let pulse = Int(pulseText) else {
-                errorMessage = "心率需要是数字，或留空。"
+                errorMessage = L10n.string("心率需要是数字，或留空。")
                 return false
             }
 
             guard (30...240).contains(pulse) else {
-                errorMessage = "心率应在 30–240 bpm 之间，或留空。"
+                errorMessage = L10n.string("心率应在 30–240 bpm 之间，或留空。")
                 return false
             }
         }
 
         guard draft.measuredAt <= Date() else {
-            errorMessage = "测量时间不能晚于当前时间。"
+            errorMessage = L10n.string("测量时间不能晚于当前时间。")
             return false
         }
 
@@ -443,7 +443,7 @@ final class BPConfirmReadingViewModel: ObservableObject {
     }
 
     func setSaveError(_ error: Error) {
-        errorMessage = "保存读数失败，请稍后重试。"
+        errorMessage = L10n.string("保存读数失败，请稍后重试。")
     }
 
     private var parsedPulse: Int? {

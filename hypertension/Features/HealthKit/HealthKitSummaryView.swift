@@ -28,7 +28,7 @@ struct HealthKitSummaryView: View {
                     selectedField = field
                 }
             )
-            .navigationTitle("Apple Health")
+            .navigationTitle(L10n.string("Apple Health"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -49,7 +49,7 @@ struct HealthKitSummaryView: View {
                     } label: {
                         Image(systemName: "square.and.pencil")
                     }
-                    .accessibilityLabel("手动补充基础数据")
+                    .accessibilityLabel(L10n.string("手动补充基础数据"))
                 }
             }
             .task {
@@ -128,7 +128,7 @@ struct SyncedHealthDataContent: View {
                 }
             }
 
-            Text("数据来源：\(viewModel.dataSourceText)")
+            Text(L10n.format("数据来源：%@", L10n.string(viewModel.dataSourceText)))
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
 
@@ -138,7 +138,7 @@ struct SyncedHealthDataContent: View {
                         .font(.title3)
                         .foregroundStyle(DSTheme.Color.primary)
 
-                    Text("这些数据用于理解读数和趋势，不用于诊断。BPHealth 只读取你允许的项目；未授权或没有记录的项目会显示为缺失，并保留已有的手动补充值。同步的数据会保存到你的 BPHealth 账号。")
+                    Text(L10n.string("这些数据用于理解读数和趋势，不用于诊断。BPHealth 只读取你允许的项目；未授权或没有记录的项目会显示为缺失，并保留已有的手动补充值。同步的数据会保存到你的 BPHealth 账号。"))
                         .font(.subheadline)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -159,7 +159,7 @@ struct SyncedHealthDataContent: View {
                 }
 
                 if viewModel.shouldOfferSettings {
-                    DSSecondaryButton("打开系统设置", systemImage: "gearshape.fill", isDisabled: viewModel.isLoading) {
+                    DSSecondaryButton(L10n.string("打开系统设置"), systemImage: "gearshape.fill", isDisabled: viewModel.isLoading) {
                         guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else {
                             return
                         }
@@ -172,11 +172,11 @@ struct SyncedHealthDataContent: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.small) {
-            Text("健康基础数据")
+            Text(L10n.string("健康基础数据"))
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(DSTheme.Color.primary)
 
-            Text("查看 Apple Health 当前可读取的数据，并手动补充缺失项目。")
+            Text(L10n.string("查看 Apple Health 当前可读取的数据，并手动补充缺失项目。"))
                 .font(.subheadline)
                 .foregroundStyle(DSTheme.Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -194,16 +194,16 @@ struct SyncedHealthDataContent: View {
                     .clipShape(Circle())
 
                 VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-                    Text(viewModel.statusTitle)
+                    Text(L10n.string(viewModel.statusTitle))
                         .font(.headline)
                         .foregroundStyle(DSTheme.Color.textPrimary)
 
-                    Text(viewModel.statusSubtitle)
+                    Text(L10n.string(viewModel.statusSubtitle))
                         .font(.subheadline)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(viewModel.lastSyncText)
+                    Text(L10n.string(viewModel.lastSyncText))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .padding(.top, 2)
@@ -283,24 +283,24 @@ private struct SyncedHealthDataCard: View {
                         .foregroundStyle(DSTheme.Color.textSecondary)
                 }
 
-                Text(card.source.title)
+                Text(L10n.string(card.source.title))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(card.source == .missing ? DSTheme.Color.textSecondary : DSTheme.Color.primary)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(card.title)
+                    Text(L10n.string(card.title))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DSTheme.Color.textSecondary)
 
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(card.value)
+                        Text(L10n.string(card.value))
                             .font(.system(size: 23, weight: .bold, design: .rounded))
                             .foregroundStyle(DSTheme.Color.primary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.72)
 
                         if !card.unit.isEmpty {
-                            Text(card.unit)
+                            Text(L10n.string(card.unit))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(DSTheme.Color.textSecondary)
                         }
@@ -360,11 +360,11 @@ struct HealthDataEditorView: View {
                             HealthDataEditorInputRow(title: "出生年份", text: $draft.birthYear, field: .birthYear, focusedField: $focusedField, unit: "年", systemImage: "person.crop.circle", placeholder: "必填")
                                 .healthFieldHighlight(highlightedField == .birthYear)
 
-                            Picker("性别", selection: $draft.sex) {
-                                Text(verbatim: "女").tag("female")
-                                Text(verbatim: "男").tag("male")
-                                Text(verbatim: "其他").tag("other")
-                                Text(verbatim: "不说明").tag("prefer_not_to_say")
+                            Picker(L10n.string("性别"), selection: $draft.sex) {
+                                Text(L10n.string("女")).tag("female")
+                                Text(L10n.string("男")).tag("male")
+                                Text(L10n.string("其他")).tag("other")
+                                Text(L10n.string("不说明")).tag("prefer_not_to_say")
                             }
                             .pickerStyle(.segmented)
                             .padding(8)
@@ -386,11 +386,11 @@ struct HealthDataEditorView: View {
                         }
 
                         HStack(spacing: DSTheme.Spacing.small) {
-                            DSSecondaryButton("取消", systemImage: "xmark") {
+                            DSSecondaryButton(L10n.string("取消"), systemImage: "xmark") {
                                 dismiss()
                             }
 
-                            DSPrimaryButton("保存", systemImage: "checkmark") {
+                            DSPrimaryButton(L10n.string("保存"), systemImage: "checkmark") {
                                 onSave(draft)
                             }
                         }
@@ -398,7 +398,7 @@ struct HealthDataEditorView: View {
                     .padding(DSTheme.Spacing.large)
                 }
             }
-            .navigationTitle("基础数据")
+            .navigationTitle(L10n.string("基础数据"))
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 guard highlightedField != .sex else {
@@ -452,13 +452,13 @@ private struct HealthDataEditorInputRow: View {
                     .clipShape(Circle())
             }
 
-            Text(title)
+            Text(L10n.string(title))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textPrimary)
 
             Spacer(minLength: DSTheme.Spacing.small)
 
-            TextField(placeholder, text: $text)
+            TextField(L10n.string(placeholder), text: $text)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textPrimary)
                 .multilineTextAlignment(.trailing)
@@ -467,7 +467,7 @@ private struct HealthDataEditorInputRow: View {
                 .frame(minWidth: 88, maxWidth: 120)
 
             if let unit {
-                Text(unit)
+                Text(L10n.string(unit))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
             }
@@ -549,10 +549,10 @@ final class HealthKitSummaryViewModel: ObservableObject {
 
     var lastSyncText: String {
         guard let syncedDate = profile.flatMap(Self.syncedDate(from:)) else {
-            return "最近同步：尚未完成 Apple Health 同步"
+            return L10n.string("最近同步：尚未完成 Apple Health 同步")
         }
 
-        return "最近同步：\(Self.relativeSyncFormatter.localizedString(for: syncedDate, relativeTo: Date()))"
+        return L10n.format("最近同步：%@", Self.relativeSyncFormatter.localizedString(for: syncedDate, relativeTo: Date()))
     }
 
     var statusIcon: String {
@@ -606,17 +606,17 @@ final class HealthKitSummaryViewModel: ObservableObject {
     var dataSourceText: String {
         if hasManualProfileData {
             if hasHealthData {
-                return "Apple Health / Apple Watch + 手动补充"
+                return L10n.string("Apple Health / Apple Watch + 手动补充")
             }
 
-            return "手动输入"
+            return L10n.string("手动输入")
         }
 
         if hasHealthData {
             return "Apple Health / Apple Watch"
         }
 
-        return profile?.healthDataSource ?? "手动输入"
+        return profile?.healthDataSource ?? L10n.string("手动输入")
     }
 
     var cards: [SyncedHealthCardModel] {
@@ -648,13 +648,13 @@ final class HealthKitSummaryViewModel: ObservableObject {
         guard !missing.isEmpty else {
             return ""
         }
-        return "请先补充：\(missing.joined(separator: "、"))。"
+        return L10n.format("请先补充：%@。", missing.map(L10n.string).joined(separator: L10n.string("、")))
     }
 
     func primaryAction() async {
         switch summary.authorizationStatus {
         case .unavailable:
-            errorMessage = "当前设备不支持 Apple Health，可以手动补充健康基础数据。"
+            errorMessage = L10n.string("当前设备不支持 Apple Health，可以手动补充健康基础数据。")
         case .notDetermined:
             await requestAuthorization()
         case .accessRequested, .partiallyAuthorized, .sharingAuthorized:
@@ -675,7 +675,7 @@ final class HealthKitSummaryViewModel: ObservableObject {
                 errorMessage = nil
             }
         } catch {
-            errorMessage = "Apple Health 授权或读取失败，可以先手动补充。"
+            errorMessage = L10n.string("Apple Health 授权或读取失败，可以先手动补充。")
         }
     }
 
@@ -691,7 +691,7 @@ final class HealthKitSummaryViewModel: ObservableObject {
             }
         } catch {
             try? await loadProfile()
-            errorMessage = "重新同步 Apple Health 失败，可以使用已保存或手动补充的数据。"
+            errorMessage = L10n.string("重新同步 Apple Health 失败，可以使用已保存或手动补充的数据。")
         }
     }
 
@@ -705,7 +705,7 @@ final class HealthKitSummaryViewModel: ObservableObject {
             errorMessage = nil
         } catch {
             try? await loadProfile()
-            errorMessage = "读取 Apple Health 数据失败，可以使用已保存或手动补充的数据。"
+            errorMessage = L10n.string("读取 Apple Health 数据失败，可以使用已保存或手动补充的数据。")
         }
     }
 
@@ -725,12 +725,12 @@ final class HealthKitSummaryViewModel: ObservableObject {
     @discardableResult
     func saveManualData(_ draft: HealthProfileDraft) async -> Bool {
         guard let currentProfile = profile else {
-            errorMessage = "请先完成 Profile，再保存基础数据。"
+            errorMessage = L10n.string("请先完成 Profile，再保存基础数据。")
             return false
         }
 
         guard draft.birthYear.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || optionalIntValue(draft.birthYear, min: 1900, max: Calendar.current.component(.year, from: Date())) != nil else {
-            errorMessage = "请输入有效出生年份。"
+            errorMessage = L10n.string("请输入有效出生年份。")
             return false
         }
 
@@ -748,7 +748,7 @@ final class HealthKitSummaryViewModel: ObservableObject {
             hasInvalidInt(draft.exerciseMinutes, min: 0, max: 1440) ||
             hasInvalidInt(draft.restingHeartRate, min: 20, max: 240) ||
             hasInvalidDouble(draft.sleepHours, min: 0, max: 24) {
-            errorMessage = "请检查基础数据格式和范围。"
+            errorMessage = L10n.string("请检查基础数据格式和范围。")
             return false
         }
 
@@ -773,7 +773,7 @@ final class HealthKitSummaryViewModel: ObservableObject {
             errorMessage = nil
             return true
         } catch {
-            errorMessage = "基础数据保存失败，请稍后重试。"
+            errorMessage = L10n.string("基础数据保存失败，请稍后重试。")
             return false
         }
     }
@@ -818,7 +818,7 @@ final class HealthKitSummaryViewModel: ObservableObject {
             errorMessage = nil
             return true
         } catch {
-            errorMessage = "基础数据保存失败，请稍后重试。"
+            errorMessage = L10n.string("基础数据保存失败，请稍后重试。")
             return false
         }
     }
@@ -854,7 +854,7 @@ final class HealthKitSummaryViewModel: ObservableObject {
             errorMessage = nil
             return true
         } catch {
-            errorMessage = "Apple Health 同步保存失败，请稍后重试。"
+            errorMessage = L10n.string("Apple Health 同步保存失败，请稍后重试。")
             return false
         }
     }
@@ -926,11 +926,11 @@ final class HealthKitSummaryViewModel: ObservableObject {
     private var sexText: String {
         switch resolvedSex {
         case "female":
-            return "女"
+            return L10n.string("女")
         case "male":
-            return "男"
+            return L10n.string("男")
         case "other":
-            return "其他"
+            return L10n.string("其他")
         default:
             return "--"
         }
@@ -982,12 +982,12 @@ final class HealthKitSummaryViewModel: ObservableObject {
         return formatter
     }()
 
-    private static let relativeSyncFormatter: RelativeDateTimeFormatter = {
+    private static var relativeSyncFormatter: RelativeDateTimeFormatter {
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.locale = L10n.locale
         formatter.unitsStyle = .full
         return formatter
-    }()
+    }
 
     private func intFrom(_ value: Double?) -> Int? {
         value.map { Int($0.rounded()) }

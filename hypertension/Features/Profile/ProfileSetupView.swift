@@ -29,11 +29,11 @@ struct ProfileSetupView: View {
                                 AuthTextInput(title: "昵称", text: $displayName)
                                 AuthTextInput(title: "出生年份", text: $birthYear, keyboardType: .numberPad)
 
-                                Picker("性别", selection: $sex) {
-                                    Text("女性").tag("female")
-                                    Text("男性").tag("male")
-                                    Text("其他").tag("other")
-                                    Text("不想说明").tag("prefer_not_to_say")
+                                Picker(L10n.string("性别"), selection: $sex) {
+                                    Text(L10n.string("女性")).tag("female")
+                                    Text(L10n.string("男性")).tag("male")
+                                    Text(L10n.string("其他")).tag("other")
+                                    Text(L10n.string("不想说明")).tag("prefer_not_to_say")
                                 }
                                 .pickerStyle(.menu)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -44,7 +44,7 @@ struct ProfileSetupView: View {
                             AuthErrorBanner(message: errorMessage)
                         }
 
-                        DSPrimaryButton("进入 BPHealth", systemImage: "arrow.right.circle.fill", isLoading: isSaving) {
+                        DSPrimaryButton(L10n.string("进入 BPHealth"), systemImage: "arrow.right.circle.fill", isLoading: isSaving) {
                             Task {
                                 await save()
                             }
@@ -53,7 +53,7 @@ struct ProfileSetupView: View {
                     .padding(DSTheme.Spacing.large)
                 }
             }
-            .navigationTitle("Profile")
+            .navigationTitle(L10n.string("Profile"))
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -61,17 +61,17 @@ struct ProfileSetupView: View {
     private func save() async {
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
-            errorMessage = "请输入昵称。"
+            errorMessage = L10n.string("请输入昵称。")
             return
         }
 
         guard trimmedName.count <= 80 else {
-            errorMessage = "昵称不能超过 80 个字符。"
+            errorMessage = L10n.string("昵称不能超过 80 个字符。")
             return
         }
 
         guard let year = Int(birthYear), year >= 1900, year <= Calendar.current.component(.year, from: Date()) else {
-            errorMessage = "请输入有效出生年份。"
+            errorMessage = L10n.string("请输入有效出生年份。")
             return
         }
 
@@ -83,7 +83,7 @@ struct ProfileSetupView: View {
             }
             errorMessage = nil
         } catch {
-            errorMessage = "Profile 保存失败，请稍后重试。"
+            errorMessage = L10n.string("Profile 保存失败，请稍后重试。")
         }
         isSaving = false
     }
@@ -96,11 +96,11 @@ private struct AuthTextInput: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
 
-            TextField(title, text: $text)
+            TextField(L10n.string(title), text: $text)
                 .keyboardType(keyboardType)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()

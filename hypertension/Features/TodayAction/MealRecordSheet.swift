@@ -92,7 +92,7 @@ struct MealRecordSheet: View {
 
     private var header: some View {
         HStack {
-            Text(item.title)
+            Text(L10n.string(item.title))
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
 
@@ -112,7 +112,7 @@ struct MealRecordSheet: View {
             }
             .buttonStyle(.plain)
             .zIndex(1)
-            .accessibilityLabel("关闭")
+            .accessibilityLabel(L10n.string("关闭"))
             .accessibilityIdentifier("meal.closeButton")
         }
     }
@@ -135,7 +135,7 @@ struct MealRecordSheet: View {
                         .scaledToFit()
                         .frame(height: 150)
 
-                    Text("餐食图片未保存")
+                    Text(L10n.string("餐食图片未保存"))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(DSTheme.Color.textSecondary)
                 }
@@ -143,7 +143,7 @@ struct MealRecordSheet: View {
                 VStack(spacing: 14) {
                     Image(systemName: "camera.fill")
                         .font(.system(size: 52, weight: .medium))
-                    Text("拍照或选择照片记录\(item.title.replacingOccurrences(of: "建议", with: ""))")
+                    Text(L10n.format("拍照或选择照片记录%@", mealDisplayName))
                         .font(.headline)
                 }
                 .foregroundStyle(.white)
@@ -152,7 +152,7 @@ struct MealRecordSheet: View {
             if isAnalyzing {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(.black.opacity(0.38))
-                ProgressView("AI 正在分析餐食…")
+                ProgressView(L10n.string("AI 正在分析餐食…"))
                     .tint(.white)
                     .foregroundStyle(.white)
                     .font(.headline)
@@ -163,8 +163,14 @@ struct MealRecordSheet: View {
         .clipped()
     }
 
+    private var mealDisplayName: String {
+        L10n.string(item.title)
+            .replacingOccurrences(of: L10n.string("建议"), with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var recordedLabel: some View {
-        Label("已记录", systemImage: "checkmark.circle")
+        Label(L10n.string("已记录"), systemImage: "checkmark.circle")
             .font(.title3.weight(.bold))
             .foregroundStyle(DSTheme.Color.success)
     }
@@ -201,7 +207,7 @@ struct MealRecordSheet: View {
 
     private func structuredResultBox(title: String, sections: [(String, String)]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.title3.weight(.bold))
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
 
@@ -229,10 +235,10 @@ struct MealRecordSheet: View {
 
     private func resultBox(title: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.title3.weight(.bold))
                 .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
-            Text(text)
+            Text(L10n.string(text))
                 .font(.body)
                 .foregroundStyle(DSTheme.Color.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -246,7 +252,7 @@ struct MealRecordSheet: View {
     private var photoButtons: some View {
         HStack(spacing: 12) {
             PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                choiceButton("从相册选择", systemImage: "photo.on.rectangle")
+                choiceButton(L10n.string("从相册选择"), systemImage: "photo.on.rectangle")
             }
             .buttonStyle(.plain)
             .disabled(isAnalyzing)
@@ -254,7 +260,7 @@ struct MealRecordSheet: View {
             Button {
                 isShowingCamera = true
             } label: {
-                choiceButton("拍照", systemImage: "camera.fill")
+                choiceButton(L10n.string("拍照"), systemImage: "camera.fill")
             }
             .buttonStyle(.plain)
             .disabled(isAnalyzing || !MealCameraCaptureView.isAvailable)
@@ -262,7 +268,7 @@ struct MealRecordSheet: View {
     }
 
     private func choiceButton(_ title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
+        Label(L10n.string(title), systemImage: systemImage)
             .font(.subheadline.weight(.bold))
             .foregroundStyle(DSTheme.Color.primary)
             .frame(maxWidth: .infinity, minHeight: 50)
@@ -275,7 +281,7 @@ struct MealRecordSheet: View {
     }
 
     private var analyzeButton: some View {
-        DSPrimaryButton("分析并记录", systemImage: "sparkles", isLoading: isAnalyzing) {
+        DSPrimaryButton(L10n.string("分析并记录"), systemImage: "sparkles", isLoading: isAnalyzing) {
             Task { await analyze() }
         }
         .disabled(selectedImageData == nil || isAnalyzing)
@@ -283,7 +289,7 @@ struct MealRecordSheet: View {
     }
 
     private var replaceButton: some View {
-        DSSecondaryButton("重新记录", systemImage: "camera.rotate") {
+        DSSecondaryButton(L10n.string("重新记录"), systemImage: "camera.rotate") {
             isReplacing = true
             selectedImage = nil
             selectedImageData = nil
@@ -297,12 +303,12 @@ struct MealRecordSheet: View {
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data) else {
-                errorMessage = "无法读取这张照片，请换一张重试。"
+                errorMessage = L10n.string("无法读取这张照片，请换一张重试。")
                 return
             }
             setImage(image)
         } catch {
-            errorMessage = "无法读取这张照片，请换一张重试。"
+            errorMessage = L10n.string("无法读取这张照片，请换一张重试。")
         }
     }
 
@@ -330,7 +336,7 @@ struct MealRecordSheet: View {
                     recordVersion: savedRecord.updatedAt
                 )
             } catch {
-                errorMessage = "分析结果已保存，但照片未能保存在本机。"
+                errorMessage = L10n.string("分析结果已保存，但照片未能保存在本机。")
             }
             onSaved(savedRecord)
         } catch {
@@ -353,21 +359,21 @@ struct MealRecordSheet: View {
         if case APIClientError.server(let code, _) = error {
             switch code {
             case "AI_DAILY_QUOTA_EXCEEDED":
-                return "今天的 AI 餐食分析次数已用完，请明天再试。"
+                return L10n.string("今天的 AI 餐食分析次数已用完，请明天再试。")
             case "MEAL_IMAGE_UNCLEAR":
-                return "没有清楚识别到餐食，请换一张光线更好、内容完整的照片。"
+                return L10n.string("没有清楚识别到餐食，请换一张光线更好、内容完整的照片。")
             case "PAYLOAD_TOO_LARGE":
-                return "图片太大，请重新拍摄或选择另一张图片。"
+                return L10n.string("图片太大，请重新拍摄或选择另一张图片。")
             case "MEAL_ANALYSIS_UNAVAILABLE", "MEAL_ANALYSIS_FAILED":
-                return "AI 餐食分析暂时不可用，请稍后重试。"
+                return L10n.string("AI 餐食分析暂时不可用，请稍后重试。")
             case "UNAUTHORIZED":
-                return "登录状态已失效，请重新登录后再试。"
+                return L10n.string("登录状态已失效，请重新登录后再试。")
             default:
-                return "餐食分析失败，请稍后重试。"
+                return L10n.string("餐食分析失败，请稍后重试。")
             }
         }
 
-        return "餐食分析失败，请检查网络后重试。"
+        return L10n.string("餐食分析失败，请检查网络后重试。")
     }
 }
 

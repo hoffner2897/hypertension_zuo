@@ -6,6 +6,14 @@ enum MealKind: String, Codable, CaseIterable {
     case lunch
     case dinner
 
+    var displayName: String {
+        switch self {
+        case .breakfast: return "早餐"
+        case .lunch: return "午餐"
+        case .dinner: return "晚餐"
+        }
+    }
+
     init?(actionTitle: String) {
         if actionTitle.contains("早餐") {
             self = .breakfast

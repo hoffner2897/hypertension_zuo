@@ -6,6 +6,7 @@ struct AccountSettingsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var languageStore: AppLanguageStore
     @StateObject private var healthViewModel = HealthKitSummaryViewModel()
     @State private var showDeleteConfirmation = false
     @State private var deletePassword = ""
@@ -36,12 +37,14 @@ struct AccountSettingsView: View {
                                     .font(.headline)
                                     .foregroundStyle(DSTheme.Color.textPrimary)
 
-                                Text("已登录。血压读数会在后续同步到你的账号。")
+                                Text(L10n.string("已登录。血压读数会在后续同步到你的账号。"))
                                     .font(.subheadline)
                                     .foregroundStyle(DSTheme.Color.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
+
+                        languageSection
 
                         healthSection
 
@@ -49,7 +52,7 @@ struct AccountSettingsView: View {
                         Button {
                             isShowingHealthConnectTest = true
                         } label: {
-                            Label("测试 Apple Health 连接界面", systemImage: "heart.text.square.fill")
+                            Label(L10n.string("测试 Apple Health 连接界面"), systemImage: "heart.text.square.fill")
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(DSTheme.Color.primary)
                                 .frame(maxWidth: .infinity)
@@ -60,7 +63,7 @@ struct AccountSettingsView: View {
                         .buttonStyle(.plain)
                         #endif
 
-                        DSSecondaryButton("退出登录", systemImage: "rectangle.portrait.and.arrow.right") {
+                        DSSecondaryButton(L10n.string("退出登录"), systemImage: "rectangle.portrait.and.arrow.right") {
                             Task {
                                 await appState.logout()
                             }
@@ -71,7 +74,7 @@ struct AccountSettingsView: View {
                         } label: {
                             HStack(spacing: DSTheme.Spacing.small) {
                                 Image(systemName: "trash.fill")
-                                Text("删除账号")
+                                Text(L10n.string("删除账号"))
                                     .font(.headline)
                             }
                             .foregroundStyle(.white)
@@ -85,11 +88,11 @@ struct AccountSettingsView: View {
                     .padding(DSTheme.Spacing.large)
                 }
             }
-            .navigationTitle("账号与健康")
+            .navigationTitle(L10n.string("账号与健康"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") {
+                    Button(L10n.string("完成")) {
                         dismiss()
                     }
                 }
@@ -148,6 +151,26 @@ struct AccountSettingsView: View {
         }
     }
 
+    private var languageSection: some View {
+        VStack(alignment: .leading, spacing: DSTheme.Spacing.medium) {
+            DSSectionHeader(
+                "语言",
+                subtitle: "选择应用界面和新生成的 AI 内容所使用的语言。",
+                systemImage: "globe"
+            )
+
+            DSCard {
+                Picker(L10n.string("语言"), selection: $languageStore.selectedLanguage) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.displayName).tag(language)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityLabel(L10n.string("语言"))
+            }
+        }
+    }
+
     private var healthSection: some View {
         SyncedHealthDataContent(
             viewModel: healthViewModel,
@@ -185,7 +208,7 @@ struct AccountSettingsView: View {
                         systemImage: "trash"
                     )
 
-                    SecureField("输入密码确认", text: $deletePassword)
+                    SecureField(L10n.string("输入密码确认"), text: $deletePassword)
                         .font(.body.weight(.semibold))
                         .padding(DSTheme.Spacing.medium)
                         .background(DSTheme.Color.cardBackground)
@@ -212,7 +235,7 @@ struct AccountSettingsView: View {
                                 Image(systemName: "trash.fill")
                             }
 
-                            Text("永久删除账号")
+                            Text(L10n.string("永久删除账号"))
                                 .font(.headline)
                         }
                         .foregroundStyle(.white)
@@ -228,11 +251,11 @@ struct AccountSettingsView: View {
                 }
                 .padding(DSTheme.Spacing.large)
             }
-            .navigationTitle("删除账号")
+            .navigationTitle(L10n.string("删除账号"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
+                    Button(L10n.string("取消")) {
                         showDeleteConfirmation = false
                     }
                 }
@@ -257,7 +280,7 @@ struct ProfileSummaryRow: View {
 
     var body: some View {
         HStack {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
 
@@ -310,11 +333,11 @@ struct EditProfileSheet: View {
                                 ProfileEditField(title: "昵称", text: $displayName)
                                 ProfileEditField(title: "出生年份", text: $birthYear, keyboardType: .numberPad)
 
-                                Picker("性别", selection: $sex) {
-                                    Text("女性").tag("female")
-                                    Text("男性").tag("male")
-                                    Text("其他").tag("other")
-                                    Text("不想说明").tag("prefer_not_to_say")
+                                Picker(L10n.string("性别"), selection: $sex) {
+                                    Text(L10n.string("女性")).tag("female")
+                                    Text(L10n.string("男性")).tag("male")
+                                    Text(L10n.string("其他")).tag("other")
+                                    Text(L10n.string("不想说明")).tag("prefer_not_to_say")
                                 }
                                 .pickerStyle(.menu)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -325,7 +348,7 @@ struct EditProfileSheet: View {
                             AuthErrorBanner(message: errorMessage)
                         }
 
-                        DSPrimaryButton("保存 Profile", systemImage: "checkmark.circle.fill", isLoading: isSaving) {
+                        DSPrimaryButton(L10n.string("保存 Profile"), systemImage: "checkmark.circle.fill", isLoading: isSaving) {
                             Task {
                                 await save()
                             }
@@ -334,11 +357,11 @@ struct EditProfileSheet: View {
                     .padding(DSTheme.Spacing.large)
                 }
             }
-            .navigationTitle("编辑 Profile")
+            .navigationTitle(L10n.string("编辑 Profile"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
+                    Button(L10n.string("取消")) {
                         dismiss()
                     }
                 }
@@ -349,17 +372,17 @@ struct EditProfileSheet: View {
     private func save() async {
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
-            errorMessage = "请输入昵称。"
+            errorMessage = L10n.string("请输入昵称。")
             return
         }
 
         guard trimmedName.count <= 80 else {
-            errorMessage = "昵称不能超过 80 个字符。"
+            errorMessage = L10n.string("昵称不能超过 80 个字符。")
             return
         }
 
         guard let year = Int(birthYear), year >= 1900, year <= Calendar.current.component(.year, from: Date()) else {
-            errorMessage = "请输入有效出生年份。"
+            errorMessage = L10n.string("请输入有效出生年份。")
             return
         }
 
@@ -385,7 +408,7 @@ struct EditProfileSheet: View {
                 dismiss()
             }
         } catch {
-            errorMessage = "Profile 保存失败，请稍后重试。"
+            errorMessage = L10n.string("Profile 保存失败，请稍后重试。")
         }
     }
 
@@ -417,11 +440,11 @@ struct ProfileEditField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSTheme.Spacing.xSmall) {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
 
-            TextField(title, text: $text)
+            TextField(L10n.string(title), text: $text)
                 .keyboardType(keyboardType)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()

@@ -52,11 +52,11 @@ private struct RequiredUpdateView: View {
                     .foregroundStyle(DSTheme.Color.primary)
 
                 VStack(spacing: DSTheme.Spacing.small) {
-                    Text("需要更新")
+                    Text(L10n.string("需要更新"))
                         .font(.largeTitle.bold())
                         .foregroundStyle(DSTheme.Color.textPrimary)
 
-                    Text("为了继续使用 BPHealth，请更新到最新测试版本。")
+                    Text(L10n.string("为了继续使用 BPHealth，请更新到最新测试版本。"))
                         .font(.body)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(DSTheme.Color.textSecondary)
@@ -65,7 +65,7 @@ private struct RequiredUpdateView: View {
                 Button {
                     openURL(updateURL)
                 } label: {
-                    Text("前往 TestFlight 更新")
+                    Text(L10n.string("前往 TestFlight 更新"))
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, DSTheme.Spacing.small)
@@ -94,7 +94,7 @@ private struct AppStatusView: View {
 
                 ProgressView()
 
-                Text(title)
+                Text(L10n.string(title))
                     .font(.headline)
                     .foregroundStyle(DSTheme.Color.textPrimary)
             }

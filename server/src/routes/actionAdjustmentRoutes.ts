@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import type { ServerConfig } from "../config.js";
 import {
-  actionSuggestionDisclaimer,
+  actionSuggestionDisclaimerForLocale,
   actionTrendSuggestionRequestSchema,
   buildTrustedActionSuggestionPlan,
   makeActionSuggestionDataNote,
@@ -23,6 +23,7 @@ import { prisma } from "../db/prisma.js";
 import { unauthorized } from "../errors.js";
 import { parseBody } from "./validation.js";
 import { recordOpenAICacheHit } from "../services/openAIUsageTracking.js";
+import { requestLocale } from "../i18n/locale.js";
 
 export function createActionAdjustmentRouter(config: ServerConfig, authUserLookup?: AuthUserLookup): Router {
   const router = Router();
@@ -40,6 +41,7 @@ export function createActionAdjustmentRouter(config: ServerConfig, authUserLooku
     try {
       const input = parseBody(actionTrendSuggestionRequestSchema, request.body);
       if (!isAuthenticatedRequest(request)) throw unauthorized();
+      const locale = requestLocale(request);
       const since = new Date(Date.parse(input.now) - 14 * 24 * 60 * 60 * 1000);
       let meals: Awaited<ReturnType<typeof prisma.mealRecord.findMany>> = [];
       let exercises: Awaited<ReturnType<typeof prisma.exerciseAction.findMany>> = [];
@@ -57,7 +59,7 @@ export function createActionAdjustmentRouter(config: ServerConfig, authUserLooku
       } catch (error) {
         console.warn("Action advice database context unavailable; using client-synced action evidence.", error);
       }
-      const plan = buildTrustedActionSuggestionPlan(input);
+      const plan = buildTrustedActionSuggestionPlan(input, locale);
       const suggestions = makeRuleBasedSuggestions(plan.candidates);
       const evidence = buildActionAdviceEvidence(
         input.timeZone,
@@ -85,7 +87,8 @@ export function createActionAdjustmentRouter(config: ServerConfig, authUserLooku
               actualDurationMinutes: null,
               status: exercise.status
             }))
-        ]
+        ],
+        locale
       );
       let advice = makeRuleBasedActionAdvice(evidence);
       let source: "openai" | "rule_based" = "rule_based";
@@ -121,15 +124,16 @@ export function createActionAdjustmentRouter(config: ServerConfig, authUserLooku
         }
       }
 
+      const effectiveEvidenceDays = Math.max(plan.evidenceDays, new Set([...evidence.meals.map((item) => item.mealDate), ...evidence.exercises.map((item) => item.localDay)]).size);
       const payload = {
         status: evidence.meals.length > 0 || evidence.exercises.length > 0 ? "ready" : "no_suggestions",
         source,
         cached,
-        evidenceDays: Math.max(plan.evidenceDays, new Set([...evidence.meals.map((item) => item.mealDate), ...evidence.exercises.map((item) => item.localDay)]).size),
+        evidenceDays: effectiveEvidenceDays,
         suggestions,
         advice,
-        dataNote: makeActionSuggestionDataNote(plan.evidenceDays),
-        disclaimer: actionSuggestionDisclaimer
+        dataNote: makeActionSuggestionDataNote(effectiveEvidenceDays, locale),
+        disclaimer: actionSuggestionDisclaimerForLocale(locale)
       };
 
       response.json(payload);

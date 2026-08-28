@@ -39,7 +39,7 @@ struct DSPrimaryButton: View {
                         .font(.headline)
                 }
 
-                Text(title)
+                Text(L10n.string(title))
                     .font(.headline)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
@@ -53,7 +53,7 @@ struct DSPrimaryButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isDisabled || isLoading)
-        .accessibilityLabel(title)
+        .accessibilityLabel(L10n.string(title))
     }
 }
 

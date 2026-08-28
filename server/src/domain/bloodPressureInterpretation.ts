@@ -1,3 +1,5 @@
+import { isEnglish, type AppLocale } from "../i18n/locale.js";
+
 export type BPInterpretationCategory = "normal" | "borderline" | "high_home" | "low" | "urgent" | "insufficient_data";
 export type BPInterpretationSeverity = "reassuring" | "watch" | "repeat" | "follow_up" | "urgent";
 
@@ -50,6 +52,7 @@ export interface BPLifestyleContextInput {
 }
 
 export interface BPInterpretationInput extends BPInterpretationReadingInput {
+  locale?: AppLocale;
   timeZone?: string;
   age?: number | null;
   sex?: string | null;
@@ -96,8 +99,10 @@ const urgentSymptoms = new Set([
 ]);
 
 export const bpInterpretationDisclaimer = "血压解读用于记录和观察趋势，不构成诊断，也不能替代医生建议或用药调整。";
+export const bpInterpretationDisclaimerEnglish = "This interpretation is for tracking readings and trends. It is not a diagnosis and does not replace medical advice or medication guidance.";
 
 export function makeRuleBasedInterpretation(input: BPInterpretationInput): BPBaseInterpretation {
+  if (isEnglish(input.locale)) return makeRuleBasedInterpretationEnglish(input);
   if (!isValidReading(input)) {
     return {
       category: "insufficient_data",
@@ -159,9 +164,128 @@ export function normalizeInterpretationResult(value: unknown, base: BPBaseInterp
 function enforceRepeatAdvicePolicy(lines: string[], base: BPBaseInterpretation): string[] {
   const canRecommendRepeat = base.severity === "repeat" || base.severity === "urgent" || base.category === "low";
   if (canRecommendRepeat) return lines;
-  const withoutRepeat = lines.filter((line) => !line.includes("复测"));
+  const withoutRepeat = lines.filter((line) => !/(复测|repeat|remeasure|recheck)/i.test(line));
   if (withoutRepeat.length > 0) return withoutRepeat;
   return base.nextSteps;
+}
+
+function makeRuleBasedInterpretationEnglish(input: BPInterpretationInput): BPBaseInterpretation {
+  if (!isValidReading(input)) {
+    return {
+      category: "insufficient_data",
+      severity: "watch",
+      bloodPressureSituation: ["This reading is incomplete. Please check the systolic value, diastolic value, and unit."],
+      reasons: ["Reason: the current values cannot be interpreted reliably."],
+      nextSteps: ["Now: enter or rescan the complete values from the same measurement."],
+      safetyNote: defaultSafetyNoteEnglish,
+      disclaimer: bpInterpretationDisclaimerEnglish,
+      trendComparisons: [],
+      officeClassification: "Not classifiable",
+      safetySymptoms: []
+    };
+  }
+
+  const category = classifyBp(input.systolicBp, input.diastolicBp);
+  const safetySymptoms = (input.symptoms ?? []).filter((value) => urgentSymptoms.has(value));
+  const trendComparisons = makeTrendComparisons(input);
+  const officeClassification = classifyOfficeEnglish(input.systolicBp, input.diastolicBp);
+  const situation = [makeCurrentSituationLineEnglish(input, category, officeClassification)];
+
+  for (const comparison of trendComparisons) {
+    const line = comparisonLineEnglish(comparison);
+    if (line) situation.push(line);
+  }
+
+  const reasons = makeReasonsEnglish(input).slice(0, 3);
+  const nextSteps = makeNextStepsEnglish(input, category, trendComparisons, safetySymptoms).slice(0, 3);
+  const severity = makeSeverity(category, trendComparisons, safetySymptoms, input);
+
+  return {
+    category,
+    severity,
+    bloodPressureSituation: situation.slice(0, 3),
+    reasons,
+    nextSteps,
+    safetyNote: category === "urgent" || safetySymptoms.length > 0 ? urgentSafetyNoteEnglish : defaultSafetyNoteEnglish,
+    disclaimer: bpInterpretationDisclaimerEnglish,
+    trendComparisons,
+    officeClassification,
+    safetySymptoms
+  };
+}
+
+function classifyOfficeEnglish(systolic: number, diastolic: number): string {
+  if (systolic >= 180 || diastolic >= 110) return "the grade 3 hypertension range";
+  if (systolic >= 160 || diastolic >= 100) return "the grade 2 hypertension range";
+  if (systolic >= 140 || diastolic >= 90) return "the grade 1 hypertension range";
+  if (systolic >= 120 || diastolic >= 80) return "the high-normal range";
+  return "the normal range";
+}
+
+function makeCurrentSituationLineEnglish(input: BPInterpretationInput, category: BPInterpretationCategory, office: string): string {
+  const value = `${input.systolicBp}/${input.diastolicBp} mmHg`;
+  if (category === "low") return `Current: ${value}, below the usual reference range; the same clinic reading would fall in ${office}.`;
+  if (category === "urgent" || category === "high_home") return `Current: ${value}, at or above the home blood pressure reference of 135/85; the same clinic reading would fall in ${office}.`;
+  return `Current: ${value}, below the home blood pressure reference of 135/85; the same clinic reading would fall in ${office}.`;
+}
+
+function comparisonLineEnglish(comparison: BPPeriodComparison): string | null {
+  const current = comparison.currentAverage;
+  if (!current) return null;
+  const prefix = `${comparison.days}-day: daily average ${current.systolic}/${current.diastolic} mmHg`;
+  const previous = comparison.previousAverage;
+  if (!previous) return `${prefix}; keep recording to observe changes.`;
+  const sys = current.systolic - previous.systolic;
+  const dia = current.diastolic - previous.diastolic;
+  return `${prefix}; compared with the previous ${comparison.days} days, ${describePressureDeltaEnglish("systolic", sys)} and ${describePressureDeltaEnglish("diastolic", dia)}.`;
+}
+
+function describePressureDeltaEnglish(label: string, delta: number): string {
+  if (delta === 0) return `${label} pressure was unchanged`;
+  return `${label} pressure was ${Math.abs(delta)} mmHg ${delta > 0 ? "higher" : "lower"}`;
+}
+
+function makeReasonsEnglish(input: BPInterpretationInput): string[] {
+  const lines: string[] = [];
+  const meals = input.lifestyleContext?.recentMeals ?? [];
+  if (meals.length > 0) lines.push(`Diet: ${meals.length} recent meal record${meals.length === 1 ? "" : "s"} can be considered alongside the trend.`);
+  const exercises = input.lifestyleContext?.recentExercises ?? [];
+  if (exercises.length > 0) {
+    const completed = exercises.filter((item) => item.status === "completed").length;
+    lines.push(`Activity: ${exercises.length} exercise record${exercises.length === 1 ? "" : "s"} in the past 7 days, with ${completed} completed.`);
+  }
+  if (input.averageSleepHoursLast7Days != null) lines.push(`Sleep: the latest synced value is about ${round(input.averageSleepHoursLast7Days, 1)} hours and provides context for this reading.`);
+  else if (input.todaySteps != null) lines.push(`Activity: the latest synced step count is ${input.todaySteps}, which provides context for this reading.`);
+  else if (input.bpMonitorPulse != null && input.bpMonitorPulse >= 100) lines.push("Context: the pulse was faster during this measurement; recent activity, stress, or measurement conditions may affect the reading.");
+  if (lines.length === 0) lines.push("Reason: rest, emotions, or measurement conditions may affect a single reading; use later readings to observe the trend.");
+  return lines;
+}
+
+function makeNextStepsEnglish(input: BPInterpretationInput, category: BPInterpretationCategory, trends: BPPeriodComparison[], symptoms: string[]): string[] {
+  if (category === "urgent" || symptoms.length > 0) return [
+    "Now: stop activity, rest quietly, and repeat the measurement using the recommended technique.",
+    "Observe: if the repeated reading remains very high, contact a medical service promptly.",
+    "Seek care: get urgent help immediately for chest pain, shortness of breath, severe headache, vision changes, confusion, weakness, or fainting."
+  ];
+  if (category === "low") return [
+    "Now: sit down, avoid standing suddenly, and repeat the measurement under the same conditions.",
+    "Observe: note any dizziness, weakness, or fainting and continue recording readings.",
+    "Seek care: contact a clinician if symptoms persist, worsen, or include fainting."
+  ];
+  const sevenDay = trends.find((item) => item.days === 7);
+  const sevenDayHigh = sevenDay?.currentAverage;
+  const threeDayHigh = trends.find((item) => item.days === 3)?.currentAverage;
+  const currentNeedsRepeat = isGradeTwoOrHigher(input.systolicBp, input.diastolicBp);
+  const lines = [currentNeedsRepeat
+    ? "Now: rest quietly for 5 minutes, then repeat the measurement using the recommended technique."
+    : "Now: continue your planned daily monitoring at a consistent time and in a consistent position."];
+  lines.push(threeDayHigh && isHomeHigh(threeDayHigh)
+    ? "Observe: the 3-day average is elevated; keep recording and watch the 7-day average."
+    : "Observe: use the daily averages over the next few days to assess changes.");
+  if (sevenDayHigh && (sevenDay?.currentObservedDays ?? 0) >= 3 && isHomeHigh(sevenDayHigh)) {
+    lines.push("Seek care: if the home average remains elevated across several days, share the complete record with a clinician.");
+  }
+  return lines;
 }
 
 export function stripInternalFields(base: BPBaseInterpretation): BPInterpretationResult {
@@ -345,3 +469,5 @@ function isRecord(value: unknown): value is Record<string, unknown> { return typ
 
 const urgentSafetyNote = "如伴胸痛、气短、严重头痛、视物异常、肢体无力、意识异常或晕厥，请立即寻求急诊帮助。";
 const defaultSafetyNote = "如出现胸痛、气短、严重头痛、视物异常、肢体无力、意识异常或晕厥，请及时寻求医疗帮助。";
+const urgentSafetyNoteEnglish = "Seek urgent medical help immediately for chest pain, shortness of breath, severe headache, vision changes, weakness, confusion, or fainting.";
+const defaultSafetyNoteEnglish = "Seek timely medical help for chest pain, shortness of breath, severe headache, vision changes, weakness, confusion, or fainting.";

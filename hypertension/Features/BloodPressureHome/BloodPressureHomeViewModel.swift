@@ -71,10 +71,10 @@ final class BloodPressureHomeViewModel: ObservableObject {
                 try localReadingStore.markSynced(clientId: reading.clientId, serverId: reading.id)
             }
 
-            syncStatusMessage = "已同步 \(response.readings.count) 条本地读数。"
+            syncStatusMessage = L10n.format("已同步 %d 条本地读数。", response.readings.count)
         } catch {
             try? localReadingStore.markSyncFailed(clientIds: attemptedClientIds)
-            syncStatusMessage = "有读数等待联网后同步。"
+            syncStatusMessage = L10n.string("有读数等待联网后同步。")
         }
     }
 
@@ -90,11 +90,11 @@ final class BloodPressureHomeViewModel: ObservableObject {
             }
 
             if !response.readings.isEmpty {
-                syncStatusMessage = "已更新服务器上的 \(response.readings.count) 条读数。"
+                syncStatusMessage = L10n.format("已更新服务器上的 %d 条读数。", response.readings.count)
             }
         } catch {
             if syncStatusMessage == nil {
-                syncStatusMessage = "暂时无法更新服务器读数。"
+                syncStatusMessage = L10n.string("暂时无法更新服务器读数。")
             }
         }
     }
@@ -119,7 +119,7 @@ final class BloodPressureHomeViewModel: ObservableObject {
             interpretationErrorMessage = nil
         } catch {
             interpretation = BPInterpretationRuleFallback.makeInterpretation(from: reading)
-            interpretationErrorMessage = "暂时无法获取 AI 解释，已显示本地规则说明。"
+            interpretationErrorMessage = L10n.string("暂时无法获取 AI 解释，已显示本地规则说明。")
         }
     }
 
@@ -158,7 +158,7 @@ final class BloodPressureHomeViewModel: ObservableObject {
             historyActionErrorMessage = nil
             return true
         } catch {
-            historyActionErrorMessage = "暂时无法删除这条读数，请联网后重试。"
+            historyActionErrorMessage = L10n.string("暂时无法删除这条读数，请联网后重试。")
             return false
         }
     }
@@ -177,11 +177,11 @@ final class BloodPressureHomeViewModel: ObservableObject {
 
     private static func dayLabel(for date: Date) -> String {
         if Calendar.current.isDateInToday(date) {
-            return "今"
+            return L10n.string("今")
         }
 
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans")
+        formatter.locale = L10n.locale
         formatter.setLocalizedDateFormatFromTemplate("E")
         return formatter.string(from: date)
     }
@@ -207,9 +207,9 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: category,
                 severity: .urgent,
-                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，达到需要高度重视的范围。"],
-                reasons: ["本次读数达到需要高度重视的范围。"],
-                nextSteps: ["安静休息后立即规范复测。", "如仍处于该范围或伴有明显不适，请立即寻求急诊帮助。"],
+                bloodPressureSituation: [L10n.format("本次为 %d/%d mmHg，达到需要高度重视的范围。", reading.systolic, reading.diastolic)],
+                reasons: [L10n.string("本次读数达到需要高度重视的范围。")],
+                nextSteps: [L10n.string("安静休息后立即规范复测。"), L10n.string("如仍处于该范围或伴有明显不适，请立即寻求急诊帮助。")],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
@@ -218,11 +218,11 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: category,
                 severity: needsRepeat ? .repeat : .watch,
-                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，超过家庭血压参考阈值 135/85 mmHg。"],
-                reasons: ["家庭血压需结合每日监测和一段时间内的平均值观察。"],
+                bloodPressureSituation: [L10n.format("本次为 %d/%d mmHg，超过家庭血压参考阈值 135/85 mmHg。", reading.systolic, reading.diastolic)],
+                reasons: [L10n.string("家庭血压需结合每日监测和一段时间内的平均值观察。")],
                 nextSteps: needsRepeat
-                    ? ["安静坐位休息 5 分钟后规范复测。", "连续几天记录并观察家庭平均值。"]
-                    : ["按原计划每日监测，保持相同时间和姿势记录。", "连续几天记录并观察家庭平均值。"],
+                    ? [L10n.string("安静坐位休息 5 分钟后规范复测。"), L10n.string("连续几天记录并观察家庭平均值。")]
+                    : [L10n.string("按原计划每日监测，保持相同时间和姿势记录。"), L10n.string("连续几天记录并观察家庭平均值。")],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
@@ -230,9 +230,9 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: category,
                 severity: .watch,
-                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，未达到家庭偏高阈值，但接近诊室正常高值范围。"],
-                reasons: ["本次读数接近偏高范围，可能受休息、压力或测量条件影响。"],
-                nextSteps: ["在相同条件下继续记录。", "结合接下来几天的平均值观察变化。"],
+                bloodPressureSituation: [L10n.format("本次为 %d/%d mmHg，未达到家庭偏高阈值，但接近诊室正常高值范围。", reading.systolic, reading.diastolic)],
+                reasons: [L10n.string("本次读数接近偏高范围，可能受休息、压力或测量条件影响。")],
+                nextSteps: [L10n.string("在相同条件下继续记录。"), L10n.string("结合接下来几天的平均值观察变化。")],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
@@ -240,9 +240,9 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: category,
                 severity: .watch,
-                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，低于常见参考范围。"],
-                reasons: ["本次读数低于常见参考范围。"],
-                nextSteps: ["在相同条件下规范复测。", "如有头晕、乏力或晕厥等不适，请及时寻求医疗帮助。"],
+                bloodPressureSituation: [L10n.format("本次为 %d/%d mmHg，低于常见参考范围。", reading.systolic, reading.diastolic)],
+                reasons: [L10n.string("本次读数低于常见参考范围。")],
+                nextSteps: [L10n.string("在相同条件下规范复测。"), L10n.string("如有头晕、乏力或晕厥等不适，请及时寻求医疗帮助。")],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
@@ -250,17 +250,17 @@ enum BPInterpretationRuleFallback {
             return BPInterpretation(
                 category: .normal,
                 severity: .reassuring,
-                bloodPressureSituation: ["本次为 \(reading.systolic)/\(reading.diastolic) mmHg，处于常见家庭血压参考范围。"],
-                reasons: ["本次家庭血压读数在常见正常范围内。"],
-                nextSteps: ["继续保持规律记录即可。"],
+                bloodPressureSituation: [L10n.format("本次为 %d/%d mmHg，处于常见家庭血压参考范围。", reading.systolic, reading.diastolic)],
+                reasons: [L10n.string("本次家庭血压读数在常见正常范围内。")],
+                nextSteps: [L10n.string("继续保持规律记录即可。")],
                 safetyNote: defaultSafetyNote,
                 disclaimer: disclaimer
             )
         }
     }
 
-    private static let defaultSafetyNote = "如出现胸痛、气短、剧烈头痛、视物异常、肢体无力、意识异常或晕厥等症状，请及时寻求医疗帮助。"
-    private static let disclaimer = "此解释仅用于健康记录和趋势理解，不构成诊断，也不能替代医生建议或用药调整。"
+    private static var defaultSafetyNote: String { L10n.string("如出现胸痛、气短、剧烈头痛、视物异常、肢体无力、意识异常或晕厥等症状，请及时寻求医疗帮助。") }
+    private static var disclaimer: String { L10n.string("此解释仅用于健康记录和趋势理解，不构成诊断，也不能替代医生建议或用药调整。") }
 }
 
 @Model

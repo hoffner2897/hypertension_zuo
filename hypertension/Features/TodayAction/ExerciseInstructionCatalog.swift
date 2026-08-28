@@ -302,4 +302,302 @@ enum ExerciseInstructionCatalog {
             """
         )
     ]
+
+    static func localizedCopy(for exerciseID: String) -> ExerciseInstructionCopy? {
+        if L10n.language == .english {
+            return englishByExerciseID[exerciseID] ?? byExerciseID[exerciseID]
+        }
+        return byExerciseID[exerciseID]
+    }
+
+    private static let englishByExerciseID: [String: ExerciseInstructionCopy] = [
+        "private-indoor-march-in-place": .init(
+            howTo: """
+            Steps: 1. Stand upright and lift each foot in turn. 2. Let your arms swing naturally.
+            Timing: Work for 5 minutes, then rest for 1 minute.
+            Key points: Keep your steps light and steady. Do not jump or lift your knees too high.
+            """,
+            intensity: """
+            Suitable: You can speak in full sentences but cannot sing easily.
+            Too hard: You can say only a few words, or your steps become unsteady.
+            Adjust: Slow down. If you still cannot speak in full sentences, continue resting.
+            """
+        ),
+        "private-indoor-sit-to-stand": .init(
+            howTo: """
+            Steps: 1. Sit midway on a stable chair with both feet flat. 2. Lean slightly forward and stand slowly. 3. Sit down slowly.
+            Timing: Do 8–12 repetitions, then rest for 1–2 minutes.
+            Key points: Do not use a chair with wheels. Hold the armrests if needed.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and remain steady while standing and sitting.
+            Too hard: You need to hold your breath, have knee pain, or cannot lower yourself slowly.
+            Adjust: Stop if your knees hurt. Otherwise, do fewer repetitions or use the armrests.
+            """
+        ),
+        "private-indoor-wall-push-up": .init(
+            howTo: """
+            Steps: 1. Face a wall about one arm's length away, with hands at shoulder height. 2. Bend your elbows toward the wall. 3. Push back slowly.
+            Timing: Do 8–12 repetitions, then rest for 1–2 minutes.
+            Key points: Keep a straight line from head to heels and keep your heels down.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and keep your body steady while pushing back.
+            Too hard: You need to hold your breath, your back bends, or your shoulders hurt.
+            Adjust: Stop if your shoulders hurt. Otherwise, stand closer to the wall or do fewer repetitions.
+            """
+        ),
+        "private-indoor-wall-sit": .init(
+            howTo: """
+            Steps: 1. Rest your back against a wall and place your feet half a step forward. 2. Slide down into a shallow squat. 3. Hold briefly, then stand.
+            Timing: Hold for 5–10 seconds, then rest for 20–30 seconds.
+            Key points: Squat only as far as is comfortable and easy to stand from. Do not hold your breath.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and your legs are not visibly shaking.
+            Too hard: You hold your breath, feel dizzy or pain, or your legs shake noticeably.
+            Adjust: Stand up immediately. Next time, squat less deeply or hold for less time.
+            """
+        ),
+        "private-indoor-seated-alternating-knee-lift": .init(
+            howTo: """
+            Steps: 1. Sit securely with both feet on the floor. 2. Lift each knee in turn. 3. Lower it slowly.
+            Timing: Work for 5 minutes, then rest for 1 minute.
+            Key points: Keep your upper body upright and lift only to a comfortable height.
+            """,
+            intensity: """
+            Suitable: You can speak in full sentences without leaning back noticeably.
+            Too hard: You can say only a few words, or your lower back feels uncomfortable.
+            Adjust: Slow down and lift your knees less high.
+            """
+        ),
+        "private-indoor-seated-knee-extension": .init(
+            howTo: """
+            Steps: 1. Sit securely with both feet on the floor. 2. Slowly straighten one leg forward. 3. Lower it slowly, then switch legs.
+            Timing: Do 8–12 repetitions per side, then rest for 1–2 minutes.
+            Key points: Do not lean back. Stop immediately if your knee hurts.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and raise and lower your lower leg slowly.
+            Too hard: You need to lean back for momentum, or your knee hurts.
+            Adjust: Stop immediately. Next time, straighten less or do fewer repetitions.
+            """
+        ),
+        "public-indoor-slow-walk": .init(
+            howTo: """
+            Steps: 1. Choose a level walkway and begin slowly. 2. Walk naturally with relaxed arm swings.
+            Timing: Walk for 5 minutes, then rest for 1 minute.
+            Key points: Look ahead and avoid slippery surfaces and obstacles.
+            """,
+            intensity: """
+            Suitable: Your breathing is slightly faster, but you can still speak in full sentences.
+            Too hard: You cannot finish a sentence, or your steps become unsteady.
+            Adjust: Slow down and stop to rest if needed.
+            """
+        ),
+        "public-indoor-march-in-place": .init(
+            howTo: """
+            Steps: 1. Stand upright and lift each foot in turn. 2. Let your arms swing naturally.
+            Timing: Work for 5 minutes, then rest for 1 minute.
+            Key points: Choose a place where you will not block anyone. Keep steps light and steady; do not jump.
+            """,
+            intensity: """
+            Suitable: You can speak in full sentences but cannot sing easily.
+            Too hard: You can say only a few words, or your steps become unsteady.
+            Adjust: Slow down and stop to rest if needed.
+            """
+        ),
+        "public-indoor-side-step": .init(
+            howTo: """
+            Steps: 1. Step left with your left foot and bring your right foot in. 2. Repeat to the right.
+            Timing: Work for 2–3 minutes, then rest for 1 minute.
+            Key points: Check that both sides are clear. Do not cross your feet or jump.
+            """,
+            intensity: """
+            Suitable: Your breathing is natural and your body stays steady from side to side.
+            Too hard: Your steps become confused, or your body sways noticeably.
+            Adjust: Take smaller steps, slow down, or hold a stable support.
+            """
+        ),
+        "public-indoor-calf-raise": .init(
+            howTo: """
+            Steps: 1. Hold a stable support and stand firmly. 2. Slowly raise your heels. 3. Slowly lower them.
+            Timing: Do 8–12 repetitions, then rest for 1–2 minutes.
+            Key points: Keep your body upright and do not bounce quickly.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and stay steady while rising and lowering.
+            Too hard: You need to hold your breath, your calves hurt, or your body sways.
+            Adjust: Lower your heels immediately. Rest longer or do fewer repetitions.
+            """
+        ),
+        "public-indoor-forward-back-tap": .init(
+            howTo: """
+            Steps: 1. Tap your right foot forward and return. 2. Tap it backward and return. 3. Switch to the left foot.
+            Timing: Work for 2–3 minutes, then rest for 1 minute.
+            Key points: Tap lightly, keep your body upright, and do not jump.
+            """,
+            intensity: """
+            Suitable: Your breathing is natural and your body stays steady while tapping.
+            Too hard: Your steps become confused, or your body sways noticeably.
+            Adjust: Shorten the tapping distance, slow down, or hold a stable support.
+            """
+        ),
+        "public-indoor-supported-side-leg-raise": .init(
+            howTo: """
+            Steps: 1. Hold a wall with one hand and stand upright. 2. Lift one leg slightly to the side. 3. Lower it slowly, then switch legs.
+            Timing: Do 8–12 repetitions per side, then rest for 1–2 minutes.
+            Key points: Keep your toes forward and do not lean your upper body sideways.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and stay steady while lifting your leg.
+            Too hard: You need to lean for momentum, or you feel pain at the top of your thigh.
+            Adjust: Stop immediately. Next time, lift less or do fewer repetitions.
+            """
+        ),
+        "public-outdoor-slow-walk": .init(
+            howTo: """
+            Steps: 1. Choose a level route and begin slowly. 2. Walk naturally with relaxed arm swings.
+            Timing: Walk for 5 minutes, then rest for 1 minute.
+            Key points: Look ahead and avoid slippery surfaces and obstacles.
+            """,
+            intensity: """
+            Suitable: Your breathing is slightly faster, but you can still speak in full sentences.
+            Too hard: You cannot finish a sentence, or your steps become unsteady.
+            Adjust: Slow down immediately and stop to rest if needed.
+            """
+        ),
+        "public-outdoor-moderate-brisk-walk": .init(
+            howTo: """
+            Steps: 1. Start slowly, then gradually speed up. 2. Keep a natural stride and steady rhythm.
+            Timing: Walk for 5 minutes, then rest for 1 minute.
+            Key points: Do not race. Slow down gradually before finishing.
+            """,
+            intensity: """
+            Suitable: You can speak in full sentences but cannot sing easily.
+            Too hard: You need several breaths to finish a sentence, or your steps become unsteady.
+            Adjust: Reduce your speed and stop to rest if needed.
+            """
+        ),
+        "public-outdoor-side-step": .init(
+            howTo: """
+            Steps: 1. Step left with your left foot and bring your right foot in. 2. Repeat to the right.
+            Timing: Work for 2–3 minutes, then rest for 1 minute.
+            Key points: Choose a level, clear area. Do not cross your feet or jump.
+            """,
+            intensity: """
+            Suitable: Your breathing is natural and your body stays steady from side to side.
+            Too hard: Your steps become confused, or your body sways noticeably.
+            Adjust: Take smaller steps, slow down, or hold a stable support.
+            """
+        ),
+        "public-outdoor-step-jack": .init(
+            howTo: """
+            Steps: 1. Step one foot out to the side. 2. Bring it back and switch feet. 3. Raise your arms naturally if comfortable.
+            Timing: Work for 2–3 minutes, then rest for 1 minute.
+            Key points: Step only; do not jump. Make sure the area is clear.
+            """,
+            intensity: """
+            Suitable: You can speak in full sentences and remain steady.
+            Too hard: You can say only a few words, or your steps become unsteady.
+            Adjust: Slow down, stop raising your arms, or pause to rest.
+            """
+        ),
+        "public-outdoor-forward-back-tap": .init(
+            howTo: """
+            Steps: 1. Tap your right foot forward and return. 2. Tap it backward and return. 3. Switch to the left foot.
+            Timing: Work for 2–3 minutes, then rest for 1 minute.
+            Key points: Choose a level area, tap lightly, and do not jump.
+            """,
+            intensity: """
+            Suitable: Your breathing is natural and your body stays steady while tapping.
+            Too hard: Your steps become confused, or your body sways noticeably.
+            Adjust: Shorten the tapping distance, slow down, or hold a stable support.
+            """
+        ),
+        "public-outdoor-low-step-up": .init(
+            howTo: """
+            Steps: 1. Step onto a low step with one foot, then bring up the other. 2. Step down with the first foot, then the other. 3. Lead with the other foot next time.
+            Timing: Work for 1–2 minutes, then rest for 1 minute.
+            Key points: Use a stable low step, stay near a handrail, and do not jump.
+            """,
+            intensity: """
+            Suitable: Your breathing is slightly faster and your body stays steady on the step.
+            Too hard: Your knees hurt, your steps become confused, or your body sways noticeably.
+            Adjust: Stop immediately. Do not continue with knee pain; otherwise slow down.
+            """
+        ),
+        "private-open-outdoor-moderate-brisk-walk": .init(
+            howTo: """
+            Steps: 1. Start slowly, then gradually speed up. 2. Keep a natural stride and steady rhythm.
+            Timing: Walk for 5 minutes, then rest for 1 minute.
+            Key points: Choose a level route and slow down gradually before finishing.
+            """,
+            intensity: """
+            Suitable: You can speak in full sentences but cannot sing easily.
+            Too hard: You need several breaths to finish a sentence, or your steps become unsteady.
+            Adjust: Reduce your speed and stop to rest if needed.
+            """
+        ),
+        "private-open-outdoor-shallow-squat": .init(
+            howTo: """
+            Steps: 1. Stand with feet about shoulder-width apart and toes forward. 2. Move your hips back into a shallow squat. 3. Stand slowly.
+            Timing: Do 8–12 repetitions, then rest for 1–2 minutes.
+            Key points: Stay near a stable support, keep knees aligned with toes, and squat only slightly.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and stay steady while standing.
+            Too hard: You need to hold your breath, your knees hurt, or you cannot stand steadily.
+            Adjust: Stand up immediately. Next time, squat less deeply or do fewer repetitions.
+            """
+        ),
+        "private-open-outdoor-wall-push-up": .init(
+            howTo: """
+            Steps: 1. Face a wall about one arm's length away, with hands at shoulder height. 2. Bend your elbows toward the wall. 3. Push back slowly.
+            Timing: Do 8–12 repetitions, then rest for 1–2 minutes.
+            Key points: Make sure the wall is stable and keep a straight line from head to heels.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and keep your body steady while pushing back.
+            Too hard: You need to hold your breath, your back bends, or your shoulders hurt.
+            Adjust: Stop if your shoulders hurt. Otherwise, stand closer to the wall or do fewer repetitions.
+            """
+        ),
+        "private-open-outdoor-wall-sit": .init(
+            howTo: """
+            Steps: 1. Rest your back against a wall and place your feet half a step forward. 2. Slide down into a shallow squat. 3. Hold briefly, then stand.
+            Timing: Hold for 5–10 seconds, then rest for 20–30 seconds.
+            Key points: Squat only as far as is comfortable and easy to stand from. Do not hold your breath.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and your legs are not visibly shaking.
+            Too hard: You hold your breath, feel dizzy or pain, or your legs shake noticeably.
+            Adjust: Stand up immediately. Next time, squat less deeply or hold for less time.
+            """
+        ),
+        "private-open-outdoor-supported-back-leg-raise": .init(
+            howTo: """
+            Steps: 1. Hold a wall with one hand and stand upright. 2. Lift one leg slightly backward. 3. Lower it slowly, then switch legs.
+            Timing: Do 8–12 repetitions per side, then rest for 1–2 minutes.
+            Key points: Do not lean forward or arch your lower back.
+            """,
+            intensity: """
+            Suitable: You can breathe normally and stay steady while lifting your leg.
+            Too hard: You need to swing your body, or your lower back or upper thigh hurts.
+            Adjust: Stop immediately. Next time, lift less or do fewer repetitions.
+            """
+        ),
+        "private-open-outdoor-low-step-up": .init(
+            howTo: """
+            Steps: 1. Step onto a low step with one foot, then bring up the other. 2. Step down with the first foot, then the other. 3. Lead with the other foot next time.
+            Timing: Work for 1–2 minutes, then rest for 1 minute.
+            Key points: Use a stable low step, stay near a handrail, and do not jump.
+            """,
+            intensity: """
+            Suitable: Your breathing is slightly faster and your body stays steady on the step.
+            Too hard: Your knees hurt, your steps become confused, or your body sways noticeably.
+            Adjust: Stop immediately. Do not continue with knee pain; otherwise slow down.
+            """
+        )
+    ]
 }

@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct hypertensionApp: App {
+    @StateObject private var languageStore = AppLanguageStore()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -28,6 +30,9 @@ struct hypertensionApp: App {
         WindowGroup {
             AppRootView()
                 .preferredColorScheme(.light)
+                .environmentObject(languageStore)
+                .environment(\.locale, languageStore.locale)
+                .id(languageStore.selectedLanguage)
         }
         .modelContainer(sharedModelContainer)
     }

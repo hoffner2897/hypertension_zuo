@@ -34,11 +34,11 @@ enum BPRecognitionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingImage:
-            "请先选择或拍摄一张血压计照片。"
+            L10n.string("请先选择或拍摄一张血压计照片。")
         case .invalidResponse:
-            "识别结果格式不正确，请手动输入读数。"
+            L10n.string("识别结果格式不正确，请手动输入读数。")
         case .serviceUnavailable:
-            "暂时无法识别照片，请稍后重试或手动输入。"
+            L10n.string("暂时无法识别照片，请稍后重试或手动输入。")
         }
     }
 }
@@ -59,7 +59,7 @@ struct MockBloodPressureRecognitionService: BloodPressureRecognitionService {
             pulse: 72,
             confidence: 0.86,
             needsManualReview: false,
-            notes: "mock 识别结果，请用户确认。"
+            notes: L10n.string("mock 识别结果，请用户确认。")
         )
     }
 }

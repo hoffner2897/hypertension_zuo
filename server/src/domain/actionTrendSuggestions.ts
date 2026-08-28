@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isEnglish, type AppLocale } from "../i18n/locale.js";
 
 export const actionObservationSchema = z.object({
   id: z.string().uuid(),
@@ -35,10 +36,10 @@ export const actionTrendSuggestionRequestSchema = z.object({
 export const actionTrendSuggestionSchema = z.object({
   targetActionId: z.string().uuid(),
   kind: z.enum(["reschedule", "shorten", "switch_exercise", "resolve_conflict"]),
-  message: z.string().trim().min(1).max(52),
+  message: z.string().trim().min(1).max(180),
   proposedStartTime: z.string().regex(/^(?:[01]\d|2[0-3]):(?:00|30)$/).nullable(),
   proposedDurationMinutes: z.union([z.literal(10), z.literal(15), z.literal(20), z.literal(30)]).nullable(),
-  proposedExerciseName: z.string().trim().min(1).max(20).nullable()
+  proposedExerciseName: z.string().trim().min(1).max(60).nullable()
 }).strict();
 
 export const actionTrendSuggestionResponseSchema = z.object({
@@ -46,14 +47,14 @@ export const actionTrendSuggestionResponseSchema = z.object({
   source: z.enum(["openai", "rule_based"]),
   evidenceDays: z.number().int().min(0).max(31),
   suggestions: z.array(actionTrendSuggestionSchema).max(2),
-  dataNote: z.string().trim().min(1).max(80),
-  disclaimer: z.string().trim().min(1).max(100)
+  dataNote: z.string().trim().min(1).max(180),
+  disclaimer: z.string().trim().min(1).max(240)
 }).strict();
 
 export const openAIActionTrendSelectionSchema = z.object({
   selections: z.array(z.object({
     candidateId: z.string().min(1).max(128),
-    message: z.string().trim().min(1).max(52)
+    message: z.string().trim().min(1).max(180)
   }).strict()).min(1).max(2)
 }).strict();
 
@@ -76,18 +77,24 @@ export interface TrustedActionSuggestionCandidate {
 }
 
 export interface TrustedActionSuggestionPlan {
+  locale: AppLocale;
   evidenceDays: number;
   candidates: TrustedActionSuggestionCandidate[];
 }
 
 const adjustableStatuses = new Set<ActionObservation["status"]>(["pending", "in_progress", "missed"]);
 const unsuccessfulStatuses = new Set<ActionObservation["status"]>(["missed", "skipped"]);
-const oneDayUnsupportedPhrases = /最近|近期|近来|近几天|这几天|过去几天|多日|多天|多次|经常|常常|频繁|老是|总是|长期|完成率|趋势/;
-const unsafeHealthPhrases = /确诊|患有高血压|高血压患者|服药|停药|加药|减药|换药|药物治疗|处方/;
+const oneDayUnsupportedPhrases = /最近|近期|近来|近几天|这几天|过去几天|多日|多天|多次|经常|常常|频繁|老是|总是|长期|完成率|趋势|recent|lately|multiple days|many times|often|frequent|always|long-term|completion rate|trend/i;
+const unsafeHealthPhrases = /确诊|患有高血压|高血压患者|服药|停药|加药|减药|换药|药物治疗|处方|diagnos|hypertension patient|medication|prescri|stop taking|increase the dose|reduce the dose|change drugs/i;
 
 export const actionSuggestionDisclaimer = "行动调整建议仅用于帮助安排日常计划，不替代专业医疗建议。";
+export function actionSuggestionDisclaimerForLocale(locale: AppLocale = "zh-Hans"): string {
+  return isEnglish(locale)
+    ? "Action-adjustment suggestions are for planning daily activities and do not replace professional medical advice."
+    : actionSuggestionDisclaimer;
+}
 
-export function buildTrustedActionSuggestionPlan(input: ActionTrendSuggestionRequest): TrustedActionSuggestionPlan {
+export function buildTrustedActionSuggestionPlan(input: ActionTrendSuggestionRequest, locale: AppLocale = "zh-Hans"): TrustedActionSuggestionPlan {
   const evidenceDays = countEvidenceDays(input);
   const candidates: TrustedActionSuggestionCandidate[] = [];
   const adjustableTodayActions = input.todayActions.filter((action) => adjustableStatuses.has(action.status));
@@ -103,7 +110,9 @@ export function buildTrustedActionSuggestionPlan(input: ActionTrendSuggestionReq
         id: `trend-reschedule:${action.id}`,
         actionId: action.id,
         kind: "reschedule",
-        fallbackMessage: limitMessage(`近${matchingDays}天“${safeActionTitle(action)}”有${unsuccessfulCount}次未完成，可尝试调整时间。`),
+        fallbackMessage: limitMessage(isEnglish(locale)
+          ? `Over the past ${matchingDays} days, “${safeActionTitle(action, locale)}” was not completed ${unsuccessfulCount} times. Try a different time.`
+          : `近${matchingDays}天“${safeActionTitle(action, locale)}”有${unsuccessfulCount}次未完成，可尝试调整时间。`, locale),
         evidenceDays: matchingDays,
         priority: 120 + unsuccessfulCount,
         proposedStartTime: null,
@@ -116,12 +125,14 @@ export function buildTrustedActionSuggestionPlan(input: ActionTrendSuggestionReq
           id: `trend-switch:${action.id}`,
           actionId: action.id,
           kind: "switch_exercise",
-          fallbackMessage: limitMessage(`近${matchingDays}天“${safeActionTitle(action)}”较难完成，可尝试更低门槛的运动。`),
+          fallbackMessage: limitMessage(isEnglish(locale)
+            ? `“${safeActionTitle(action, locale)}” was difficult to complete over the past ${matchingDays} days. Try an easier activity.`
+            : `近${matchingDays}天“${safeActionTitle(action, locale)}”较难完成，可尝试更低门槛的运动。`, locale),
           evidenceDays: matchingDays,
           priority: 110 + unsuccessfulCount,
           proposedStartTime: null,
           proposedDurationMinutes: null,
-          proposedExerciseName: replacementExercise(action.title)
+          proposedExerciseName: replacementExercise(action.title, locale)
         });
       }
     }
@@ -131,7 +142,9 @@ export function buildTrustedActionSuggestionPlan(input: ActionTrendSuggestionReq
         id: `today-reschedule:${action.id}`,
         actionId: action.id,
         kind: "reschedule",
-        fallbackMessage: limitMessage(`今天${formatTime(action.scheduledStartAt, input.timeZone)}的“${safeActionTitle(action)}”尚未完成，可调整到更方便的时间。`),
+        fallbackMessage: limitMessage(isEnglish(locale)
+          ? `“${safeActionTitle(action, locale)}” at ${formatTime(action.scheduledStartAt, input.timeZone)} is not complete. Move it to a more convenient time.`
+          : `今天${formatTime(action.scheduledStartAt, input.timeZone)}的“${safeActionTitle(action, locale)}”尚未完成，可调整到更方便的时间。`, locale),
         evidenceDays: 1,
         priority: 90,
         proposedStartTime: null,
@@ -144,7 +157,9 @@ export function buildTrustedActionSuggestionPlan(input: ActionTrendSuggestionReq
           id: `today-shorten:${action.id}`,
           actionId: action.id,
           kind: "shorten",
-          fallbackMessage: limitMessage(`今天的“${safeActionTitle(action)}”尚未完成，可缩短时长后再尝试。`),
+          fallbackMessage: limitMessage(isEnglish(locale)
+            ? `“${safeActionTitle(action, locale)}” is not complete today. Try again with a shorter duration.`
+            : `今天的“${safeActionTitle(action, locale)}”尚未完成，可缩短时长后再尝试。`, locale),
           evidenceDays: 1,
           priority: 82,
           proposedStartTime: null,
@@ -158,20 +173,23 @@ export function buildTrustedActionSuggestionPlan(input: ActionTrendSuggestionReq
           id: `today-switch:${action.id}`,
           actionId: action.id,
           kind: "switch_exercise",
-          fallbackMessage: limitMessage(`今天的“${safeActionTitle(action)}”尚未完成，可尝试更易开始的低门槛运动。`),
+          fallbackMessage: limitMessage(isEnglish(locale)
+            ? `“${safeActionTitle(action, locale)}” is not complete today. Try a light activity that is easier to start.`
+            : `今天的“${safeActionTitle(action, locale)}”尚未完成，可尝试更易开始的低门槛运动。`, locale),
           evidenceDays: 1,
           priority: 78,
           proposedStartTime: null,
           proposedDurationMinutes: null,
-          proposedExerciseName: replacementExercise(action.title)
+          proposedExerciseName: replacementExercise(action.title, locale)
         });
       }
     }
   }
 
-  candidates.push(...makeConflictCandidates(adjustableTodayActions, input.timeZone));
+  candidates.push(...makeConflictCandidates(adjustableTodayActions, input.timeZone, locale));
 
   return {
+    locale,
     evidenceDays,
     candidates: deduplicateCandidates(candidates)
       .sort((left, right) => right.priority - left.priority || left.id.localeCompare(right.id))
@@ -217,7 +235,8 @@ export function resolveOpenAISelections(
 
 function makeConflictCandidates(
   actions: ActionObservation[],
-  timeZone: string
+  timeZone: string,
+  locale: AppLocale
 ): TrustedActionSuggestionCandidate[] {
   const sorted = [...actions].sort((left, right) => Date.parse(left.scheduledStartAt) - Date.parse(right.scheduledStartAt));
   const candidates: TrustedActionSuggestionCandidate[] = [];
@@ -239,7 +258,9 @@ function makeConflictCandidates(
       id: `today-conflict:${current.id}`,
       actionId: current.id,
       kind: "resolve_conflict",
-      fallbackMessage: limitMessage(`今天“${safeActionTitle(previous)}”和“${safeActionTitle(current)}”时间重叠，可调整后者的开始时间。`),
+      fallbackMessage: limitMessage(isEnglish(locale)
+        ? `“${safeActionTitle(previous, locale)}” and “${safeActionTitle(current, locale)}” overlap today. Move the latter activity.`
+        : `今天“${safeActionTitle(previous, locale)}”和“${safeActionTitle(current, locale)}”时间重叠，可调整后者的开始时间。`, locale),
       evidenceDays: 1,
       priority: 100,
       proposedStartTime: null,
@@ -285,7 +306,12 @@ function candidateToSuggestion(
   };
 }
 
-export function makeActionSuggestionDataNote(evidenceDays: number): string {
+export function makeActionSuggestionDataNote(evidenceDays: number, locale: AppLocale = "zh-Hans"): string {
+  if (isEnglish(locale)) {
+    if (evidenceDays <= 0) return "There are no activity records available for suggestions.";
+    if (evidenceDays === 1) return "Suggestions are based only on the activity completion information provided today.";
+    return `Suggestions are based on the provided activity records from the past ${evidenceDays} days.`;
+  }
   if (evidenceDays <= 0) {
     return "当前没有可用于生成建议的行动记录。";
   }
@@ -296,7 +322,7 @@ export function makeActionSuggestionDataNote(evidenceDays: number): string {
 }
 
 function isAllowedPolish(message: string, candidate: TrustedActionSuggestionCandidate): boolean {
-  if (!message || message.length > 52 || unsafeHealthPhrases.test(message)) {
+  if (!message || message.length > 180 || unsafeHealthPhrases.test(message)) {
     return false;
   }
   if (candidate.evidenceDays < 3 && oneDayUnsupportedPhrases.test(message)) {
@@ -313,33 +339,35 @@ function normalizeTitle(value: string): string {
   return value.replace(/\s+/g, "").toLocaleLowerCase("zh-Hans");
 }
 
-function shortTitle(value: string): string {
+function shortTitle(value: string, locale: AppLocale): string {
   const normalized = normalizeMessage(value);
-  return normalized.length <= 12 ? normalized : `${normalized.slice(0, 11)}…`;
+  const limit = isEnglish(locale) ? 36 : 12;
+  return normalized.length <= limit ? normalized : `${normalized.slice(0, limit - 1)}…`;
 }
 
-function safeActionTitle(action: ActionObservation): string {
+function safeActionTitle(action: ActionObservation, locale: AppLocale): string {
   if (!unsafeHealthPhrases.test(action.title) && !oneDayUnsupportedPhrases.test(action.title)) {
-    return shortTitle(action.title);
+    return shortTitle(action.title, locale);
   }
 
   switch (action.type) {
   case "blood_pressure":
-    return "血压测量";
+    return isEnglish(locale) ? "Blood pressure measurement" : "血压测量";
   case "diet":
-    return "饮食建议";
+    return isEnglish(locale) ? "Meal suggestion" : "饮食建议";
   case "exercise":
-    return "运动行动";
+    return isEnglish(locale) ? "Exercise activity" : "运动行动";
   case "other":
-    return "当前行动";
+    return isEnglish(locale) ? "Current activity" : "当前行动";
   }
 }
 
-function limitMessage(value: string): string {
-  if (value.length <= 52) {
+function limitMessage(value: string, locale: AppLocale = "zh-Hans"): string {
+  const limit = isEnglish(locale) ? 180 : 52;
+  if (value.length <= limit) {
     return value;
   }
-  return `${value.slice(0, 51)}…`;
+  return `${value.slice(0, limit - 1)}…`;
 }
 
 function shorterDuration(duration: number | null): 10 | 15 | 20 | 30 {
@@ -355,7 +383,8 @@ function shorterDuration(duration: number | null): 10 | 15 | 20 | 30 {
   return 30;
 }
 
-function replacementExercise(title: string): string {
+function replacementExercise(title: string, locale: AppLocale): string {
+  if (isEnglish(locale)) return /walk/i.test(title) ? "Marching in place" : "Easy walking";
   return title.includes("慢走") ? "原地踏步" : "慢走";
 }
 

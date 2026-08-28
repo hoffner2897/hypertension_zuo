@@ -114,7 +114,7 @@ struct ExerciseTimeRangePicker: View {
         onSelect: @escaping (String) -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(L10n.string(title))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textSecondary)
 

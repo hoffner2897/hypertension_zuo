@@ -32,13 +32,13 @@ struct DSSectionHeader: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
+                Text(L10n.string(title))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DSTheme.Color.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let subtitle {
-                    Text(subtitle)
+                    Text(L10n.string(subtitle))
                         .font(.subheadline)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

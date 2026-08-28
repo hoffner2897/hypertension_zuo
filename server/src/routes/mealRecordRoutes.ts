@@ -18,6 +18,7 @@ import { parseBody, parseQuery } from "./validation.js";
 import { consumeAIUsageQuota } from "../services/aiUsageQuotaService.js";
 import { recordOpenAICacheHit } from "../services/openAIUsageTracking.js";
 import { makeImageRequestKey, ShortLivedRequestCache } from "../services/shortLivedRequestCache.js";
+import { isEnglish, requestLocale, type AppLocale } from "../i18n/locale.js";
 
 export interface MealRecordRouterDependencies {
   analysisService?: MealAnalysisService | null;
@@ -71,13 +72,16 @@ export function createMealRecordRouter(
       }
 
       const input = parseBody(analyzeMealRequestSchema, request.body);
+      const locale = requestLocale(request);
       if (!analysisService) {
-        throw new ApiError(503, "MEAL_ANALYSIS_UNAVAILABLE", "餐食分析服务暂时不可用，请稍后重试。");
+        throw new ApiError(503, "MEAL_ANALYSIS_UNAVAILABLE", isEnglish(locale)
+          ? "Meal analysis is temporarily unavailable. Please try again later."
+          : "餐食分析服务暂时不可用，请稍后重试。");
       }
       const normalizedImage = normalizeImageBase64(input.imageBase64);
       const usageContext = { userId: request.auth.userId, feature: "meal_analysis" as const };
       const cacheKey = makeImageRequestKey(
-        [request.auth.userId, "meal_analysis", input.mealDate, input.mealType],
+        [request.auth.userId, "meal_analysis", input.mealDate, input.mealType, locale],
         normalizedImage.mimeType,
         normalizedImage.base64
       );
@@ -100,6 +104,7 @@ export function createMealRecordRouter(
             dailyLimit: config.mealAnalysisDailyLimit
           });
           return analysisService.analyze(normalizedImage, {
+            locale,
             mealType: input.mealType,
             recordedAt: input.recordedAt,
             timeZone: input.timeZone,
@@ -128,15 +133,17 @@ export function createMealRecordRouter(
       } catch (error) {
         if (error instanceof ApiError) throw error;
         console.warn("OpenAI meal analysis failed.", error);
-        throw new ApiError(502, "MEAL_ANALYSIS_FAILED", "暂时无法分析这张照片，请稍后重试。");
+        throw new ApiError(502, "MEAL_ANALYSIS_FAILED", isEnglish(locale)
+          ? "This photo could not be analyzed right now. Please try again later."
+          : "暂时无法分析这张照片，请稍后重试。");
       }
 
       if (!result.canAnalyze) {
         throw new ApiError(422, "MEAL_IMAGE_UNCLEAR", result.recognition);
       }
 
-      const analysis = formatAnalysis(result);
-      const similarSuggestion = formatSuggestion(result);
+      const analysis = formatAnalysis(result, locale);
+      const similarSuggestion = formatSuggestion(result, locale);
 
       // The image is deliberately never included in this database write.
       const record = await prisma.mealRecord.upsert({
@@ -159,6 +166,7 @@ export function createMealRecordRouter(
           dietaryStructureSuggestion: result.dietaryStructureSuggestion,
           cookingMethodSuggestion: result.cookingMethodSuggestion,
           cardSummary: result.cardSummary,
+          analysisLocale: locale,
           recordedAt: new Date(input.recordedAt)
         },
         update: {
@@ -170,6 +178,7 @@ export function createMealRecordRouter(
           dietaryStructureSuggestion: result.dietaryStructureSuggestion,
           cookingMethodSuggestion: result.cookingMethodSuggestion,
           cardSummary: result.cardSummary,
+          analysisLocale: locale,
           recordedAt: new Date(input.recordedAt)
         }
       });
@@ -195,6 +204,7 @@ function serializeMealRecord(record: {
   dietaryStructureSuggestion: string | null;
   cookingMethodSuggestion: string | null;
   cardSummary: string;
+  analysisLocale: string | null;
   recordedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -211,6 +221,7 @@ function serializeMealRecord(record: {
     dietaryStructureSuggestion: record.dietaryStructureSuggestion,
     cookingMethodSuggestion: record.cookingMethodSuggestion,
     cardSummary: record.cardSummary,
+    analysisLocale: record.analysisLocale,
     recordedAt: record.recordedAt.toISOString(),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString()
@@ -221,21 +232,27 @@ function formatAnalysis(result: {
   recognition: string;
   dietaryStructureAnalysis: string;
   cookingMethodAnalysis: string;
-}): string {
+}, locale: AppLocale): string {
+  const headings = isEnglish(locale)
+    ? ["Recognition", "Dietary structure", "Cooking method"]
+    : ["识别", "饮食结构", "烹饪方式"];
   return [
-    `识别：${result.recognition}`,
-    `饮食结构：${result.dietaryStructureAnalysis}`,
-    `烹饪方式：${result.cookingMethodAnalysis}`
+    `${headings[0]}: ${result.recognition}`,
+    `${headings[1]}: ${result.dietaryStructureAnalysis}`,
+    `${headings[2]}: ${result.cookingMethodAnalysis}`
   ].join("\n");
 }
 
 function formatSuggestion(result: {
   dietaryStructureSuggestion: string;
   cookingMethodSuggestion: string;
-}): string {
+}, locale: AppLocale): string {
+  const headings = isEnglish(locale)
+    ? ["Dietary structure", "Cooking method"]
+    : ["饮食结构", "烹饪方式"];
   return [
-    `饮食结构：${result.dietaryStructureSuggestion}`,
-    `烹饪方式：${result.cookingMethodSuggestion}`
+    `${headings[0]}: ${result.dietaryStructureSuggestion}`,
+    `${headings[1]}: ${result.cookingMethodSuggestion}`
   ].join("\n");
 }
 

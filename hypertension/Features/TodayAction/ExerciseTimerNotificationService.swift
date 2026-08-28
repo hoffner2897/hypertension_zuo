@@ -11,8 +11,11 @@ enum ExerciseTimerNotificationService {
         }
 
         let content = UNMutableNotificationContent()
-        content.title = "运动时间到了"
-        content.body = "\(item.title) 已达到计划时长，请返回确认完成或继续运动。"
+        content.title = L10n.string("运动时间到了")
+        content.body = L10n.format(
+            "%@ 已达到计划时长，请返回确认完成或继续运动。",
+            L10n.string(item.title)
+        )
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: TimeInterval(max(remainingSeconds, 1)),

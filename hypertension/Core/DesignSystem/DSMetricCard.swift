@@ -44,7 +44,7 @@ struct DSMetricCard: View {
                             .clipShape(Circle())
                     }
 
-                    Text(title)
+                    Text(L10n.string(title))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .lineLimit(1)
@@ -57,14 +57,14 @@ struct DSMetricCard: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
 
-                    Text(unit)
+                    Text(L10n.string(unit))
                         .font(.headline)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .lineLimit(1)
                 }
 
                 if let subtitle {
-                    Text(subtitle)
+                    Text(L10n.string(subtitle))
                         .font(.footnote)
                         .foregroundStyle(DSTheme.Color.textSecondary)
                         .lineLimit(2)

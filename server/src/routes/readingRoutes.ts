@@ -8,6 +8,7 @@ import { badRequest, unauthorized } from "../errors.js";
 import { parseBody, parseQuery } from "./validation.js";
 import { makeRuleBasedInterpretation, stripInternalFields } from "../domain/bloodPressureInterpretation.js";
 import { OpenAIBPInterpretationService } from "../services/openAIBPInterpretationService.js";
+import { isEnglish, requestLocale } from "../i18n/locale.js";
 
 const readingSource = z.enum(["manual", "camera_mock", "camera_ocr", "health_import"]);
 
@@ -128,6 +129,7 @@ export function createReadingRouter(config: ServerConfig, authUserLookup?: AuthU
   router.post("/interpretation", async (request, response, next) => {
     try {
       const auth = authFromRequest(request);
+      const locale = requestLocale(request);
       const input = parseBody(interpretationRequestSchema, request.body);
       const since = new Date(Date.parse(input.measurementTime) - 15 * 24 * 60 * 60 * 1000);
       const [profile, serverReadings, recentMeals, recentExercises] = await Promise.all([
@@ -147,6 +149,7 @@ export function createReadingRouter(config: ServerConfig, authUserLookup?: AuthU
       ]);
 
       const interpretationInput = {
+        locale,
         age: profile ? new Date().getUTCFullYear() - profile.birthYear : null,
         sex: profile?.sex ?? null,
         heightCm: decimalToNumber(profile?.heightCm),
@@ -213,8 +216,8 @@ export function createReadingRouter(config: ServerConfig, authUserLookup?: AuthU
           ...interpretation,
           // Keep legacy fields during the TestFlight rollout so the previous public build
           // continues to decode a useful rule-based/OpenAI response.
-          title: "血压解读",
-          summary: interpretation.bloodPressureSituation[0] ?? "已生成本次血压解读。",
+          title: isEnglish(locale) ? "Blood pressure interpretation" : "血压解读",
+          summary: interpretation.bloodPressureSituation[0] ?? (isEnglish(locale) ? "Your interpretation is ready." : "已生成本次血压解读。"),
           personalContextNotes: [],
           measurementQualityNotes: []
         }

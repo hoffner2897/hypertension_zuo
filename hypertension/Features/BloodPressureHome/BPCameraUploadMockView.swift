@@ -69,7 +69,7 @@ struct BPCameraUploadMockView: View {
                         .disabled(viewModel.isRecognizing)
 
                         PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                            Text("相册")
+                            Text(L10n.string("相册"))
                                 .font(.headline.weight(.bold))
                                 .foregroundStyle(DSTheme.Color.primary)
                                 .frame(maxWidth: .infinity)
@@ -87,7 +87,7 @@ struct BPCameraUploadMockView: View {
                         Button {
                             onManualInput(BPReadingDraft(source: .manual))
                         } label: {
-                            Text("手动输入")
+                            Text(L10n.string("手动输入"))
                                 .font(.headline.weight(.bold))
                             .foregroundStyle(DSTheme.Color.primary)
                             .frame(maxWidth: .infinity)
@@ -147,11 +147,11 @@ struct BPCameraUploadMockView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("上传读数")
+                Text(L10n.string("上传读数"))
                     .font(.system(size: 32, weight: .bold))
                     .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.42))
 
-                Text("可拍摄、选择相册或手动输入。")
+                Text(L10n.string("可拍摄、选择相册或手动输入。"))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color(red: 0.17, green: 0.25, blue: 0.48))
             }
@@ -186,7 +186,7 @@ struct BPCameraUploadMockView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .clipped()
 
-            Text(viewModel.selectedImage == nil ? "保持画面清晰，避免反光" : "正在准备识别，请保持读数清晰")
+            Text(L10n.string(viewModel.selectedImage == nil ? "保持画面清晰，避免反光" : "正在准备识别，请保持读数清晰"))
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 22)
@@ -204,7 +204,7 @@ struct BPCameraUploadMockView: View {
                     .tint(.white)
             }
 
-            Text(viewModel.isRecognizing ? "识别中..." : "拍摄")
+            Text(L10n.string(viewModel.isRecognizing ? "识别中..." : "拍摄"))
                 .font(.headline.weight(.bold))
         }
         .foregroundStyle(.white)
@@ -233,7 +233,7 @@ struct BPCameraUploadMockView: View {
                 .background(DSTheme.Color.primarySoft)
                 .clipShape(Circle())
 
-            Text(text)
+            Text(L10n.string(text))
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.textPrimary)
         }
@@ -246,16 +246,16 @@ struct BPCameraUploadMockView: View {
                     Image(systemName: result.needsManualReview ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
                         .foregroundStyle(result.needsManualReview ? DSTheme.Color.warning : DSTheme.Color.success)
 
-                    Text("识别结果待确认")
+                    Text(L10n.string("识别结果待确认"))
                         .font(.headline)
                         .foregroundStyle(DSTheme.Color.textPrimary)
                 }
 
-                Text(result.notes ?? "照片识别可能不完全准确，请在下一步确认读数。")
+                Text(result.notes ?? L10n.string("照片识别可能不完全准确，请在下一步确认读数。"))
                     .font(.subheadline)
                     .foregroundStyle(DSTheme.Color.textSecondary)
 
-                Text("置信度 \(Int(result.confidence * 100))%")
+                Text(L10n.format("置信度 %d%%", Int(result.confidence * 100)))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DSTheme.Color.textSecondary)
             }
@@ -267,7 +267,7 @@ struct BPCameraUploadMockView: View {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(DSTheme.Color.warning)
 
-            Text(message)
+            Text(L10n.string(message))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DSTheme.Color.warning)
                 .fixedSize(horizontal: false, vertical: true)
@@ -280,7 +280,7 @@ struct BPCameraUploadMockView: View {
             Image(systemName: systemImage)
                 .font(.headline)
 
-            Text(title)
+            Text(L10n.string(title))
                 .font(.headline)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
@@ -425,13 +425,13 @@ final class BPCameraUploadViewModel: ObservableObject {
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data) else {
-                errorMessage = "无法读取这张照片，请换一张重试。"
+                errorMessage = L10n.string("无法读取这张照片，请换一张重试。")
                 return
             }
 
             setImage(image, data: Self.uploadData(for: image) ?? data)
         } catch {
-            errorMessage = "无法读取这张照片，请换一张重试。"
+            errorMessage = L10n.string("无法读取这张照片，请换一张重试。")
         }
     }
 
@@ -440,13 +440,13 @@ final class BPCameraUploadViewModel: ObservableObject {
     }
 
     func showCameraUnavailableMessage() {
-        errorMessage = "当前设备不支持相机，请从相册选择照片。"
+        errorMessage = L10n.string("当前设备不支持相机，请从相册选择照片。")
     }
 
     #if DEBUG
     func loadBundledTestImage() {
         guard let image = UIImage(named: "TodayCardMorningBloodPressure") else {
-            errorMessage = "内置测试图片不可用。"
+            errorMessage = L10n.string("内置测试图片不可用。")
             return
         }
         setCameraImage(image)
@@ -464,18 +464,18 @@ final class BPCameraUploadViewModel: ObservableObject {
         if case APIClientError.server(let code, _) = error {
             switch code {
             case "AI_DAILY_QUOTA_EXCEEDED":
-                return "今天的 AI 图片识别次数已用完，请手动输入读数或明天再试。"
+                return L10n.string("今天的 AI 图片识别次数已用完，请手动输入读数或明天再试。")
             case "BAD_REQUEST", "VALIDATION_FAILED":
-                return "这张图片无法用于识别，请重新拍摄或手动输入。"
+                return L10n.string("这张图片无法用于识别，请重新拍摄或手动输入。")
             case "UNAUTHORIZED":
-                return "登录状态已失效，请重新登录后再试。"
+                return L10n.string("登录状态已失效，请重新登录后再试。")
             default:
-                return "暂时无法识别照片，请稍后重试或手动输入。"
+                return L10n.string("暂时无法识别照片，请稍后重试或手动输入。")
             }
         }
 
         return (error as? BPRecognitionError)?.errorDescription
-            ?? "暂时无法识别照片，请稍后重试或手动输入。"
+            ?? L10n.string("暂时无法识别照片，请稍后重试或手动输入。")
     }
 
     private static func uploadData(for image: UIImage) -> Data? {

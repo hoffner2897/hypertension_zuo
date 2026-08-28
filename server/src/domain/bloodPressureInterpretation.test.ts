@@ -43,6 +43,18 @@ test("a single mildly high reading stays daily monitoring with medical context",
   assert.match(result.nextSteps.join(" "), /每日监测/);
 });
 
+test("English interpretation keeps the grade-two repeat threshold and returns English copy", () => {
+  const monitored = makeRuleBasedInterpretation(reading(150, 95, { locale: "en" }));
+  assert.equal(monitored.severity, "watch");
+  assert.match(monitored.nextSteps.join(" "), /daily/i);
+  assert.doesNotMatch(monitored.nextSteps.join(" "), /repeat|remeasure|recheck/i);
+  assert.doesNotMatch(monitored.bloodPressureSituation.join(" "), /[\u4e00-\u9fff]/);
+
+  const repeat = makeRuleBasedInterpretation(reading(160, 100, { locale: "en" }));
+  assert.equal(repeat.severity, "repeat");
+  assert.match(repeat.nextSteps.join(" "), /repeat|remeasure|recheck/i);
+});
+
 test("invalid readings return insufficient data", () => {
   const result = makeRuleBasedInterpretation(reading(80, 90));
   assert.equal(result.category, "insufficient_data");
