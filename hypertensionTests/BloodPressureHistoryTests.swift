@@ -57,7 +57,7 @@ struct BloodPressureHistoryTests {
         for (draft, expectedMessage) in invalidCases {
             let viewModel = BPConfirmReadingViewModel(draft: draft)
             #expect(!viewModel.validate())
-            #expect(viewModel.errorMessage == expectedMessage)
+            #expect(viewModel.errorMessage == L10n.string(expectedMessage))
         }
     }
 

@@ -470,14 +470,14 @@
 "血压情况" = "Blood Pressure Status";
 "血压测量" = "Blood Pressure Measurement";
 "血压解读" = "Blood Pressure Interpretation";
-"血压读数" = "Blood Pressure Reading";
+"血压读数" = "BP Readings";
 "行动" = "Action";
 "行动内容" = "Action Details";
 "行动及血压测量" = "Actions and Blood Pressure Measurements";
 "行动建议" = "Action Recommendation";
-"行动生成" = "Action Generation";
+"行动生成" = "Action Studio";
 "行动详情" = "Action Details";
-"行动调整" = "Adjust Action";
+"行动调整" = "Action Adjustment";
 "补充基础数据" = "Add Basic Data";
 "补水" = "Hydration";
 "观察" = "Observe";
@@ -499,7 +499,7 @@
 "请输入收缩压。" = "Please enter systolic pressure.";
 "请输入舒张压。" = "Please enter diastolic pressure.";
 "读取 Apple Health 数据失败，可以使用已保存或手动补充的数据。" = "Failed to read Apple Health data. You can use saved data or add it manually.";
-"读数卡片" = "Reading Card";
+"读数卡片" = "BP Readings";
 "读数较稳定" = "Reading is relatively stable";
 "调整" = "Adjust";
 "调整后的行动" = "Adjusted Action";

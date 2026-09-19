@@ -291,7 +291,7 @@ struct hypertensionTests {
         )
 
         #expect(!viewModel.validate())
-        #expect(viewModel.errorMessage == "请输入收缩压。")
+        #expect(viewModel.errorMessage == L10n.string("请输入收缩压。"))
     }
 
     @Test @MainActor func validationRequiresSystolicGreaterThanDiastolic() async throws {
@@ -304,7 +304,7 @@ struct hypertensionTests {
         )
 
         #expect(!viewModel.validate())
-        #expect(viewModel.errorMessage == "收缩压需要大于舒张压。")
+        #expect(viewModel.errorMessage == L10n.string("收缩压需要大于舒张压。"))
     }
 
     @Test @MainActor func validationRejectsFutureMeasurementTime() async throws {
@@ -317,7 +317,7 @@ struct hypertensionTests {
         )
 
         #expect(!viewModel.validate())
-        #expect(viewModel.errorMessage == "测量时间不能晚于当前时间。")
+        #expect(viewModel.errorMessage == L10n.string("测量时间不能晚于当前时间。"))
     }
 
     @Test @MainActor func actionHistoryRestoresTodayAndKeepsOnlyActualRecordedDays() async throws {
@@ -534,6 +534,19 @@ struct hypertensionTests {
         #expect(layout.timeRows.count == 1)
         #expect(abs(firstY - secondY) >= (firstHeight + secondHeight) / 2)
         #expect(layout.itemY[meal.id] != nil)
+
+        // Long English text and larger fonts can make cards taller than their
+        // initial estimate. Measured sizes must also drive the timeline spacing.
+        let expanded = TimelinePositioner.layout(
+            items: [first, second, meal],
+            now: date.addingTimeInterval(-3_600),
+            measuredHeights: [first.id: 250, second.id: 280, meal.id: 390]
+        )
+        #expect(expanded.itemHeight[first.id] == 250)
+        #expect(expanded.itemHeight[second.id] == 280)
+        #expect(expanded.itemHeight[meal.id] == 390)
+        #expect(expanded.itemY[second.id]! - expanded.itemY[first.id]! >= 265)
+        #expect(expanded.contentHeight >= expanded.itemY[second.id]! + 140)
     }
 
     @Test @MainActor func customExercisesUseTheSharedGenericArtwork() {

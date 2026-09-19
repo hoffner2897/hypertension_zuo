@@ -167,22 +167,15 @@ struct ActionAdjustDemoView: View {
 
     private var trendSuggestionsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(DSTheme.Color.primary)
-
-                Text(L10n.string("行动建议"))
+            VStack(alignment: .leading, spacing: 6) {
+                Label(L10n.string("行动建议"), systemImage: "chart.line.uptrend.xyaxis")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-
-                Spacer(minLength: 8)
+                    .foregroundStyle(DSTheme.Color.primary)
 
                 Text(L10n.string(viewModel.evidenceDays > 0 ? "根据你的饮食和运动记录生成" : "记录行动后生成个性化建议"))
                     .font(.caption2)
                     .foregroundStyle(DSTheme.Color.textSecondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if viewModel.isLoading && viewModel.advice == nil {
@@ -310,9 +303,11 @@ private struct AdjustmentPageTitle: View {
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-            Text(L10n.string("Action Adjustment"))
-                .font(.subheadline)
-                .foregroundStyle(DSTheme.Color.textSecondary)
+            if L10n.language != .english {
+                Text("Action Adjustment")
+                    .font(.subheadline)
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+            }
         }
     }
 }
@@ -589,7 +584,7 @@ private struct ActionAdjustmentEntry: Identifiable {
             return items.map(\.startTimeText).joined(separator: "  |  ")
         case .single:
             guard let item = items.first else { return "" }
-            return "\(item.startTimeText)  |  \(item.durationMinutes)分钟"
+            return L10n.format("%@ | %d 分钟", item.startTimeText, item.durationMinutes)
         }
     }
 
@@ -797,12 +792,12 @@ private struct ActionAdvicePayload: Decodable {
     static func fallback(hasExercises: Bool) -> Self {
         Self(
             diet: Diet(
-                structure: "目前没有餐食记录；完成一次餐食记录后，这里会显示饮食结构建议。",
-                cooking: "目前没有可分析的烹饪方式；记录餐食后再提供建议。"
+                structure: L10n.string("目前没有餐食记录；完成一次餐食记录后，这里会显示饮食结构建议。"),
+                cooking: L10n.string("目前没有可分析的烹饪方式；记录餐食后再提供建议。")
             ),
             exercise: Exercise(
-                timing: hasExercises ? "可以先保持当前运动时段，并观察是否容易开始和完成。" : "目前没有运动记录；完成一次运动安排后，这里会显示时段建议。",
-                type: hasExercises ? "可以优先保留更容易开始的轻量运动。" : "目前没有运动记录；生成或记录运动后再提供类型建议。"
+                timing: L10n.string(hasExercises ? "可以先保持当前运动时段，并观察是否容易开始和完成。" : "目前没有运动记录；完成一次运动安排后，这里会显示时段建议。"),
+                type: L10n.string(hasExercises ? "可以优先保留更容易开始的轻量运动。" : "目前没有运动记录；生成或记录运动后再提供类型建议。")
             )
         )
     }
@@ -848,7 +843,7 @@ private struct ActionTrendSuggestion: Decodable, Identifiable, Hashable {
             )
         }
 
-        let dataNote = suggestions.isEmpty ? "当前没有需要调整的行动。" : nil
+        let dataNote = suggestions.isEmpty ? L10n.string("当前没有需要调整的行动。") : nil
         return (Array(suggestions), dataNote)
     }
 }
@@ -2096,7 +2091,7 @@ private struct MovementAdjustmentSummary: View {
                 Divider()
                     .frame(height: 44)
 
-                summaryColumn(title: "运动种类", value: movementName)
+                summaryColumn(title: "运动种类", value: L10n.string(movementName))
             }
 
             Text(L10n.format("原计划：%@  |  %@", originalItem.timeRangeText, L10n.string(originalItem.title)))

@@ -186,6 +186,67 @@ final class hypertensionUITests: XCTestCase {
     }
 
     @MainActor
+    func testEnglishIterationScreens() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-bphealth.appLanguage", "en"]
+        app.launch()
+
+        let preview = app.buttons["auth.debugPreviewButton"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 8))
+        preview.tap()
+
+        for title in ["Today's Actions", "BP Readings", "Action Studio", "Action Adjustment"] {
+            XCTAssertTrue(app.tabBars.buttons[title].waitForExistence(timeout: 5))
+        }
+
+        let morning = app.buttons["today.bp.morning"].firstMatch
+        XCTAssertTrue(morning.waitForExistence(timeout: 5))
+        XCTAssertTrue(morning.label.contains("Morning Blood Pressure Measurement"))
+        let today = XCTAttachment(screenshot: app.screenshot())
+        today.name = "English - Today's Actions"
+        today.lifetime = .keepAlways
+        add(today)
+
+        app.tabBars.buttons["BP Readings"].tap()
+        XCTAssertTrue(app.staticTexts["BP Readings"].waitForExistence(timeout: 5))
+        let readings = XCTAttachment(screenshot: app.screenshot())
+        readings.name = "English - BP Readings"
+        readings.lifetime = .keepAlways
+        add(readings)
+
+        app.tabBars.buttons["Action Studio"].tap()
+        XCTAssertTrue(app.staticTexts["Action Studio"].waitForExistence(timeout: 5))
+        let context = app.buttons.containing(.staticText, identifier: "After sitting for a long time").firstMatch
+        XCTAssertTrue(scrollUntilHittable(context, in: app))
+        XCTAssertTrue(app.staticTexts["No special circumstances"].exists)
+        let studio = XCTAttachment(screenshot: app.screenshot())
+        studio.name = "English - Action Studio statuses"
+        studio.lifetime = .keepAlways
+        add(studio)
+
+        app.tabBars.buttons["Action Adjustment"].tap()
+        XCTAssertTrue(app.staticTexts["Action Adjustment"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No meal records yet. After you log a meal, dietary pattern suggestions will appear here."].waitForExistence(timeout: 5))
+        let adjustment = XCTAttachment(screenshot: app.screenshot())
+        adjustment.name = "English - Action Adjustment"
+        adjustment.lifetime = .keepAlways
+        add(adjustment)
+
+        app.terminate()
+        app.launchArguments = ["-bphealth.appLanguage", "zh-Hans"]
+        app.launch()
+        XCTAssertTrue(preview.waitForExistence(timeout: 8))
+        preview.tap()
+        XCTAssertTrue(app.tabBars.buttons["今日行动"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["today.bp.morning"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["today.bp.morning"].firstMatch.label, "早晨血压测量")
+        let chinese = XCTAttachment(screenshot: app.screenshot())
+        chinese.name = "Chinese - Today's Actions regression"
+        chinese.lifetime = .keepAlways
+        add(chinese)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

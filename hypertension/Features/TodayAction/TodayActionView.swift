@@ -13,8 +13,9 @@ struct TodayActionView: View {
     @State private var activeExerciseItem: TodayActionItem?
     @State private var isShowingAccountSettings = false
     @State private var mealRecords: [MealKind: MealRecord] = [:]
-    @State private var headerDisplayName = "我的"
+    @State private var headerDisplayName = L10n.string("我的")
     @State private var treeCompletionRate = 0.0
+    @State private var timelineCardHeights: [UUID: CGFloat] = [:]
     @Query private var savedReadings: [BloodPressureReading]
     private let mealRecordService = MealRecordService()
     private let exerciseActionService = ExerciseActionService()
@@ -168,7 +169,7 @@ struct TodayActionView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            ActionPageTitle(title: "今日行动", subtitle: "Today's Action")
+            ActionPageTitle(title: "今日行动", subtitle: "Today's Actions")
 
             Spacer()
 
@@ -187,7 +188,7 @@ struct TodayActionView: View {
                         )
                         .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
 
-                    Text(L10n.string(headerDisplayName))
+                    Text(headerDisplayName)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(DSTheme.Color.textPrimary)
                 }
@@ -223,7 +224,11 @@ struct TodayActionView: View {
                 copy.displayStatus = item.effectiveStatus(now: now)
                 return copy
             }
-            let layout = TimelinePositioner.layout(items: displayItems, now: now)
+            let layout = TimelinePositioner.layout(
+                items: displayItems,
+                now: now,
+                measuredHeights: timelineCardHeights
+            )
 
             TodayTreeTimelineView(
                 items: displayItems,
@@ -243,6 +248,9 @@ struct TodayActionView: View {
                 }
             )
             .frame(height: layout.contentHeight)
+            .onPreferenceChange(TimelineCardHeightKey.self) { heights in
+                timelineCardHeights = heights
+            }
         }
     }
 
@@ -917,7 +925,7 @@ private struct LowBarrierExerciseGenerationCard: View {
     }
 
     private var statusColumns: [GridItem] {
-        [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+        Array(repeating: GridItem(.flexible()), count: L10n.language == .english ? 2 : 3)
     }
 
     private func stepHeader(number: Int, title: String) -> some View {
@@ -1158,9 +1166,11 @@ private struct ActionPageTitle: View {
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
 
-            Text(L10n.string(subtitle))
-                .font(subtitleFont)
-                .foregroundStyle(DSTheme.Color.textSecondary)
+            if L10n.language != .english {
+                Text(L10n.string(subtitle))
+                    .font(subtitleFont)
+                    .foregroundStyle(DSTheme.Color.textSecondary)
+            }
         }
     }
 }
@@ -1509,11 +1519,13 @@ private struct StatusChip: View {
                 Text(L10n.string(title))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(isSelected ? DSTheme.Color.primary : DSTheme.Color.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
-            .frame(height: 72)
+            .frame(minHeight: L10n.language == .english ? 96 : 72)
             .background(.white)
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -1626,7 +1638,6 @@ private struct TodayTreeTimelineView: View {
 
                 ForEach(items.sorted(by: TimelinePositioner.itemSort)) { item in
                     let y = layout.itemY[item.id] ?? TimelinePositioner.topInset
-                    let cardHeight = layout.itemHeight[item.id] ?? TimelinePositioner.cardHeight(for: item)
                     let isMeal = item.type == .diet
                     let cardX = isMeal ? rightCardX : leftCardX
                     let cardEdgeX = isMeal ? cardX - cardWidth / 2 + 6 : cardX + cardWidth / 2 - 6
@@ -1645,7 +1656,16 @@ private struct TodayTreeTimelineView: View {
                         item: item,
                         usesCompactHeader: cardWidth < 145
                     )
-                        .frame(width: cardWidth, height: cardHeight)
+                        .frame(width: cardWidth)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .background {
+                            GeometryReader { cardProxy in
+                                Color.clear.preference(
+                                    key: TimelineCardHeightKey.self,
+                                    value: [item.id: ceil(cardProxy.size.height)]
+                                )
+                            }
+                        }
                         .position(x: cardX, y: y)
                         .accessibilityIdentifier(accessibilityIdentifier(for: item, isMeal: isMeal))
                         .accessibilityLabel(accessibilityLabel(for: item, isMeal: isMeal))
@@ -1679,7 +1699,7 @@ private struct TodayTreeTimelineView: View {
 
     private func accessibilityLabel(for item: TodayActionItem, isMeal: Bool) -> String {
         guard isMeal, let rule = MealTimingRule(actionTitle: item.title) else {
-            return item.title
+            return L10n.string(item.title)
         }
         return L10n.format("%@，建议时间，%@", L10n.string(item.title), L10n.string(rule.message))
     }
@@ -1700,14 +1720,26 @@ struct TimelineTimeRow: Identifiable {
     let tint: Color
 }
 
+private struct TimelineCardHeightKey: PreferenceKey {
+    static var defaultValue: [UUID: CGFloat] { [:] }
+
+    static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
 struct TimelinePositioner {
-    static let topInset: CGFloat = 62
+    static let topInset: CGFloat = 90
     static let bottomInset: CGFloat = 58
     private static let sameLaneGap: CGFloat = 10
     private static let currentRowHeight: CGFloat = 46
     private static let minimumContentHeight: CGFloat = 640
 
-    static func layout(items: [TodayActionItem], now: Date) -> TimelineLayout {
+    static func layout(
+        items: [TodayActionItem],
+        now: Date,
+        measuredHeights: [UUID: CGFloat] = [:]
+    ) -> TimelineLayout {
         let groupedItems = Dictionary(grouping: items) { minuteKey(for: $0.scheduledStartAt) }
         var entries = groupedItems.map { key, group in
             TimelineLayoutEntry.actions(
@@ -1735,12 +1767,12 @@ struct TimelinePositioner {
             case .actions(let key, let date, let groupItems):
                 let leftItems = groupItems.filter { $0.type != .diet }
                 let rightItems = groupItems.filter { $0.type == .diet }
-                let leftHeight = laneHeight(for: leftItems)
-                let rightHeight = laneHeight(for: rightItems)
+                let leftHeight = laneHeight(for: leftItems, measuredHeights: measuredHeights)
+                let rightHeight = laneHeight(for: rightItems, measuredHeights: measuredHeights)
                 let rowHeight = max(leftHeight, rightHeight, 48)
 
-                assign(leftItems, rowTop: cursor, rowHeight: rowHeight, itemY: &itemY, itemHeight: &itemHeight)
-                assign(rightItems, rowTop: cursor, rowHeight: rowHeight, itemY: &itemY, itemHeight: &itemHeight)
+                assign(leftItems, rowTop: cursor, rowHeight: rowHeight, measuredHeights: measuredHeights, itemY: &itemY, itemHeight: &itemHeight)
+                assign(rightItems, rowTop: cursor, rowHeight: rowHeight, measuredHeights: measuredHeights, itemY: &itemY, itemHeight: &itemHeight)
 
                 let tint = groupItems.allSatisfy { $0.displayStatus == .completed }
                     ? DSTheme.Color.success
@@ -1800,9 +1832,9 @@ struct TimelinePositioner {
         Int(date.timeIntervalSinceReferenceDate / 60)
     }
 
-    private static func laneHeight(for items: [TodayActionItem]) -> CGFloat {
+    private static func laneHeight(for items: [TodayActionItem], measuredHeights: [UUID: CGFloat]) -> CGFloat {
         guard !items.isEmpty else { return 0 }
-        return items.reduce(CGFloat.zero) { $0 + cardHeight(for: $1) }
+        return items.reduce(CGFloat.zero) { $0 + (measuredHeights[$1.id] ?? cardHeight(for: $1)) }
             + CGFloat(max(items.count - 1, 0)) * sameLaneGap
     }
 
@@ -1810,14 +1842,15 @@ struct TimelinePositioner {
         _ items: [TodayActionItem],
         rowTop: CGFloat,
         rowHeight: CGFloat,
+        measuredHeights: [UUID: CGFloat],
         itemY: inout [UUID: CGFloat],
         itemHeight: inout [UUID: CGFloat]
     ) {
-        let stackHeight = laneHeight(for: items)
+        let stackHeight = laneHeight(for: items, measuredHeights: measuredHeights)
         var offset = rowTop + max((rowHeight - stackHeight) / 2, 0)
 
         for item in items {
-            let height = cardHeight(for: item)
+            let height = measuredHeights[item.id] ?? cardHeight(for: item)
             itemY[item.id] = offset + height / 2
             itemHeight[item.id] = height
             offset += height + sameLaneGap
@@ -1868,8 +1901,8 @@ private struct TimelineLaneHeader: View {
             Text(L10n.string(title))
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.46))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -1916,8 +1949,7 @@ private struct DesignActionCard: View {
         .padding(10)
         .frame(
             maxWidth: .infinity,
-            minHeight: item.type == .diet && item.displayStatus == .completed ? 288 : 116,
-            maxHeight: .infinity,
+            minHeight: TimelinePositioner.cardHeight(for: item),
             alignment: .topLeading
         )
         .background(.white)
@@ -1927,7 +1959,20 @@ private struct DesignActionCard: View {
 
     @ViewBuilder
     private var cardHeader: some View {
-        if usesCompactHeader {
+        if L10n.language == .english {
+            VStack(alignment: .leading, spacing: 6) {
+                titleText
+
+                HStack(alignment: .center, spacing: 6) {
+                    if item.type != .bpRecheck && item.type != .diet {
+                        subtitleText
+                    }
+                    Spacer(minLength: 0)
+                    TimelineActionArtwork(item: item)
+                        .frame(width: 44, height: 44)
+                }
+            }
+        } else if usesCompactHeader {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .top, spacing: 4) {
                     titleText
@@ -1971,8 +2016,6 @@ private struct DesignActionCard: View {
         Text(L10n.string(item.title))
             .font(.caption.weight(.bold))
             .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
-            .lineLimit(2)
-            .minimumScaleFactor(0.82)
             .fixedSize(horizontal: false, vertical: true)
     }
 

@@ -321,9 +321,9 @@ enum BPReadingSource: String, Hashable {
     var label: String {
         switch self {
         case .cameraRecognition:
-            "拍照识别"
+            L10n.string("拍照识别")
         case .manual:
-            "手动输入"
+            L10n.string("手动输入")
         }
     }
 

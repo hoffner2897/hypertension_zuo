@@ -623,14 +623,18 @@ struct BloodPressureHomeView: View {
                     .font(.headline)
                     .foregroundStyle(DSTheme.Color.textPrimary)
 
-                HStack(spacing: DSTheme.Spacing.small) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(Self.historyDateFormatter.string(from: reading.measuredAt))
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    if let pulse = reading.pulse {
-                        Text(L10n.format("脉搏 %d", pulse))
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: DSTheme.Spacing.small) {
+                            historyReadingDetails(reading)
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            historyReadingDetails(reading)
+                        }
                     }
-
-                    Text(BPReadingSource.fromStoredValue(reading.source).label)
                 }
                 .font(.caption)
                 .foregroundStyle(DSTheme.Color.textSecondary)
@@ -662,6 +666,14 @@ struct BloodPressureHomeView: View {
             .accessibilityLabel(L10n.format("管理 %d/%d 读数", reading.systolic, reading.diastolic))
         }
         .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func historyReadingDetails(_ reading: BloodPressureReading) -> some View {
+        if let pulse = reading.pulse {
+            Text(L10n.format("脉搏 %d", pulse))
+        }
+        Text(BPReadingSource.fromStoredValue(reading.source).label)
     }
 
     private func refreshAfterLocalChange() {

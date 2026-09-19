@@ -213,7 +213,7 @@ struct MealRecordSheet: View {
 
             ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(section.0)
+                    Text(L10n.string(section.0))
                         .font(.headline)
                         .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.40))
                     Text(section.1)
